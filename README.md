@@ -38,6 +38,11 @@ Open existing system- Used to edit an already made system (1.5+)
 5) Select the system.zip you just compressed.
 6) You can explore the system in the editor and make changes to it.
 
+Known Bugs-
+Innacurate SOI
+Cloud related bugs
+Hieghtmap Related bugs
+Minor UI Issues
 
 (Im not responsible if you steal and edit someone's system without their given permission OR steal and provide the SFS assets that i provided.)
 
