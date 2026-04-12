@@ -6,6 +6,8 @@
 
 ## How to use Online-
 1) Go to the website https://tserieskinda.github.io/Sfs-System-Editor/
+2) Wait for the assets to load automatically.
+3) Now you can Use the program, no external zip needed From the website.
 
 If you're on mobile/weak device You might have to wait a bit more.
 # Create a new system-
