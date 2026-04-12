@@ -886,6 +886,24 @@ body {
   font-family: 'JetBrains Mono', monospace; font-size: .68rem;
   color: var(--ink4); letter-spacing: .08em;
 }
+.loading-bars { margin-top: 18px; width: 260px; }
+.loading-bar-row { margin-bottom: 10px; }
+.loading-bar-label {
+  font-family: 'JetBrains Mono', monospace; font-size: .6rem;
+  color: var(--ink4); letter-spacing: .07em;
+  display: flex; justify-content: space-between; margin-bottom: 4px;
+}
+.loading-bar-track {
+  width: 100%; height: 4px; border-radius: 2px;
+  background: rgba(255,255,255,.07);
+  overflow: hidden;
+}
+.loading-bar-fill {
+  height: 100%; width: 0%; border-radius: 2px;
+  transition: width .12s ease-out;
+  background: linear-gradient(90deg, var(--sky2), #a78fff);
+}
+.loading-bar-fill.complete { background: var(--jade); }
 /* Drag-over highlight for zip drop zone */
 .drop-zone.drag-over {
   border-color: var(--sky2);
@@ -1070,7 +1088,7 @@ body {
       <span class="mico">◈</span>OPEN EXISTING SYSTEM
       <span class="arr">›</span>
     </button>
-    <button class="menu-btn" onclick="triggerFileInput('fi-sfs-assets')" title="Load one or more SFS asset zips — textures and presets are detected and loaded automatically">
+    <button id="btn-load-assets" class="menu-btn" onclick="triggerFileInput('fi-sfs-assets')" title="Load one or more SFS asset zips — textures and presets are detected and loaded automatically">
       <span class="mico">🗂️</span>LOAD SFS ASSETS
       <span class="arr">›</span>
     </button>
@@ -2033,8 +2051,24 @@ body {
 <div id="loading-overlay">
   <div class="loading-inner">
     <div class="loading-spinner"></div>
-    <div class="loading-title">LOADING SYSTEM</div>
+    <div class="loading-title" id="loading-title">LOADING SYSTEM</div>
     <div class="loading-sub" id="loading-msg">Reading zip…</div>
+    <div class="loading-bars" id="loading-bars" style="display:none">
+      <div class="loading-bar-row">
+        <div class="loading-bar-label">
+          <span id="bar1-label">DECOMPRESSING</span>
+          <span id="bar1-pct">0%</span>
+        </div>
+        <div class="loading-bar-track"><div class="loading-bar-fill" id="bar1-fill"></div></div>
+      </div>
+      <div class="loading-bar-row">
+        <div class="loading-bar-label">
+          <span id="bar2-label">LOADING TEXTURES</span>
+          <span id="bar2-pct">—</span>
+        </div>
+        <div class="loading-bar-track"><div class="loading-bar-fill" id="bar2-fill"></div></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -7196,8 +7230,70 @@ async function decompressEntries(raw){
 }
 
 function setLoadingMsg(msg){ document.getElementById('loading-msg').textContent = msg; }
+function setLoadingTitle(t){ document.getElementById('loading-title').textContent = t; }
 function showLoading(){ document.getElementById('loading-overlay').classList.add('show'); }
 function hideLoading(){ document.getElementById('loading-overlay').classList.remove('show'); }
+
+function showLoadingBars(){ document.getElementById('loading-bars').style.display = ''; }
+function hideLoadingBars(){ document.getElementById('loading-bars').style.display = 'none'; }
+
+function setBar1(pct, label){
+  const fill = document.getElementById('bar1-fill');
+  const pctEl = document.getElementById('bar1-pct');
+  const labelEl = document.getElementById('bar1-label');
+  if(fill){ fill.style.width = pct + '%'; if(pct>=100) fill.classList.add('complete'); else fill.classList.remove('complete'); }
+  if(pctEl) pctEl.textContent = Math.round(pct) + '%';
+  if(label && labelEl) labelEl.textContent = label;
+}
+function setBar2(pct, label){
+  const fill = document.getElementById('bar2-fill');
+  const pctEl = document.getElementById('bar2-pct');
+  const labelEl = document.getElementById('bar2-label');
+  if(fill){ fill.style.width = pct + '%'; if(pct>=100) fill.classList.add('complete'); else fill.classList.remove('complete'); }
+  if(pctEl) pctEl.textContent = pct === null ? '—' : Math.round(pct) + '%';
+  if(label && labelEl) labelEl.textContent = label;
+}
+
+// Yield to the browser so it can repaint and stay responsive
+function _yield(){ return new Promise(r => setTimeout(r, 0)); }
+
+async function decompressEntries(raw, onProgress){
+  const out = {};
+  const keys = Object.keys(raw);
+  const total = keys.length;
+  for(let i = 0; i < total; i++){
+    const name = keys[i];
+    const val = raw[name];
+    if(val instanceof Uint8Array){
+      out[name] = val;
+    } else {
+      try {
+        const ds = new DecompressionStream('deflate-raw');
+        const writer = ds.writable.getWriter();
+        writer.write(val.compressed);
+        writer.close();
+        const chunks = [];
+        const reader = ds.readable.getReader();
+        while(true){
+          const {done, value} = await reader.read();
+          if(done) break;
+          chunks.push(value);
+        }
+        const full = new Uint8Array(val.uncompSize);
+        let off2 = 0;
+        for(const c of chunks){ full.set(c, off2); off2 += c.length; }
+        out[name] = full;
+      } catch(e){ console.warn('Decompress failed:', name, e); }
+    }
+    // Yield every 8 entries to let the browser repaint
+    if(i % 8 === 0){
+      if(onProgress) onProgress((i + 1) / total * 100);
+      await _yield();
+    }
+  }
+  if(onProgress) onProgress(100);
+  return out;
+}
 
 function handleZipDrop(e){
   e.preventDefault();
@@ -7214,9 +7310,12 @@ async function loadZipFile(file){
   try{
     const buffer = await file.arrayBuffer();
     setLoadingMsg('Parsing entries…');
+    showLoadingBars();
+    setBar1(0, 'DECOMPRESSING');
+    setBar2(0, 'LOADING BODIES');
     const rawEntries = parseZip(buffer);
     setLoadingMsg('Decompressing…');
-    const entries = await decompressEntries(rawEntries);
+    const entries = await decompressEntries(rawEntries, pct => setBar1(pct));
 
     const dec = bytes => new TextDecoder().decode(bytes);
 
@@ -7251,8 +7350,13 @@ async function loadZipFile(file){
     refreshTexPickerLists();
 
     let planetCount = 0;
+    const entryKeys = Object.keys(entries);
+    const entryTotal = entryKeys.length || 1;
+    let entryIdx = 0;
 
     for(const [path, data] of Object.entries(entries)){
+      entryIdx++;
+      setBar2(entryIdx / entryTotal * 100);
       const parts = path.split('/');
       // Normalise: strip leading system folder if present
       // path could be: "Sun/Planet Data/Earth.txt" or "Planet Data/Earth.txt"
@@ -7330,7 +7434,7 @@ async function loadZipFile(file){
       }
     }
 
-    if(planetCount === 0){ hideLoading(); alert('No planet files found in zip. Make sure it contains a Planet Data/ folder.'); return; }
+    if(planetCount === 0){ hideLoading(); hideLoadingBars(); setLoadingTitle('LOADING SYSTEM'); alert('No planet files found in zip. Make sure it contains a Planet Data/ folder.'); return; }
 
     // Elect exactly one center: the no-orbit body with the largest radius.
     // All other no-orbit bodies are left as non-center (they'll sit at world origin).
@@ -7354,10 +7458,10 @@ async function loadZipFile(file){
     refreshTexPickerLists();
     updateAssetEmptyState();
     console.log(`[SFS|LOAD] done — ${planetCount} bodies, textureCache keys: [${Object.keys(textureCache).join(',')}]`);
-    setTimeout(() => { hideLoading(); goNew(); setTimeout(() => { console.log('[SFS|LOAD] delayed redraw, textureCache:', Object.keys(textureCache)); drawViewport(); }, 500); }, 350);
+    setTimeout(() => { hideLoading(); hideLoadingBars(); setLoadingTitle('LOADING SYSTEM'); goNew(); setTimeout(() => { console.log('[SFS|LOAD] delayed redraw, textureCache:', Object.keys(textureCache)); drawViewport(); }, 500); }, 350);
 
   } catch(err){
-    hideLoading();
+    hideLoading(); hideLoadingBars(); setLoadingTitle('LOADING SYSTEM');
     console.error('Load error:', err);
     alert('Failed to load zip: ' + err.message);
   }
@@ -7366,6 +7470,101 @@ async function loadZipFile(file){
 
 // ── Default texture zip loader ──
 // Maps folder names from the default texture ZIP to asset categories.
+
+// ── Remote assets URL ─────────────────────────────────────────────────────────
+// Set this to your hosted zip URL. Online users get assets automatically.
+// Set to null to disable remote loading (manual upload only).
+// Same-origin GitHub Pages URLs — no CORS proxy needed.
+const REMOTE_ASSETS_URLS = [
+  'assets/Vanilla Presets.zip',
+  'assets/Vanilla Textures 2.zip',
+  'assets/Custom Presets and Files.zip',
+];
+
+// Auto-fetch remote asset zip on startup (online users only).
+// Falls back gracefully if offline or URL is null.
+async function autoLoadRemoteAssets(){
+  if(!REMOTE_ASSETS_URLS || !REMOTE_ASSETS_URLS.length) return;
+  const statusEl = document.getElementById('default-tex-status');
+  const btn = document.getElementById('btn-load-assets');
+  if(statusEl){ statusEl.textContent = '⟳ Fetching assets…'; statusEl.style.color = 'var(--sky2)'; }
+
+  let totalTextures = 0, totalPresets = 0, errors = 0;
+
+  showLoading();
+  showLoadingBars();
+  setLoadingTitle('LOADING ASSETS');
+
+  for(let i = 0; i < REMOTE_ASSETS_URLS.length; i++){
+    const url = REMOTE_ASSETS_URLS[i];
+    const fname = url.split('/').pop();
+    setLoadingMsg(`(${i+1}/${REMOTE_ASSETS_URLS.length}) ${fname}`);
+    setBar1(0, 'DOWNLOADING');
+    setBar2(null, 'LOADING TEXTURES');
+
+    try{
+      const resp = await fetch(url);
+      if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+      // Stream download with bar1 progress if Content-Length is known
+      const contentLength = resp.headers.get('Content-Length');
+      let buffer;
+      if(contentLength){
+        const total = parseInt(contentLength, 10);
+        const reader = resp.body.getReader();
+        const chunks = [];
+        let received = 0;
+        while(true){
+          const {done, value} = await reader.read();
+          if(done) break;
+          chunks.push(value);
+          received += value.length;
+          setBar1(received / total * 100);
+        }
+        const full = new Uint8Array(received);
+        let off = 0;
+        for(const c of chunks){ full.set(c, off); off += c.length; }
+        buffer = full.buffer;
+      } else {
+        // No Content-Length — just fetch and pulse bar indeterminate
+        setBar1(50, 'DOWNLOADING…');
+        buffer = await resp.arrayBuffer();
+        setBar1(100);
+      }
+
+      setBar1(100, 'DECOMPRESSING');
+      const res = await _loadSFSAssetBuffer(
+        buffer, fname,
+        pct => setBar1(pct, 'DECOMPRESSING'),
+        pct => setBar2(pct)
+      );
+      totalTextures += res.totalTextures;
+      totalPresets  += res.totalPresets;
+      errors        += res.errors;
+    } catch(err){
+      console.warn(`[SFS] Failed to load ${fname}:`, err);
+      errors++;
+    }
+  }
+
+  hideLoading();
+  hideLoadingBars();
+  setLoadingTitle('LOADING SYSTEM');
+
+  const parts = [];
+  if(totalTextures > 0) parts.push(`${totalTextures} texture${totalTextures!==1?'s':''}`);
+  if(totalPresets  > 0) parts.push(`${totalPresets} preset${totalPresets!==1?'s':''}`);
+  if(statusEl){
+    if(errors > 0 && totalTextures === 0){
+      statusEl.textContent = '⚠ Remote assets unavailable — upload zip manually';
+      statusEl.style.color = 'var(--amber)';
+    } else {
+      statusEl.textContent = parts.length ? `✓ Assets loaded: ${parts.join(', ')}` : '✓ Assets loaded';
+      statusEl.style.color = 'var(--jade)';
+    }
+  }
+  if(btn && totalTextures > 0){ btn.title = 'Remote assets loaded — click to load additional local zips'; }
+}
 
 // ── Dynamic preset store — populated when asset zips are loaded ──────────────
 // Overrides FILE_PRESETS when populated. Each key is a preset name, value is data.
@@ -7397,84 +7596,110 @@ function _parsePresetTxt(raw){
 }
 
 // ── Unified SFS asset zip loader ──────────────────────────────────────────────
-// Accepts one or more zips containing any combination of:
-//   */Planet Data/*.txt       → preset files (vanilla or custom)
-//   */Texture Data/*.(img)    → textures
-//   */Heightmap Data/*        → IGNORED (heightmaps not yet supported)
-//   (legacy) flat image files  → textures (backwards compat with old texture-only zips)
+// Accepts one or more zips containing any combination of:\n//   */Planet Data/*.txt       → preset files (vanilla or custom)\n//   */Texture Data/*.(img)    → textures\n//   */Heightmap Data/*        → IGNORED (heightmaps not yet supported)\n//   (legacy) flat image files  → textures (backwards compat with old texture-only zips)
+
+// Core single-zip processor — used by both manual upload and remote auto-load.
+async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgress){
+  const rawEntries = parseZip(buffer);
+  const entries = await decompressEntries(rawEntries, onDecompProgress);
+  let totalTextures = 0, totalPresets = 0, errors = 0;
+
+  // Pre-count texture entries for progress reporting
+  const allEntries = Object.entries(entries);
+  const texTotal = allEntries.filter(([path]) => {
+    const p = path.replace(/\\/g, '/').toLowerCase();
+    const ext = p.split('.').pop();
+    return ['png','jpg','jpeg','webp'].includes(ext) && !_isHeightmapPath(p) && !p.includes('planet data');
+  }).length || 1;
+  let texDone = 0;
+
+  for(let i = 0; i < allEntries.length; i++){
+    const [path, data] = allEntries[i];
+    const normPath = path.replace(/\\/g, '/');
+    const pathLower = normPath.toLowerCase();
+    const parts = normPath.split('/');
+    const filename = parts[parts.length - 1];
+    if(!filename) continue;
+
+    if(_isHeightmapPath(pathLower)) continue;
+
+    const ext = filename.split('.').pop().toLowerCase();
+
+    if(ext === 'txt' && pathLower.includes('planet data')){
+      const dec = new TextDecoder().decode(data);
+      const parsed = _parsePresetTxt(dec);
+      if(parsed){
+        const pname = filename.replace(/\.txt$/i, '').trim();
+        const cat = _presetCategory(pathLower) || 'custom';
+        dynamicPresets[cat][pname] = parsed;
+        totalPresets++;
+      } else { errors++; }
+      continue;
+    }
+
+    if(['png','jpg','jpeg','webp'].includes(ext)){
+      const inOtherDataFolder = pathLower.includes('planet data') || pathLower.includes('heightmap');
+      if(inOtherDataFolder) continue;
+
+      const mime = (ext==='jpg'||ext==='jpeg') ? 'image/jpeg'
+                 : ext==='webp' ? 'image/webp' : 'image/png';
+      const b64 = btoa(Array.from(data).map(b=>String.fromCharCode(b)).join(''));
+      const url = `data:${mime};base64,${b64}`;
+      const texName = filename.replace(/\.[^.]+$/, '');
+      cacheTexture(texName, url);
+
+      if(!assets.textures.find(a=>a.name===filename)){
+        const isVanillaTex = _presetCategory(pathLower) === 'vanilla';
+        const entry = { name:filename, url, size:data.length, vanilla:isVanillaTex };
+        assets.textures.push(entry);
+        renderAssetThumb(entry);
+        totalTextures++;
+      }
+
+      texDone++;
+      if(onTexProgress) onTexProgress(texDone / texTotal * 100);
+      // Yield every 4 textures — btoa on large images is expensive on weak devices
+      if(texDone % 4 === 0) await _yield();
+    }
+  }
+
+  if(totalTextures > 0){ refreshTexPickerLists(); updateAssetEmptyState(); drawViewport(); }
+  return { totalTextures, totalPresets, errors };
+}
+
 async function loadSFSAssetZips(files){
   if(!files || !files.length) return;
   const statusEl = document.getElementById('default-tex-status');
-  if(statusEl) statusEl.textContent = 'Reading…';
-
   let totalTextures = 0, totalPresets = 0, errors = 0;
 
+  showLoading();
+  showLoadingBars();
+  setLoadingTitle('LOADING ASSETS');
+  setBar1(0, 'DECOMPRESSING');
+  setBar2(null, 'LOADING TEXTURES');
+
   for(const file of Array.from(files)){
-    if(statusEl) statusEl.textContent = `Reading ${file.name}…`;
+    setLoadingMsg(file.name);
+    setBar1(0); setBar2(null);
     try{
       const buffer = await file.arrayBuffer();
-      const rawEntries = parseZip(buffer);
-      const entries = await decompressEntries(rawEntries);
-
-      for(const [path, data] of Object.entries(entries)){
-        const normPath = path.replace(/\\/g, '/');
-        const pathLower = normPath.toLowerCase();
-        const parts = normPath.split('/');
-        const filename = parts[parts.length - 1];
-        if(!filename) continue;
-
-        // ── Skip everything inside any heightmap folder ──────────────────────
-        if(_isHeightmapPath(pathLower)) continue;
-
-        const ext = filename.split('.').pop().toLowerCase();
-
-        // ── Preset .txt files ────────────────────────────────────────────────
-        if(ext === 'txt' && pathLower.includes('planet data')){
-          const dec = new TextDecoder().decode(data);
-          const parsed = _parsePresetTxt(dec);
-          if(parsed){
-            const pname = filename.replace(/\.txt$/i, '').trim();
-            const cat = _presetCategory(pathLower) || 'custom';
-            dynamicPresets[cat][pname] = parsed;
-            totalPresets++;
-          } else {
-            errors++;
-          }
-          continue;
-        }
-
-        // ── Texture image files ──────────────────────────────────────────────
-        if(['png','jpg','jpeg','webp'].includes(ext)){
-          // Must be in a Texture Data folder (not a heightmap folder — already handled above)
-          // Also accept flat legacy zips that have images at the root level
-          const inTextureFolder = pathLower.includes('texture data') || pathLower.includes('texture_data');
-          const inOtherDataFolder = pathLower.includes('planet data') || pathLower.includes('heightmap');
-          console.log(`[SFS|ASSET] image "${filename}" inTextureFolder:${inTextureFolder} inOtherDataFolder:${inOtherDataFolder} path:"${normPath}"`);
-          if(inOtherDataFolder) continue; // images inside planet data folders are not textures
-
-          const mime = (ext==='jpg'||ext==='jpeg') ? 'image/jpeg'
-                     : ext==='webp' ? 'image/webp' : 'image/png';
-          const b64 = btoa(Array.from(data).map(b=>String.fromCharCode(b)).join(''));
-          const url = `data:${mime};base64,${b64}`;
-          const texName = filename.replace(/\.[^.]+$/, '');
-          cacheTexture(texName, url);
-
-          if(!assets.textures.find(a=>a.name===filename)){
-            // Mark textures from a vanilla zip so the exporter skips them
-            // (the game already ships these — no need to bundle them in the system zip)
-            const isVanillaTex = _presetCategory(pathLower) === 'vanilla';
-            const entry = { name:filename, url, size:data.length, vanilla:isVanillaTex };
-            assets.textures.push(entry);
-            renderAssetThumb(entry);
-            totalTextures++;
-          }
-        }
-      }
+      const res = await _loadSFSAssetBuffer(
+        buffer, file.name,
+        pct => setBar1(pct),
+        pct => setBar2(pct)
+      );
+      totalTextures += res.totalTextures;
+      totalPresets  += res.totalPresets;
+      errors        += res.errors;
     } catch(err){
       console.error('Asset zip error:', file.name, err);
       errors++;
     }
   }
+
+  hideLoading();
+  hideLoadingBars();
+  setLoadingTitle('LOADING SYSTEM');
 
   // Build status message
   const parts = [];
@@ -7500,6 +7725,8 @@ async function loadSFSAssetZips(files){
 
 // Init — resize on first load
 setTimeout(resizeViewport, 50);
+// Auto-fetch remote assets if URL is configured (no-op when REMOTE_ASSETS_URL is null)
+autoLoadRemoteAssets();
 
 // ════════════════════════════════ BODY SEARCH ════════════════════════════════
 function openBodySearch(){
