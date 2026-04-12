@@ -1,3 +1,6 @@
+# Tutorial 
+(How to start + Features and uses)
+
 ## How to use Online-
 1) Go to the website https://tserieskinda.github.io/Sfs-System-Editor/
 2) Wait for the assets to load automatically.
@@ -6,6 +9,17 @@
 If Bad internet, click on cancel and load manually or Just Read "How to use offline"
 
 If you're on mobile/weak device You might have to wait a bit more.
+
+## How to use offline
+1) Download these two files-
+  The zip
+  The Program
+2) Open open the index.html with a browser
+3) Click on load sfs assets
+4) Navigate to the Zip file you just downloaded
+5) Click on the zip file and wait for it to load
+Now you can use the program.
+
 # Create a new system-
 Select a system centre, you can choose from the many presets available from the zip.
 Add body- allows you to add a body orbiting whatever you just selected
