@@ -42,6 +42,13 @@ Allows to edit things like import settins, space center location and version and
 ### Export button- 
 Exports the system you just made, make sure to set the space center on a planet or the system wont load.
 
+## Environments (Globe) icon-
+Allows to disable certain rendering Like
+Disable SOI Circle, Atmosphere, Water, Fog, Post processing,
+Clouds, Front clouds, Surface Texture 
+
+Disable post processing and Fog if your device is TOO weak.
+
 # Open existing system- 
 Used to edit an already made system (1.5+)
 1) Locate the system folder you want to load
