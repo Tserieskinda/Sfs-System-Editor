@@ -9,6 +9,8 @@
 2) Wait for the assets to load automatically.
 3) Now you can Use the program, no external zip needed From the website.
 
+If Bad internet, click on cancel and load manually or Just Read "How to use offline"
+
 If you're on mobile/weak device You might have to wait a bit more.
 # Create a new system-
 Select a system centre, you can choose from the many presets available from the zip.
