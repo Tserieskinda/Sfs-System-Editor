@@ -702,4 +702,3 @@ document.getElementById('modal-theme').addEventListener('touchstart', function(e
 _syncThemeBtns();
 setTimeout(_syncEnvButtons, 0);
 show('s-start');
-</script>
