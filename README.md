@@ -1,9 +1,3 @@
-## How to use Offline-
-1) Download the zip from (https://github.com/Tserieskinda/Sfs-System-Editor/releases/download/v5_0/SFS.Textures.+.Presets.zip) and html from github https://github.com/Tserieskinda/Sfs-System-Editor/blob/main/index.html
-2) Open the Html with a browser
-3) In the main screen, Click on "Load SFS Assets", go to your downloads and select the zip you just downloaded from proton.
-4) Wait for the assets to load and then you can load any custom systems or create a new one, the buttons are pretty intuitive.
-
 ## How to use Online-
 1) Go to the website https://tserieskinda.github.io/Sfs-System-Editor/
 2) Wait for the assets to load automatically.
