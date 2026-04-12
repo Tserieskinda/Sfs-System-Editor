@@ -68,7 +68,8 @@ Minor UI Issues
 4 Million solar mass black hole preset is broken, Do not use it
 Landmark is Broken
 
-
+## Warning
+Any unsaved progress will be delted and progress will be lost if you exit the program. Save progess by clicking Export.zip, and you can load the same zip later
 # Credits
 ***(Im not responsible if you steal and edit someone's system without their given permission OR steal and provide the SFS assets that i provided.)***
 
