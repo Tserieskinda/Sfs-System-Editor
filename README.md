@@ -7,8 +7,7 @@
 ## How to use Online-
 1) Go to the website https://tserieskinda.github.io/Sfs-System-Editor/
 
-If you're on mobile/weak device, sometimes you have to wait a bit(a minute at maximum) after uploading the zip, then there will be a small lag spike lasting 10~ seconds depending on device, this means the assets are being compiled, after this  the program will run smooth again. Even then, if you are lagging, turn off some of the post prpcessing/rendering from the environments icon (Globe icon)
-
+If you're on mobile/weak device You might have to wait a bit more.
 # Create a new system-
 Select a system centre, you can choose from the many presets available from the zip.
 Add body- allows you to add a body orbiting whatever you just selected
