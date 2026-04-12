@@ -73,7 +73,8 @@ Landmark is Broken
 
 things may break, bugs may appear, so i do not reccomend you to make a giant system witht this.
 Its still beta and has limited support for clouds and hieghtmaps, also it does not support 1.4~ and below systems.
-Its aimed to support both pc and mobile
+Its aimed to support both pc and mobile.
+
 Before you say, it is vibecoded.
 
 Thanks to Astray Galaxy and Neverger for the Zip assets.
