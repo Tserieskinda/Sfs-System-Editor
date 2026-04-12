@@ -81,4 +81,4 @@ Its aimed to support both pc and mobile.
 Before you say, it is vibecoded.
 
 Thanks to Astray Galaxy and Neverger for the Zip assets.
-Beta testers and contributors- Krameter, Mistiy, ReoreyBoi, Akselajin
+Beta testers and contributors- Krameter, Mistiy, ReoreyBoi, Akselajin, Cyn
