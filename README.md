@@ -41,7 +41,8 @@ Allows to edit things like import settins, space center location and version and
 ### Export button- 
 Exports the system you just made, make sure to set the space center on a planet or the system wont load.
 
-Open existing system- Used to edit an already made system (1.5+)
+# Open existing system- 
+Used to edit an already made system (1.5+)
 1) Locate the system folder you want to load
 2) Compress it into a zip, like- system.zip
 3) Open the progrma in a browser, load ths SFS assets that i provided.
@@ -59,7 +60,7 @@ Landmark is Broken
 
 
 # Credits
-(Im not responsible if you steal and edit someone's system without their given permission OR steal and provide the SFS assets that i provided.)
+***(Im not responsible if you steal and edit someone's system without their given permission OR steal and provide the SFS assets that i provided.)***
 
 
 things may break, bugs may appear, so i do not reccomend you to make a giant system witht this.
