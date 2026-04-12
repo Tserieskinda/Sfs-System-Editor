@@ -1,5 +1,5 @@
 ## How to use Offline-
-1) Download the zip from proton (https://drive.proton.me/urls/CPAM0T08X8#SiaPAeUzD42h) and html from github https://github.com/Tserieskinda/Sfs-System-Editor/blob/main/index.html
+1) Download the zip from (https://github.com/Tserieskinda/Sfs-System-Editor/releases/tag/v5_0) and html from github https://github.com/Tserieskinda/Sfs-System-Editor/blob/main/index.html
 2) Open the Html with a browser
 3) In the main screen, Click on "Load SFS Assets", go to your downloads and select the zip you just downloaded from proton.
 4) Wait for the assets to load and then you can load any custom systems or create a new one, the buttons are pretty intuitive.
