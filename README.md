@@ -3,7 +3,7 @@ How to use
 2) Open the Html with a browser
 3) In the main screen, Click on "Load SFS Assets", go to your downloads and select the zip you just downloaded from proton.
 4) Wait for the assets to load and then you can load any custom systems or create a new one, the buttons are pretty intuitive.
-If you're on mobile/weak device, sometimes you have to wait a bit, then there will be a small lag spike lasting 10~ seconds depending on device, this means the assets are being compiled, after this  the program will run smooth again. Even then, if you are lagginf, turn of some of the post prpcessing/rendering from the environments icon (Globe icon)
+If you're on mobile/weak device, sometimes you have to wait a bit(a minute at maximum) after uploading the zip, then there will be a small lag spike lasting 10~ seconds depending on device, this means the assets are being compiled, after this  the program will run smooth again. Even then, if you are lagging, turn off some of the post prpcessing/rendering from the environments icon (Globe icon)
 
 Create a new system-
 Select a system centre, you can choose from the many presets available from the zip.
