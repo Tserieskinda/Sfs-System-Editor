@@ -2069,6 +2069,14 @@ body {
         <div class="loading-bar-track"><div class="loading-bar-fill" id="bar2-fill"></div></div>
       </div>
     </div>
+    <button id="btn-cancel-remote" onclick="cancelRemoteAssets()"
+      style="display:none;margin-top:18px;background:none;border:1px solid rgba(255,100,60,.45);
+             color:rgba(255,140,80,.85);font-family:'Exo 2',sans-serif;font-size:.72rem;
+             letter-spacing:.08em;padding:6px 18px;cursor:pointer;
+             clip-path:polygon(4px 0,100% 0,100% 100%,0 100%,0 4px);
+             transition:border-color .15s,color .15s;">
+      CANCEL &amp; LOAD MANUALLY
+    </button>
   </div>
 </div>
 
@@ -7483,19 +7491,27 @@ const REMOTE_ASSETS_URLS = [
 
 // Auto-fetch remote asset zip on startup (online users only).
 // Falls back gracefully if offline or URL is null.
+let _remoteAbortCtrl = null;
+function cancelRemoteAssets(){ if(_remoteAbortCtrl) _remoteAbortCtrl.abort(); }
+
 async function autoLoadRemoteAssets(){
   if(!REMOTE_ASSETS_URLS || !REMOTE_ASSETS_URLS.length) return;
   const statusEl = document.getElementById('default-tex-status');
   const btn = document.getElementById('btn-load-assets');
+  const cancelBtn = document.getElementById('btn-cancel-remote');
   if(statusEl){ statusEl.textContent = '⟳ Fetching assets…'; statusEl.style.color = 'var(--sky2)'; }
 
-  let totalTextures = 0, totalPresets = 0, errors = 0;
+  let totalTextures = 0, totalPresets = 0, errors = 0, cancelled = false;
+  _remoteAbortCtrl = new AbortController();
+  const signal = _remoteAbortCtrl.signal;
 
   showLoading();
   showLoadingBars();
   setLoadingTitle('LOADING ASSETS');
+  if(cancelBtn) cancelBtn.style.display = '';
 
   for(let i = 0; i < REMOTE_ASSETS_URLS.length; i++){
+    if(signal.aborted){ cancelled = true; break; }
     const url = REMOTE_ASSETS_URLS[i];
     const fname = url.split('/').pop();
     setLoadingMsg(`(${i+1}/${REMOTE_ASSETS_URLS.length}) ${fname}`);
@@ -7503,7 +7519,7 @@ async function autoLoadRemoteAssets(){
     setBar2(null, 'LOADING TEXTURES');
 
     try{
-      const resp = await fetch(url);
+      const resp = await fetch(url, { signal });
       if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
       // Stream download with bar1 progress if Content-Length is known
@@ -7515,12 +7531,14 @@ async function autoLoadRemoteAssets(){
         const chunks = [];
         let received = 0;
         while(true){
+          if(signal.aborted){ reader.cancel(); cancelled = true; break; }
           const {done, value} = await reader.read();
           if(done) break;
           chunks.push(value);
           received += value.length;
           setBar1(received / total * 100);
         }
+        if(cancelled) break;
         const full = new Uint8Array(received);
         let off = 0;
         for(const c of chunks){ full.set(c, off); off += c.length; }
@@ -7542,14 +7560,22 @@ async function autoLoadRemoteAssets(){
       totalPresets  += res.totalPresets;
       errors        += res.errors;
     } catch(err){
+      if(err.name === 'AbortError'){ cancelled = true; break; }
       console.warn(`[SFS] Failed to load ${fname}:`, err);
       errors++;
     }
   }
 
+  _remoteAbortCtrl = null;
+  if(cancelBtn) cancelBtn.style.display = 'none';
   hideLoading();
   hideLoadingBars();
   setLoadingTitle('LOADING SYSTEM');
+
+  if(cancelled){
+    if(statusEl){ statusEl.textContent = '⚠ Download cancelled — upload zips manually'; statusEl.style.color = 'var(--amber)'; }
+    return;
+  }
 
   const parts = [];
   if(totalTextures > 0) parts.push(`${totalTextures} texture${totalTextures!==1?'s':''}`);
@@ -7563,7 +7589,7 @@ async function autoLoadRemoteAssets(){
       statusEl.style.color = 'var(--jade)';
     }
   }
-  if(btn && totalTextures > 0){ btn.title = 'Remote assets loaded — click to load additional local zips'; }
+  if(btn && totalTextures > 0){ btn.style.display = 'none'; }
 }
 
 // ── Dynamic preset store — populated when asset zips are loaded ──────────────
@@ -7720,7 +7746,10 @@ async function loadSFSAssetZips(files){
     }
   }
 
-  if(totalTextures > 0){ refreshTexPickerLists(); updateAssetEmptyState(); drawViewport(); }
+  if(totalTextures > 0){ refreshTexPickerLists(); updateAssetEmptyState(); drawViewport();
+    const btn = document.getElementById('btn-load-assets');
+    if(btn) btn.style.display = 'none';
+  }
 }
 
 // Init — resize on first load
