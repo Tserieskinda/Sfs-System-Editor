@@ -27,6 +27,47 @@
   --jade: #44aa77;
   --rose: #cc4455;
   --lilac: #8866cc;
+
+  /* ── UI accent tint (updated by color picker) ── */
+  --ui-hue: 220;
+  /* Accent rgba aliases — JS rewrites these on hue change */
+  --ac1:  rgba(64,128,255,1);   /* full */
+  --ac08: var(--ac08);
+  --ac10: rgba(64,128,255,.10);
+  --ac12: var(--ac12);
+  --ac13: var(--ac13);
+  --ac14: var(--ac14);
+  --ac15: var(--ac15);
+  --ac18: var(--ac18);
+  --ac20: rgba(64,128,255,.20);
+  --ac22: var(--ac22);
+  --ac25: var(--ac25);
+  --ac28: var(--ac28);
+  --ac30: rgba(64,128,255,.30);
+  --ac35: var(--ac35);
+  --ac40: rgba(64,128,255,.40);
+  --ac45: var(--ac45);
+  --ac50: rgba(64,128,255,.50);
+  --ac55: var(--ac55);
+  --ac62: var(--ac62);
+  --ac65: var(--ac65);
+  /* Dark panel tints */
+  --dp1:  var(--dp1);
+  --dp2:  var(--dp2);
+  --dp3:  var(--dp3);
+  --dp4:  var(--dp4);
+  --dp5:  var(--dp5);
+  --dp6:  var(--dp6);
+  /* Base overlay (nearly black) */
+  --ov1:  var(--ov1);
+  --ov2:  var(--ov2);
+  --ov3:  var(--ov3);
+  --ov4:  var(--ov4);
+  --ov5:  var(--ov5);
+  /* Highlight panel tint */
+  --hp1:  var(--hp1);
+  --hp2:  var(--hp2);
+  --hp3:  var(--dp6);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -276,6 +317,14 @@ body {
   opacity: 0; pointer-events: none; transition: opacity .2s;
 }
 #modal-syssettings.open { opacity: 1; pointer-events: all; }
+#modal-appsettings {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(10,10,12,.88);
+  backdrop-filter: blur(12px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity .25s;
+}
+#modal-appsettings.open { opacity: 1; pointer-events: all; }
 #modal-clear, #modal-delete, #modal-replace {
   background: rgba(10,10,12,.88);
   display: flex; align-items: center; justify-content: center;
@@ -503,7 +552,7 @@ body {
   font-family: 'JetBrains Mono', monospace; color: var(--ink2);
   transition: background .12s;
 }
-.tpick-opt:hover, .tpick-opt.active { background: rgba(64,128,255,.15); color: var(--sky2); }
+.tpick-opt:hover, .tpick-opt.active { background: var(--ac15); color: var(--sky2); }
 .tpick-opt-thumb {
   width: 24px; height: 24px; object-fit: cover; flex-shrink: 0;
   image-rendering: pixelated; border: 1px solid var(--rim); background: #111;
@@ -515,7 +564,7 @@ body {
 /* ═══ ASSETS MODAL (simplified) ═══ */
 #modal-assets {
   position: fixed; inset: 0; z-index: 200;
-  background: rgba(2,3,8,.85); backdrop-filter: blur(10px);
+  background: var(--ov2); backdrop-filter: blur(10px);
   display: flex; align-items: center; justify-content: center;
   opacity: 0; pointer-events: none; transition: opacity .3s;
 }
@@ -534,17 +583,17 @@ body {
   cursor: pointer; clip-path: polygon(6px 0,100% 0,100% 100%,0 100%,0 6px);
   transition: all .18s; white-space: nowrap; flex-shrink: 0;
 }
-.atab.on { border-color: var(--sky); color: var(--sky2); background: rgba(64,144,255,.08); }
+.atab.on { border-color: var(--sky); color: var(--sky2); background: var(--ac08); }
 .atab:hover:not(.on) { color: var(--ink2); border-color: var(--rim2); }
 
 .asset-panel { display: none; }
 .asset-panel.on { display: block; }
 
 .asset-drop {
-  border: 1.5px dashed rgba(64,128,255,.3); padding: 16px 12px; text-align: center;
+  border: 1.5px dashed var(--ac30); padding: 16px 12px; text-align: center;
   cursor: pointer; transition: all .2s; margin-bottom: 14px; border-radius: 2px;
 }
-.asset-drop:hover { border-color: rgba(64,160,255,.65); background: rgba(64,144,255,.04); }
+.asset-drop:hover { border-color: var(--ac65); background: var(--ac08); }
 .asset-drop span { font-size: 1.6rem; display: block; margin-bottom: 6px; opacity:.45; }
 .asset-drop p { font-size: .76rem; color: var(--ink2); margin-bottom: 3px; }
 .asset-drop small { font-size: .65rem; color: var(--ink4); font-family:'JetBrains Mono',monospace; }
@@ -610,7 +659,7 @@ body {
   font-size: clamp(2.4rem, 5vw, 3.8rem);
   font-weight: 900; letter-spacing: .1em;
   color: var(--ink3);
-  text-shadow: 0 0 40px rgba(64,144,255,.55), 0 0 80px rgba(64,144,255,.2);
+  text-shadow: 0 0 40px var(--ac55), 0 0 80px var(--ac20);
   line-height: 1;
 }
 .logo-main em { color: var(--sky2); font-style: normal; }
@@ -623,7 +672,7 @@ body {
 
 .menu-btn {
   position: relative; overflow: hidden;
-  background: linear-gradient(120deg, rgba(8,14,30,.95), rgba(5,10,22,.98));
+  background: linear-gradient(120deg, var(--dp6), var(--hp2));
   border: 1px solid var(--rim);
   color: var(--ink); font-family: 'Orbitron', sans-serif;
   font-size: .72rem; font-weight: 700; letter-spacing: .2em;
@@ -634,7 +683,7 @@ body {
 }
 .menu-btn::before {
   content: ''; position: absolute; inset: 0;
-  background: linear-gradient(90deg, rgba(64,144,255,.08) 0%, transparent 70%);
+  background: linear-gradient(90deg, var(--ac08) 0%, transparent 70%);
   opacity: 0; transition: opacity .2s;
 }
 .menu-btn::after {
@@ -644,7 +693,7 @@ body {
 }
 .menu-btn:hover { color: var(--ink3); border-color: var(--rim2); transform: translateX(6px); }
 .menu-btn:hover::before, .menu-btn:hover::after { opacity: 1; }
-.menu-btn.primary { border-color: rgba(64,144,255,.3); color: var(--sky3); }
+.menu-btn.primary { border-color: var(--ac30); color: var(--sky3); }
 .menu-btn.primary::after { opacity: .6; }
 .menu-btn .mico { display: inline-block; width: 22px; margin-right: 12px; opacity: .7; }
 .menu-btn .arr { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); opacity: .35; transition: opacity .2s, right .2s; font-size: .9rem; }
@@ -656,7 +705,7 @@ body {
 /* Top bar */
 .topbar {
   position: fixed; top: 0; left: 0; right: 0; height: 48px; z-index: 400;
-  background: rgba(2,3,8,.96); border-bottom: 1px solid var(--rim);
+  background: var(--ov5); border-bottom: 1px solid var(--rim);
   display: flex; align-items: center; padding: 0 16px; gap: 12px;
   backdrop-filter: blur(12px);
 }
@@ -681,8 +730,8 @@ body {
   transition: all .2s;
 }
 .tb-btn:hover { border-color: var(--rim2); color: var(--ink2); }
-.tb-btn.save { border-color: rgba(64,144,255,.4); color: var(--sky2); }
-.tb-btn.save:hover { background: rgba(64,144,255,.1); color: var(--ink3); }
+.tb-btn.save { border-color: var(--ac40); color: var(--sky2); }
+.tb-btn.save:hover { background: var(--ac10); color: var(--ink3); }
 .tb-btn.danger { border-color: rgba(255,64,96,.3); color: rgba(255,100,120,.8); }
 .tb-btn.danger:hover { border-color: rgba(255,64,96,.7); color: var(--rose); background: rgba(255,64,96,.08); }
 .tb-btn:disabled { opacity: .35; cursor: not-allowed; pointer-events: none; }
@@ -706,20 +755,20 @@ body {
 
 #modal-syssettings {
   position: fixed; inset: 0; z-index: 210;
-  background: rgba(2,3,8,.85); backdrop-filter: blur(10px);
+  background: var(--ov2); backdrop-filter: blur(10px);
   display: flex; align-items: center; justify-content: center;
   opacity: 0; pointer-events: none; transition: opacity .25s;
 }
 #modal-syssettings.open { opacity: 1; pointer-events: all; }
 #modal-clear, #modal-delete, #modal-replace {
-  background: rgba(2,3,8,.88); backdrop-filter: blur(10px);
+  background: var(--ov3); backdrop-filter: blur(10px);
   display: flex; align-items: center; justify-content: center;
   opacity: 0; pointer-events: none; transition: opacity .25s;
   position: fixed; inset: 0; z-index: 215;
 }
 #modal-clear.open, #modal-delete.open, #modal-replace.open { opacity: 1; pointer-events: all; }
 #replace-grid .pc { cursor:pointer; border:1px solid rgba(64,100,200,.3); border-radius:4px; padding:10px 6px; text-align:center; transition:border-color .15s,background .15s; }
-#replace-grid .pc:hover { border-color:rgba(64,160,255,.6); background:rgba(64,120,255,.08); }
+#replace-grid .pc:hover { border-color:var(--ac62); background:var(--ac08); }
 #replace-grid .pc.sel { border-color:var(--sky2); background:rgba(64,160,255,.12); }
 #replace-grid .pi { display:block; font-size:1.6rem; margin-bottom:4px; }
 #replace-grid .pn { display:block; font-size:.6rem; font-family:'Orbitron',sans-serif; letter-spacing:.05em; color:var(--ink2); }
@@ -738,32 +787,32 @@ body {
 
 .es-orbit {
   width: 160px; height: 160px; border-radius: 50%;
-  border: 1px dashed rgba(64,128,255,.22);
+  border: 1px dashed var(--ac22);
   position: absolute; top: 50%; left: 50%;
   margin: -80px 0 0 -80px;
   animation: spin 25s linear infinite;
 }
 .es-orbit2 {
   width: 110px; height: 110px; border-radius: 50%;
-  border: 1px dashed rgba(64,128,255,.14);
+  border: 1px dashed var(--ac14);
   position: absolute; top: 50%; left: 50%;
   margin: -55px 0 0 -55px;
   animation: spin 16s linear infinite reverse;
 }
-.es-dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(64,144,255,.35); margin-bottom: 0; }
+.es-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ac35); margin-bottom: 0; }
 #add-center-btn {
   position: relative; z-index: 2; pointer-events: all;
-  background: rgba(8,14,30,.92); border: 1px solid rgba(64,144,255,.45);
+  background: var(--dp5); border: 1px solid var(--ac45);
   color: var(--sky2); font-family: 'Orbitron', sans-serif;
   font-size: .7rem; font-weight: 700; letter-spacing: .15em;
   padding: 15px 28px; cursor: pointer; margin-top: 8px;
   clip-path: polygon(10px 0, calc(100% - 0px) 0, 100% 10px, 100% 100%, calc(100% - 10px) 100%, 0 100%, 0 10px);
   transition: all .22s;
-  box-shadow: 0 0 30px rgba(64,144,255,.18), inset 0 0 20px rgba(64,144,255,.04);
+  box-shadow: 0 0 30px var(--ac18), inset 0 0 20px var(--ac08);
 }
 #add-center-btn:hover {
   background: rgba(12,20,45,.96); border-color: var(--sky2);
-  box-shadow: 0 0 50px rgba(64,144,255,.45), inset 0 0 30px rgba(64,144,255,.08);
+  box-shadow: 0 0 50px var(--ac45), inset 0 0 30px var(--ac08);
   color: var(--ink3);
 }
 .es-hint {
@@ -774,7 +823,7 @@ body {
 /* Status bar */
 #statusbar {
   position: fixed; bottom: 0; left: 0; right: 0; height: 28px; z-index: 100;
-  background: rgba(2,3,8,.96); border-top: 1px solid var(--rim);
+  background: var(--ov5); border-top: 1px solid var(--rim);
   display: flex; align-items: center; padding: 0 16px; gap: 24px;
   transition: right .35s cubic-bezier(.4,0,.2,1);
 }
@@ -783,12 +832,12 @@ body {
   color: var(--ink4); letter-spacing: .06em;
 }
 #statusbar span b { color: var(--sky2); font-weight: 500; }
-#statusbar .sep { color: rgba(64,128,255,.2); }
+#statusbar .sep { color: var(--ac20); }
 
 /* ═══════════════════════════ PRESET MODAL ═══════════════════════════ */
 #modal-preset {
   position: fixed; inset: 0; z-index: 200;
-  background: rgba(2,3,8,.88); backdrop-filter: blur(12px);
+  background: var(--ov3); backdrop-filter: blur(12px);
   display: flex; align-items: center; justify-content: center;
   opacity: 0; pointer-events: none; transition: opacity .3s;
 }
@@ -796,7 +845,7 @@ body {
 
 #modal-body-search {
   position: fixed; inset: 0; z-index: 200;
-  background: rgba(2,3,8,.88); backdrop-filter: blur(12px);
+  background: var(--ov3); backdrop-filter: blur(12px);
   display: flex; align-items: center; justify-content: center;
   opacity: 0; pointer-events: none; transition: opacity .3s;
 }
@@ -805,10 +854,10 @@ body {
 .bsearch-row {
   display: flex; align-items: center; gap: 8px;
   padding: 7px 10px; border: 1px solid var(--rim);
-  border-radius: 3px; background: rgba(8,14,30,.6);
+  border-radius: 3px; background: var(--dp1);
   cursor: pointer; transition: background .15s;
 }
-.bsearch-row:hover, .bsearch-row.active { background: rgba(64,128,255,.12); border-color: var(--rim2); }
+.bsearch-row:hover, .bsearch-row.active { background: var(--ac12); border-color: var(--rim2); }
 .bsearch-icon { font-size: 1.1rem; width: 24px; text-align: center; flex-shrink: 0; }
 .bsearch-name { flex: 1; font-family: 'Orbitron',sans-serif; font-size: .62rem;
   letter-spacing: .06em; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -841,13 +890,13 @@ body {
 /* Search box */
 .prs-search-wrap { position: relative; margin-bottom: 12px; }
 .prs-search {
-  width: 100%; background: rgba(8,14,30,.8); border: 1px solid rgba(64,128,255,.18);
+  width: 100%; background: var(--dp3); border: 1px solid var(--ac18);
   color: var(--ink2); font-family: 'JetBrains Mono', monospace; font-size: .7rem;
   padding: 7px 30px 7px 10px; outline: none;
   clip-path: polygon(5px 0,100% 0,100% 100%,0 100%,0 5px);
   transition: border-color .18s;
 }
-.prs-search:focus { border-color: rgba(64,144,255,.5); }
+.prs-search:focus { border-color: var(--ac50); }
 .prs-search::placeholder { color: var(--ink4); }
 .prs-search-ico {
   position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
@@ -863,14 +912,14 @@ body {
 .prs-grid::-webkit-scrollbar-thumb { background: var(--rim2); }
 
 .prs-card {
-  background: rgba(8,14,30,.7); border: 1px solid var(--rim);
+  background: var(--dp2); border: 1px solid var(--rim);
   padding: 10px 9px 9px; cursor: pointer; transition: all .15s;
   clip-path: polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
   display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
   position: relative;
 }
 .prs-card:hover { border-color: var(--rim2); background: rgba(12,20,42,.85); }
-.prs-card.sel { border-color: var(--sky); background: rgba(64,144,255,.08); }
+.prs-card.sel { border-color: var(--sky); background: var(--ac08); }
 .prs-card-icon { font-size: 1.3rem; line-height: 1; margin-bottom: 3px; }
 .prs-card-name {
   font-family: 'Orbitron', sans-serif; font-size: .58rem; font-weight: 700;
@@ -881,7 +930,7 @@ body {
   position: absolute; top: 5px; right: 5px;
   font-size: .45rem; font-family: 'Orbitron', sans-serif; letter-spacing: .06em;
   padding: 2px 5px; border-radius: 1px;
-  background: rgba(64,128,255,.12); border: 1px solid rgba(64,128,255,.2); color: var(--sky2);
+  background: var(--ac12); border: 1px solid var(--ac20); color: var(--sky2);
 }
 .prs-card-badge.custom { background: rgba(255,180,64,.08); border-color: rgba(255,180,64,.25); color: var(--amber); }
 
@@ -891,7 +940,7 @@ body {
 .prs-group-hdr {
   font-family: 'JetBrains Mono', monospace; font-size: .55rem;
   letter-spacing: .18em; color: var(--ink4); text-transform: uppercase;
-  padding: 8px 2px 4px; border-bottom: 1px solid rgba(64,128,255,.1);
+  padding: 8px 2px 4px; border-bottom: 1px solid var(--ac10);
   margin-bottom: 6px; margin-top: 10px;
   grid-column: 1 / -1;
 }
@@ -899,7 +948,7 @@ body {
 
 .mpanel {
   background: var(--panel);
-  border: 1px solid rgba(64,128,255,.22);
+  border: 1px solid var(--ac22);
   clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px);
   padding: 32px 36px; width: 620px; max-width: 96vw;
   animation: popIn .25s ease;
@@ -919,8 +968,8 @@ body {
   transition: all .2s;
 }
 .mf-btn:hover { border-color: var(--rim2); color: var(--ink2); }
-.mf-btn.ok { border-color: rgba(64,144,255,.45); color: var(--sky2); background: rgba(64,144,255,.07); }
-.mf-btn.ok:hover { background: rgba(64,144,255,.16); color: var(--ink3); }
+.mf-btn.ok { border-color: var(--ac45); color: var(--sky2); background: var(--ac08); }
+.mf-btn.ok:hover { background: var(--ac15); color: var(--ink3); }
 
 /* ═══════════════════════════ PROPERTIES SIDEBAR ═══════════════════════════ */
 #sidebar {
@@ -959,7 +1008,7 @@ body {
 .sb-name-input:hover { border-bottom-color: var(--rim2); }
 .sb-name-input:focus {
   border-bottom-color: var(--sky);
-  background: rgba(64,144,255,.06);
+  background: var(--ac08);
 }
 .sb-name-input.conflict {
   border-bottom-color: var(--rose) !important;
@@ -1010,7 +1059,7 @@ body {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   background: rgba(4,8,20,.6);
-  border: 1px solid rgba(64,128,255,.12);
+  border: 1px solid var(--ac12);
   border-radius: 6px;
   padding: 4px;
   gap: 3px;
@@ -1046,10 +1095,10 @@ body {
   box-shadow: 0 0 6px var(--sky);
 }
 .sbt.on {
-  background: rgba(64,144,255,.13);
+  background: var(--ac13);
   color: var(--sky2);
-  box-shadow: inset 0 0 0 1px rgba(64,144,255,.22),
-              0 0 10px rgba(64,144,255,.08);
+  box-shadow: inset 0 0 0 1px var(--ac22),
+              0 0 10px var(--ac08);
 }
 .sbt.on::after { width: calc(100% - 14px); }
 .sbt:hover:not(.on) { background: rgba(255,255,255,.05); color: var(--ink2); }
@@ -1057,7 +1106,7 @@ body {
 
 .sb-body { flex: 1; overflow-y: auto; padding: 14px 16px 16px; }
 .sb-body::-webkit-scrollbar { width: 3px; }
-.sb-body::-webkit-scrollbar-thumb { background: rgba(64,128,255,.2); border-radius: 2px; }
+.sb-body::-webkit-scrollbar-thumb { background: var(--ac20); border-radius: 2px; }
 
 /* Form elements */
 .fsec { margin-bottom: 18px; }
@@ -1065,12 +1114,12 @@ body {
   font-family: 'JetBrains Mono', monospace; font-size: .68rem;
   letter-spacing: .2em; color: var(--ink4); text-transform: uppercase;
   padding-bottom: 6px; margin-bottom: 9px;
-  border-bottom: 1px solid rgba(64,128,255,.1);
+  border-bottom: 1px solid var(--ac10);
   display: flex; align-items: center; gap: 8px;
 }
 .fsec-title .badge {
   font-size: .52rem; padding: 1px 6px;
-  border: 1px solid rgba(64,128,255,.2); color: var(--sky2);
+  border: 1px solid var(--ac20); color: var(--sky2);
   border-radius: 2px;
 }
 
@@ -1080,16 +1129,16 @@ body {
   letter-spacing: .02em; line-height: 1.3;
 }
 .finput {
-  flex: 1; background: rgba(8,14,30,.8); border: 1px solid rgba(64,128,255,.13);
+  flex: 1; background: var(--dp3); border: 1px solid var(--ac13);
   color: var(--ink2); font-family: 'JetBrains Mono', monospace; font-size: .85rem;
   padding: 5px 8px; outline: none; transition: border-color .18s;
   clip-path: polygon(4px 0, 100% 0, 100% 100%, 0 100%, 0 4px);
   width: 100%;
 }
-.finput:focus { border-color: rgba(64,144,255,.45); color: var(--ink3); }
+.finput:focus { border-color: var(--ac45); color: var(--ink3); }
 .finput.wide { flex: 0 0 100%; }
 .fselect {
-  flex: 1; background: rgba(8,14,30,.8); border: 1px solid rgba(64,128,255,.13);
+  flex: 1; background: var(--dp3); border: 1px solid var(--ac13);
   color: var(--ink2); font-family: 'JetBrains Mono', monospace; font-size: .85rem;
   padding: 5px 8px; outline: none; cursor: pointer;
 }
@@ -1098,10 +1147,10 @@ body {
 .ftoggle-row .flabel { flex: 1; }
 .tog {
   width: 36px; height: 19px; border-radius: 10px;
-  background: rgba(20,30,60,.8); border: 1px solid rgba(64,128,255,.18);
+  background: rgba(20,30,60,.8); border: 1px solid var(--ac18);
   position: relative; cursor: pointer; flex-shrink: 0; transition: background .2s;
 }
-.tog.on { background: rgba(64,144,255,.35); border-color: var(--sky); }
+.tog.on { background: var(--ac35); border-color: var(--sky); }
 .tog::after {
   content: ''; position: absolute; width: 13px; height: 13px;
   background: var(--ink4); border-radius: 50%; top: 2px; left: 2px;
@@ -1130,13 +1179,13 @@ body {
 .cpick-swatch::-webkit-color-swatch-wrapper { padding: 0; }
 .cpick-swatch::-webkit-color-swatch { border: none; }
 .cpick-hex {
-  flex: 1; background: rgba(8,14,30,.8); border: 1px solid rgba(64,128,255,.13);
+  flex: 1; background: var(--dp3); border: 1px solid var(--ac13);
   color: var(--ink2); font-family: 'JetBrains Mono', monospace; font-size: .76rem;
   padding: 4px 6px; outline: none; min-width: 0;
   clip-path: polygon(4px 0,100% 0,100% 100%,0 100%,0 4px);
   transition: border-color .18s;
 }
-.cpick-hex:focus { border-color: rgba(64,144,255,.45); }
+.cpick-hex:focus { border-color: var(--ac45); }
 .cpick-alpha-row {
   display: flex; align-items: center; gap: 6px;
   margin-bottom: 9px; padding-left: 134px;
@@ -1145,7 +1194,7 @@ body {
 .cpick-alpha {
   flex: 1; height: 4px; -webkit-appearance: none; appearance: none;
   border-radius: 2px; cursor: pointer; outline: none;
-  border: 1px solid rgba(64,128,255,.15);
+  border: 1px solid var(--ac15);
   background: linear-gradient(to right, transparent, var(--swatch-color,#fff));
 }
 .cpick-alpha::-webkit-slider-thumb {
@@ -1164,7 +1213,7 @@ body {
 }
 .cpick-hdr-label { font-size:.62rem; color:var(--amber); flex-shrink:0; }
 .cpick-hdr {
-  width: 60px; background: rgba(8,14,30,.8); border: 1px solid rgba(255,160,40,.25);
+  width: 60px; background: var(--dp3); border: 1px solid rgba(255,160,40,.25);
   color: var(--amber); font-family: 'JetBrains Mono', monospace; font-size:.68rem;
   padding: 3px 6px; outline: none;
   clip-path: polygon(4px 0,100% 0,100% 100%,0 100%,0 4px);
@@ -1187,8 +1236,8 @@ body {
 .fslider {
   width: 100%; height: 4px; -webkit-appearance: none; appearance: none;
   border-radius: 2px; cursor: pointer; outline: none;
-  border: 1px solid rgba(64,128,255,.15);
-  background: linear-gradient(to right, var(--sky) 0%, var(--sky) var(--pct,50%), rgba(64,128,255,.12) var(--pct,50%));
+  border: 1px solid var(--ac15);
+  background: linear-gradient(to right, var(--sky) 0%, var(--sky) var(--pct,50%), var(--ac12) var(--pct,50%));
 }
 .fslider::-webkit-slider-thumb {
   -webkit-appearance: none; width: 13px; height: 13px;
@@ -1200,12 +1249,12 @@ body {
 .frow-full { display: block; margin-bottom: 7px; }
 .frow-full .flabel { display: block; margin-bottom: 4px; }
 .frow-full textarea {
-  width: 100%; background: rgba(8,14,30,.8); border: 1px solid rgba(64,128,255,.13);
+  width: 100%; background: var(--dp3); border: 1px solid var(--ac13);
   color: var(--ink2); font-family: 'JetBrains Mono', monospace; font-size: .65rem;
   padding: 6px 8px; outline: none; resize: vertical; min-height: 72px;
   transition: border-color .18s;
 }
-.frow-full textarea:focus { border-color: rgba(64,144,255,.45); }
+.frow-full textarea:focus { border-color: var(--ac45); }
 
 /* PP Keys */
 .pp-key {
@@ -1232,26 +1281,26 @@ body {
 .lm-del:hover { color: var(--rose); }
 
 .add-btn {
-  width: 100%; background: rgba(64,144,255,.06); border: 1px dashed rgba(64,128,255,.25);
+  width: 100%; background: var(--ac08); border: 1px dashed var(--ac25);
   color: var(--ink4); font-family: 'JetBrains Mono', monospace; font-size: .65rem;
   letter-spacing: .1em; padding: 9px; cursor: pointer; transition: all .2s; margin-bottom: 8px;
 }
-.add-btn:hover { background: rgba(64,144,255,.12); color: var(--sky2); border-color: rgba(64,128,255,.5); }
+.add-btn:hover { background: var(--ac12); color: var(--sky2); border-color: var(--ac50); }
 
 .apply-btn {
-  width: 100%; background: rgba(64,144,255,.1); border: 1px solid rgba(64,144,255,.35);
+  width: 100%; background: var(--ac10); border: 1px solid var(--ac35);
   color: var(--sky2); font-family: 'Orbitron', sans-serif; font-size: .68rem;
   letter-spacing: .18em; padding: 13px; cursor: pointer;
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
   transition: all .2s; margin-top: 10px;
 }
-.apply-btn:hover { background: rgba(64,144,255,.2); color: var(--ink3); box-shadow: 0 0 24px rgba(64,144,255,.25); }
+.apply-btn:hover { background: var(--ac20); color: var(--ink3); box-shadow: 0 0 24px var(--ac25); }
 .apply-btn.done { border-color: rgba(48,224,144,.4); color: var(--jade); background: rgba(48,224,144,.08); }
 
 .tab-panel { display: none; }
 .tab-panel.on {
   display: block;
-  border: 1px solid rgba(64,128,255,.13);
+  border: 1px solid var(--ac13);
   border-radius: 3px;
   padding: 12px 10px 4px;
   margin-top: 10px;
@@ -1267,17 +1316,17 @@ body {
 .open-card h2 { font-family: 'Orbitron', sans-serif; font-size: 1rem; letter-spacing: .2em; color: var(--ink3); margin-bottom: 10px; }
 .open-card p { font-size: .8rem; color: var(--ink4); line-height: 1.7; margin-bottom: 24px; }
 .drop-zone {
-  border: 1.5px dashed rgba(64,128,255,.28); padding: 28px;
+  border: 1.5px dashed var(--ac28); padding: 28px;
   margin-bottom: 20px; cursor: pointer; transition: all .2s;
 }
-.drop-zone:hover { border-color: rgba(64,160,255,.6); background: rgba(64,144,255,.04); }
+.drop-zone:hover { border-color: var(--ac62); background: var(--ac08); }
 .drop-zone .dico { font-size: 2.4rem; display: block; margin-bottom: 10px; opacity: .4; }
 .drop-zone p { font-size: .75rem; color: var(--ink4); margin-bottom: 0; }
 
 /* ── Loading overlay ── */
 #loading-overlay {
   position: fixed; inset: 0; z-index: 500;
-  background: rgba(2,3,8,.92); backdrop-filter: blur(12px);
+  background: var(--ov4); backdrop-filter: blur(12px);
   display: flex; align-items: center; justify-content: center;
   opacity: 0; pointer-events: none;
   transition: opacity .3s;
@@ -1286,7 +1335,7 @@ body {
 .loading-inner { text-align: center; }
 .loading-spinner {
   width: 48px; height: 48px; border-radius: 50%;
-  border: 3px solid rgba(64,128,255,.15);
+  border: 3px solid var(--ac15);
   border-top-color: var(--sky2);
   animation: spin .8s linear infinite;
   margin: 0 auto 20px;
@@ -1320,7 +1369,7 @@ body {
 /* Drag-over highlight for zip drop zone */
 .drop-zone.drag-over {
   border-color: var(--sky2);
-  background: rgba(64,144,255,.08);
+  background: var(--ac08);
 }
 @media (max-width: 640px) {
 
@@ -1466,13 +1515,11 @@ body {
   /* Allow dropdown to escape sidebar's overflow clip */
   #sidebar { overflow: visible !important; }
   #sidebar .sb-body { overflow-y: auto; }
-  .mf-btn:active    { background: rgba(64,144,255,.18); color: var(--ink3); }
-  .tb-btn:active    { background: rgba(64,144,255,.15); color: var(--ink3); }
-  .prs-card:active   { background: rgba(64,144,255,.15); border-color: var(--sky2); }
+  .mf-btn:active    { background: var(--ac18); color: var(--ink3); }
+  .tb-btn:active    { background: var(--ac15); color: var(--ink3); }
+  .prs-card:active   { background: var(--ac15); border-color: var(--sky2); }
   .menu-btn { min-width: min(340px, 88vw); }
 }
-
-#modal-theme.open { opacity: 1 !important; pointer-events: all !important; }
 
 /* ═══ ANIMATIONS ═══ */
 @keyframes riseIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -1505,7 +1552,7 @@ body {
       <span class="mico">🗂️</span>LOAD SFS ASSETS
       <span class="arr">›</span>
     </button>
-    <button class="menu-btn" onclick="document.getElementById('modal-theme').classList.add('open')" title="Background theme settings">
+    <button class="menu-btn" onclick="openAppSettings()" title="Settings">
       <span class="mico">⚙</span>SETTINGS
       <span class="arr">›</span>
     </button>
@@ -1514,82 +1561,6 @@ body {
   <p id="default-tex-status" style="font-size:.65rem;color:var(--jade);font-family:'JetBrains Mono',monospace;text-align:center;margin-top:8px;min-height:1.2em;opacity:.8"></p>
 </div>
 
-<!-- ══════════════ THEME PICKER MODAL ══════════════ -->
-<div id="modal-theme" style="position:fixed;inset:0;z-index:300;background:rgba(2,3,8,.82);
-     backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;
-     opacity:0;pointer-events:none;transition:opacity .25s">
-  <div class="mpanel" style="width:340px;text-align:center">
-    <h2 style="font-family:'Orbitron',sans-serif;font-size:.82rem;letter-spacing:.18em;color:var(--sky2);margin-bottom:6px">BACKGROUND THEME</h2>
-    <p style="font-size:.68rem;color:var(--ink4);margin-bottom:20px;font-family:'JetBrains Mono',monospace">Choose your start menu atmosphere</p>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
-      <button class="theme-btn" data-theme="stars" onclick="setBgTheme('stars')"
-        style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid rgba(64,128,255,.2);
-               background:rgba(8,14,30,.8);color:var(--ink2);font-family:'Orbitron',sans-serif;font-size:.65rem;
-               letter-spacing:.1em;cursor:pointer;transition:all .18s;text-align:left;width:100%">
-        <span style="font-size:1.4rem">✨</span>
-        <span>
-          <span style="display:block;font-size:.68rem;color:var(--ink3)">TWINKLING STARS</span>
-          <span style="display:block;font-size:.58rem;color:var(--ink4);margin-top:2px;font-family:'JetBrains Mono',monospace">Classic deep space starfield</span>
-        </span>
-      </button>
-      <button class="theme-btn" data-theme="nebula" onclick="setBgTheme('nebula')"
-        style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid rgba(64,128,255,.2);
-               background:rgba(8,14,30,.8);color:var(--ink2);font-family:'Orbitron',sans-serif;font-size:.65rem;
-               letter-spacing:.1em;cursor:pointer;transition:all .18s;text-align:left;width:100%">
-        <span style="font-size:1.4rem">🌌</span>
-        <span>
-          <span style="display:block;font-size:.68rem;color:var(--ink3)">NEBULA DRIFT</span>
-          <span style="display:block;font-size:.58rem;color:var(--ink4);margin-top:2px;font-family:'JetBrains Mono',monospace">Glowing cosmic clouds in motion</span>
-        </span>
-      </button>
-      <button class="theme-btn" data-theme="matrix" onclick="setBgTheme('matrix')"
-        style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid rgba(64,128,255,.2);
-               background:rgba(8,14,30,.8);color:var(--ink2);font-family:'Orbitron',sans-serif;font-size:.65rem;
-               letter-spacing:.1em;cursor:pointer;transition:all .18s;text-align:left;width:100%">
-        <span style="font-size:1.4rem">🌌</span>
-        <span>
-          <span style="display:block;font-size:.68rem;color:var(--ink3)">AURORA BOREALIS</span>
-          <span style="display:block;font-size:.58rem;color:var(--ink4);margin-top:2px;font-family:'JetBrains Mono',monospace">Green & teal light curtains in space</span>
-        </span>
-      </button>
-    </div>
-    <div class="modal-footer" style="justify-content:center">
-      <button class="mf-btn ok" onclick="document.getElementById('modal-theme').classList.remove('open')">CLOSE</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ CREDITS BAR (start menu only) ══════════════ -->
-<div id="start-credits" style="
-  position:fixed;bottom:0;left:0;right:0;z-index:20;
-  overflow:hidden;
-  background:rgba(2,3,8,.92);border-top:1px solid rgba(64,128,255,.12);
-  backdrop-filter:blur(8px);pointer-events:none;
-  transition:opacity .3s;
-  padding-bottom:env(safe-area-inset-bottom, 0px);
-">
-  <!-- Fade masks on left/right edges -->
-  <div style="position:absolute;left:0;top:0;bottom:0;width:32px;z-index:2;
-    background:linear-gradient(to right,rgba(2,3,8,.95),transparent);pointer-events:none"></div>
-  <div style="position:absolute;right:0;top:0;bottom:0;width:32px;z-index:2;
-    background:linear-gradient(to left,rgba(2,3,8,.95),transparent);pointer-events:none"></div>
-  <!-- Scrolling track -->
-  <div id="credits-track" style="display:flex;align-items:center;height:30px;white-space:nowrap;will-change:transform">
-    <span id="credits-inner" style="font-family:'JetBrains Mono',monospace;font-size:.56rem;
-      color:rgba(80,110,150,.75);letter-spacing:.08em;padding:0 60px">
-      BETA&nbsp;<span style="color:rgba(100,180,255,.62)" id="credits-ver">v5.0</span>
-      <span style="color:rgba(64,128,255,.25);margin:0 14px">·</span>
-      CONTRIBUTORS&nbsp;<span style="color:rgba(100,180,255,.75)">reoreyboi</span><span style="color:rgba(64,128,255,.25)">&nbsp;&nbsp;/&nbsp;&nbsp;</span><span style="color:rgba(100,180,255,.75)">kramenter_jr_92819</span><span style="color:rgba(64,128,255,.25)">&nbsp;&nbsp;/&nbsp;&nbsp;</span><span style="color:rgba(100,180,255,.75)">astraygalaxythe2765</span><span style="color:rgba(64,128,255,.25)">&nbsp;&nbsp;/&nbsp;&nbsp;</span><span style="color:rgba(100,180,255,.75)">akselajin_57195</span><span style="color:rgba(64,128,255,.25)">&nbsp;&nbsp;/&nbsp;&nbsp;</span><span style="color:rgba(100,180,255,.75)">mistiygirl</span><span style="color:rgba(64,128,255,.25)">&nbsp;&nbsp;/&nbsp;&nbsp;</span><span style="color:rgba(100,180,255,.75)">tserieskinda.</span>
-    </span>
-    <!-- Duplicate for seamless loop -->
-    <span aria-hidden="true" style="font-family:'JetBrains Mono',monospace;font-size:.56rem;
-      color:rgba(80,110,150,.75);letter-spacing:.08em;padding:0 60px">
-      BETA&nbsp;<span style="color:rgba(100,180,255,.62)">v5.0</span>
-      <span style="color:rgba(64,128,255,.25);margin:0 14px">·</span>
-      CONTRIBUTORS&nbsp;<span style="color:rgba(100,180,255,.75)">reoreyboi</span><span style="color:rgba(64,128,255,.25)">&nbsp;&nbsp;/&nbsp;&nbsp;</span><span style="color:rgba(100,180,255,.75)">kramenter_jr_92819</span><span style="color:rgba(64,128,255,.25)">&nbsp;&nbsp;/&nbsp;&nbsp;</span><span style="color:rgba(100,180,255,.75)">astraygalaxythe2765</span><span style="color:rgba(64,128,255,.25)">&nbsp;&nbsp;/&nbsp;&nbsp;</span><span style="color:rgba(100,180,255,.75)">akselajin_57195</span><span style="color:rgba(64,128,255,.25)">&nbsp;&nbsp;/&nbsp;&nbsp;</span><span style="color:rgba(100,180,255,.75)">mistiygirl</span><span style="color:rgba(64,128,255,.25)">&nbsp;&nbsp;/&nbsp;&nbsp;</span><span style="color:rgba(100,180,255,.75)">tserieskinda.</span>
-    </span>
-  </div>
-</div>
 
 <!-- ══════════════ NEW SYSTEM ══════════════ -->
 <div class="screen hide" id="s-new">
@@ -2116,7 +2087,7 @@ body {
 
           <!-- ── ADVANCED (collapsible) ── -->
           <button onclick="(function(btn){var c=document.getElementById('wt-advanced');var open=c.style.display!=='none';c.style.display=open?'none':'block';btn.querySelector('.wt-adv-arrow').textContent=open?'▸':'▾';})(this)"
-            style="width:100%;margin-top:10px;background:rgba(64,128,255,.06);border:1px solid rgba(64,128,255,.18);
+            style="width:100%;margin-top:10px;background:var(--ac08);border:1px solid var(--ac18);
                    color:var(--ink4);font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.12em;
                    padding:7px 10px;cursor:pointer;text-align:left;display:flex;align-items:center;gap:7px;
                    transition:background .15s,color .15s">
@@ -2295,7 +2266,7 @@ body {
           autocapitalize="off"
           style="
             width:100%; min-height:200px; resize:vertical;
-            background:rgba(6,10,22,.95); border:1px solid rgba(64,128,255,.15);
+            background:var(--ov5); border:1px solid var(--ac15);
             color:#90d8a0; font-family:'JetBrains Mono',monospace; font-size:.68rem;
             line-height:1.55; padding:10px; outline:none;
             border-radius:2px; tab-size:2;
@@ -2333,7 +2304,7 @@ body {
       <input type="file" id="fi-textures" multiple accept=".png,.jpg,.jpeg,.webp" style="display:none" onchange="handleFiles(this.files,'textures')">
       <div style="margin:8px 0 4px;position:relative">
         <input type="text" id="asset-tex-search" placeholder="Filter textures…"
-          style="width:100%;background:rgba(8,14,30,.8);border:1px solid rgba(64,128,255,.2);color:var(--ink2);font-family:'JetBrains Mono',monospace;font-size:.68rem;padding:6px 10px;outline:none"
+          style="width:100%;background:var(--dp3);border:1px solid var(--ac20);color:var(--ink2);font-family:'JetBrains Mono',monospace;font-size:.68rem;padding:6px 10px;outline:none"
           oninput="filterAssetGrid()">
       </div>
       <div class="asset-grid" id="agrid-textures" style="max-height:320px;overflow-y:auto"></div>
@@ -2370,7 +2341,16 @@ body {
 <div id="modal-syssettings">
   <div class="mpanel" style="width:520px">
     <h2>SYSTEM SETTINGS</h2>
-    <p>Global settings exported alongside planet files</p>
+
+    <!-- Tab bar -->
+    <div style="display:flex;gap:0;margin:10px 0 18px;border-bottom:1px solid var(--ac18)">
+      <button id="stab-general" onclick="switchSettingsTab('general')" style="flex:1;padding:7px 0;background:var(--ac13);border:1px solid var(--ac28);border-bottom:none;color:var(--sky2);font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.08em;cursor:pointer;border-radius:4px 4px 0 0;margin-right:2px">GENERAL</button>
+      <button id="stab-credits" onclick="switchSettingsTab('credits')" style="flex:1;padding:7px 0;background:transparent;border:1px solid transparent;border-bottom:none;color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.08em;cursor:pointer;border-radius:4px 4px 0 0">CREDITS</button>
+    </div>
+
+    <!-- GENERAL tab -->
+    <div id="stab-general-content">
+    <p style="margin-top:-6px;margin-bottom:14px">Global settings exported alongside planet files</p>
 
     <div class="fsec" style="margin-top:16px">
       <div class="fsec-title">SYSTEM FOLDER <span class="badge">ZIP / in-game name</span></div>
@@ -2397,7 +2377,7 @@ body {
         <input class="finput" id="is-version" type="text" value="n/a"></div>
       <div class="frow-full">
         <span class="flabel" style="display:block;margin-bottom:4px;font-size:.7rem;color:var(--ink4)">Description</span>
-        <textarea id="is-desc" style="width:100%;background:rgba(8,14,30,.8);border:1px solid rgba(64,128,255,.13);color:var(--ink2);font-family:'JetBrains Mono',monospace;font-size:.68rem;padding:6px 8px;outline:none;resize:vertical;min-height:52px">n/a</textarea>
+        <textarea id="is-desc" style="width:100%;background:var(--dp3);border:1px solid var(--ac13);color:var(--ink2);font-family:'JetBrains Mono',monospace;font-size:.68rem;padding:6px 8px;outline:none;resize:vertical;min-height:52px">n/a</textarea>
       </div>
     </div>
 
@@ -2414,8 +2394,166 @@ body {
         <input class="finput" id="sc-height" type="number" step="0.1" value="56.2"></div>
     </div>
 
+    </div><!-- end stab-general-content -->
+
+    <!-- CREDITS tab -->
+    <div id="stab-credits-content" style="display:none">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.66rem;line-height:2;color:var(--ink2)">
+
+        <div style="margin-bottom:14px">
+          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">ASSETS · ZIP PRESETS</div>
+          <div>Astray Galaxy</div>
+          <div>Neverger</div>
+        </div>
+
+        <div style="margin-bottom:14px">
+          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">BETA TESTERS · FEATURE SUGGESTIONS</div>
+          <div>Krameter.Jr</div>
+          <div>Astray Galaxy</div>
+          <div>Cyn</div>
+          <div>Mistiy</div>
+          <div>Reoreyboi</div>
+          <div>Cresign</div>
+          <div>Akselajin</div>
+        </div>
+
+        <div style="margin-bottom:18px">
+          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">BROUGHT TOGETHER BY</div>
+          <div style="color:var(--sky2)">Tserieskinda</div>
+        </div>
+
+        <div style="border-top:1px solid var(--ac13);padding-top:14px;display:flex;flex-direction:column;gap:8px">
+          <a href="https://github.com/Tserieskinda/Sfs-System-Editor/blob/main/README.md" target="_blank" style="color:var(--sky2);text-decoration:none;font-size:.62rem;display:flex;align-items:center;gap:8px">
+            <span style="opacity:.5">⬡</span> GitHub Page
+          </a>
+          <a href="https://sfsforum.com/index.php?threads/sfs-system-editor-beta.18444/" target="_blank" style="color:var(--sky2);text-decoration:none;font-size:.62rem;display:flex;align-items:center;gap:8px">
+            <span style="opacity:.5">⬡</span> SFS Forums Page
+          </a>
+          <div style="color:var(--ink4);font-size:.62rem;display:flex;align-items:center;gap:8px">
+            <span style="opacity:.5">⬡</span> Discord: <span style="color:var(--ink2)">@tserieskinda.</span>
+          </div>
+        </div>
+      </div>
+    </div><!-- end stab-credits-content -->
+
     <div class="modal-footer">
       <button class="mf-btn ok" onclick="closeSysSettings()">DONE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ APP SETTINGS MODAL (start menu: Theme + Credits) ══════════════ -->
+<div id="modal-appsettings">
+  <div class="mpanel" style="width:380px;max-height:90vh;overflow-y:auto">
+    <h2>SETTINGS</h2>
+
+    <!-- Tab bar -->
+    <div style="display:flex;gap:0;margin:10px 0 18px;border-bottom:1px solid var(--ac18)">
+      <button id="apptab-theme" onclick="switchAppTab('theme')" style="flex:1;padding:7px 0;background:var(--ac13);border:1px solid var(--ac28);border-bottom:none;color:var(--sky2);font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.08em;cursor:pointer;border-radius:4px 4px 0 0;margin-right:2px">THEME</button>
+      <button id="apptab-appcredits" onclick="switchAppTab('appcredits')" style="flex:1;padding:7px 0;background:transparent;border:1px solid transparent;border-bottom:none;color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.08em;cursor:pointer;border-radius:4px 4px 0 0">CREDITS</button>
+    </div>
+
+    <!-- THEME tab -->
+    <div id="apptab-theme-content">
+      <p style="margin-top:-6px;margin-bottom:14px;font-size:.68rem;color:var(--ink4);font-family:'JetBrains Mono',monospace">Choose your start menu atmosphere</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+        <button class="theme-btn" data-theme="stars" onclick="setBgTheme('stars')"
+          style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--ac20);
+                 background:var(--dp3);color:var(--ink2);font-family:'Orbitron',sans-serif;font-size:.65rem;
+                 letter-spacing:.1em;cursor:pointer;transition:all .18s;text-align:left;width:100%">
+          <span style="font-size:1.4rem">✨</span>
+          <span>
+            <span style="display:block;font-size:.68rem;color:var(--ink3)">TWINKLING STARS</span>
+            <span style="display:block;font-size:.58rem;color:var(--ink4);margin-top:2px;font-family:'JetBrains Mono',monospace">Classic deep space starfield</span>
+          </span>
+        </button>
+        <button class="theme-btn" data-theme="nebula" onclick="setBgTheme('nebula')"
+          style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--ac20);
+                 background:var(--dp3);color:var(--ink2);font-family:'Orbitron',sans-serif;font-size:.65rem;
+                 letter-spacing:.1em;cursor:pointer;transition:all .18s;text-align:left;width:100%">
+          <span style="font-size:1.4rem">🌌</span>
+          <span>
+            <span style="display:block;font-size:.68rem;color:var(--ink3)">NEBULA DRIFT</span>
+            <span style="display:block;font-size:.58rem;color:var(--ink4);margin-top:2px;font-family:'JetBrains Mono',monospace">Glowing cosmic clouds in motion</span>
+          </span>
+        </button>
+        <button class="theme-btn" data-theme="matrix" onclick="setBgTheme('matrix')"
+          style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--ac20);
+                 background:var(--dp3);color:var(--ink2);font-family:'Orbitron',sans-serif;font-size:.65rem;
+                 letter-spacing:.1em;cursor:pointer;transition:all .18s;text-align:left;width:100%">
+          <span style="font-size:1.4rem">🌌</span>
+          <span>
+            <span style="display:block;font-size:.68rem;color:var(--ink3)">AURORA BOREALIS</span>
+            <span style="display:block;font-size:.58rem;color:var(--ink4);margin-top:2px;font-family:'JetBrains Mono',monospace">Green & teal light curtains in space</span>
+          </span>
+        </button>
+        <!-- Custom image -->
+        <div style="border-top:1px solid var(--ac10);margin-top:4px;padding-top:10px;display:flex;flex-direction:column;gap:6px">
+          <button class="theme-btn" data-theme="custom" onclick="triggerFileInput('bg-custom-upload')"
+            style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--ac20);
+                   background:var(--dp3);color:var(--ink2);font-family:'Orbitron',sans-serif;font-size:.65rem;
+                   letter-spacing:.1em;cursor:pointer;transition:all .18s;text-align:left;width:100%">
+            <span style="font-size:1.4rem">🖼</span>
+            <span>
+              <span style="display:block;font-size:.68rem;color:var(--ink3)">CUSTOM IMAGE</span>
+              <span id="custom-bg-label" style="display:block;font-size:.58rem;color:var(--ink4);margin-top:2px;font-family:'JetBrains Mono',monospace">Upload any image as background</span>
+            </span>
+          </button>
+          <button id="clear-custom-bg-btn" onclick="clearCustomBg()" style="display:none;align-items:center;justify-content:center;gap:8px;
+            padding:7px 14px;border:1px solid rgba(255,80,80,.25);background:rgba(255,50,50,.07);
+            color:rgba(255,120,120,.8);font-family:'JetBrains Mono',monospace;font-size:.6rem;
+            letter-spacing:.08em;cursor:pointer;width:100%;transition:all .18s">
+            ✕ REMOVE CUSTOM IMAGE
+          </button>
+        </div>
+        <input type="file" id="bg-custom-upload" accept="image/*" style="display:none" onchange="loadCustomBgImage(this)">
+      </div>
+      <!-- UI Accent Color -->
+      <div style="border-top:1px solid var(--ac13);padding-top:14px">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.14em;color:var(--sky2);margin-bottom:10px">UI ACCENT COLOR</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <label for="ui-hue-picker" style="font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--ink4);cursor:pointer;flex:1">
+            Pick any color — hue applied to menus, panels &amp; borders
+          </label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="color" id="ui-hue-picker"
+              style="width:40px;height:32px;border:1px solid var(--ac30);background:var(--dp3);cursor:pointer;padding:2px;border-radius:3px"
+              oninput="onUiHuePick(this.value)" onchange="onUiHuePick(this.value)">
+            <button onclick="resetUiHue()"
+              style="padding:5px 9px;background:transparent;border:1px solid var(--ac22);color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.58rem;cursor:pointer;letter-spacing:.06em"
+              onmouseover="this.style.color='var(--ink2)'" onmouseout="this.style.color='var(--ink4)'">RESET</button>
+          </div>
+        </div>
+        <div id="ui-hue-swatches" style="margin-top:10px;height:12px;border-radius:2px;overflow:hidden"></div>
+      </div>
+    </div><!-- end apptab-theme-content -->
+
+    <!-- CREDITS tab -->
+    <div id="apptab-appcredits-content" style="display:none">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.66rem;line-height:2;color:var(--ink2)">
+        <div style="margin-bottom:14px">
+          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">ASSETS · ZIP PRESETS</div>
+          <div>Astray Galaxy</div>
+          <div>Neverger</div>
+        </div>
+        <div style="margin-bottom:14px">
+          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">BETA TESTERS · FEATURE SUGGESTIONS</div>
+          <div>Krameter.Jr</div><div>Astray Galaxy</div><div>Cyn</div><div>Mistiy</div><div>Reoreyboi</div><div>Cresign</div><div>Akselajin</div>
+        </div>
+        <div style="margin-bottom:18px">
+          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">BROUGHT TOGETHER BY</div>
+          <div style="color:var(--sky2)">Tserieskinda</div>
+        </div>
+        <div style="border-top:1px solid var(--ac13);padding-top:14px;display:flex;flex-direction:column;gap:8px">
+          <a href="https://github.com/Tserieskinda/Sfs-System-Editor/blob/main/README.md" target="_blank" style="color:var(--sky2);text-decoration:none;font-size:.62rem;display:flex;align-items:center;gap:8px"><span style="opacity:.5">⬡</span> GitHub Page</a>
+          <a href="https://sfsforum.com/index.php?threads/sfs-system-editor-beta.18444/" target="_blank" style="color:var(--sky2);text-decoration:none;font-size:.62rem;display:flex;align-items:center;gap:8px"><span style="opacity:.5">⬡</span> SFS Forums Page</a>
+          <div style="color:var(--ink4);font-size:.62rem;display:flex;align-items:center;gap:8px"><span style="opacity:.5">⬡</span> Discord: <span style="color:var(--ink2)">@tserieskinda.</span></div>
+        </div>
+      </div>
+    </div><!-- end apptab-appcredits-content -->
+
+    <div class="modal-footer" style="justify-content:center">
+      <button class="mf-btn ok" onclick="closeAppSettings()">CLOSE</button>
     </div>
   </div>
 </div>
@@ -2495,8 +2633,81 @@ body {
 
 <script>
 // ════════════════════════════════ BACKGROUND THEMES ════════════════════════════════
-const BG_THEMES = ['stars','nebula','matrix'];
+const BG_THEMES = ['stars','nebula','matrix','custom'];
 let bgTheme = localStorage.getItem('sfs_bg_theme') || 'stars';
+let _customBgImg = null; // loaded Image object for custom theme
+
+// Attempt to reload a saved custom image from localStorage on startup
+(function(){
+  const saved = localStorage.getItem('sfs_custom_bg_dataurl');
+  if(saved){
+    const img = new Image();
+    img.onload = () => { _customBgImg = img; _updateCustomBgUI(true); if(bgTheme==='custom') window._bgInit(); };
+    img.src = saved;
+  }
+})();
+
+function _updateCustomBgUI(hasImage){
+  const lbl = document.getElementById('custom-bg-label');
+  const clr = document.getElementById('clear-custom-bg-btn');
+  if(lbl) lbl.textContent = hasImage ? 'Custom image loaded ✓' : 'Upload any image as background';
+  if(clr) clr.style.display = hasImage ? 'flex' : 'none';
+}
+
+function loadCustomBgImage(input){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    const img = new Image();
+    img.onload = () => {
+      _customBgImg = img;
+      // Store in localStorage — warn if too large (>6 MB encoded)
+      try {
+        localStorage.setItem('sfs_custom_bg_dataurl', dataUrl);
+      } catch(err) {
+        console.warn('Custom bg too large for localStorage, stored in memory only.');
+      }
+      _updateCustomBgUI(true);
+      setBgTheme('custom');
+    };
+    img.src = dataUrl;
+  };
+  reader.readAsDataURL(file);
+  // Reset so same file can be re-selected
+  input.value = '';
+}
+
+function clearCustomBg(){
+  _customBgImg = null;
+  localStorage.removeItem('sfs_custom_bg_dataurl');
+  _updateCustomBgUI(false);
+  setBgTheme('stars');
+}
+
+function onUiHuePick(hex){
+  const h = window._hexToHue(hex);
+  window.applyUiHue(h);
+  window._saveUiHue(h);
+  _updateUiSwatches(h);
+}
+
+function resetUiHue(){
+  const h = 220;
+  window.applyUiHue(h);
+  window._saveUiHue(h);
+  _updateUiSwatches(h);
+  if(window._syncUiColorPicker) window._syncUiColorPicker();
+}
+
+function _updateUiSwatches(h){
+  const el = document.getElementById('ui-hue-swatches');
+  if(!el) return;
+  el.style.background = `linear-gradient(to right,`+
+    `hsl(${h},60%,15%),hsl(${h},65%,35%),hsl(${h},70%,55%),hsl(${h},75%,70%),hsl(${h},65%,85%))`;
+}
+
 
 (function(){
   const c = document.getElementById('bg');
@@ -2641,6 +2852,19 @@ let bgTheme = localStorage.getItem('sfs_bg_theme') || 'stars';
         animId = requestAnimationFrame(draw);
       }
       animId = requestAnimationFrame(draw);
+    } else if(bgTheme === 'custom'){
+      // Static cover-fit custom image — no animation loop needed
+      x.clearRect(0,0,c.width,c.height);
+      x.fillStyle = '#000';
+      x.fillRect(0,0,c.width,c.height);
+      if(_customBgImg){
+        const iw = _customBgImg.naturalWidth  || _customBgImg.width;
+        const ih = _customBgImg.naturalHeight || _customBgImg.height;
+        const scale = Math.max(c.width/iw, c.height/ih);
+        const dw = iw*scale, dh = ih*scale;
+        const dx = (c.width-dw)/2, dy = (c.height-dh)/2;
+        x.drawImage(_customBgImg, dx, dy, dw, dh);
+      }
     }
   }
 
@@ -2653,8 +2877,127 @@ function setBgTheme(t){
   bgTheme = t;
   localStorage.setItem('sfs_bg_theme', t);
   if(typeof _syncThemeBtns === 'function') _syncThemeBtns();
+  if(typeof _updateCustomBgUI === 'function') _updateCustomBgUI(!!_customBgImg);
   window._bgInit();
 }
+
+// ════════════════════════════════ UI HUE TINT ════════════════════════════════
+(function(){
+  const STORAGE_KEY = 'sfs_ui_hue';
+  let _hue = parseInt(localStorage.getItem(STORAGE_KEY) || '220', 10);
+
+  function hsl(h, s, l, a) {
+    return a !== undefined
+      ? `hsla(${h},${s}%,${l}%,${a})`
+      : `hsl(${h},${s}%,${l}%)`;
+  }
+
+  function applyUiHue(h) {
+    _hue = h;
+    const r = document.documentElement;
+    // Named accent colours
+    r.style.setProperty('--sky',  hsl(h, 55, 55));
+    r.style.setProperty('--sky2', hsl(h, 58, 63));
+    r.style.setProperty('--sky3', hsl(h, 62, 74));
+    // Accent rgba aliases (ac*)
+    const rgb = hslToRgb(h/360, .65, .63);
+    const [R,G,B] = rgb;
+    const ac = (a) => `rgba(${R},${G},${B},${a})`;
+    r.style.setProperty('--ac1',  ac(1));
+    r.style.setProperty('--ac08', ac(.08));
+    r.style.setProperty('--ac10', ac(.10));
+    r.style.setProperty('--ac12', ac(.12));
+    r.style.setProperty('--ac13', ac(.13));
+    r.style.setProperty('--ac14', ac(.14));
+    r.style.setProperty('--ac15', ac(.15));
+    r.style.setProperty('--ac18', ac(.18));
+    r.style.setProperty('--ac20', ac(.20));
+    r.style.setProperty('--ac22', ac(.22));
+    r.style.setProperty('--ac25', ac(.25));
+    r.style.setProperty('--ac28', ac(.28));
+    r.style.setProperty('--ac30', ac(.30));
+    r.style.setProperty('--ac35', ac(.35));
+    r.style.setProperty('--ac40', ac(.40));
+    r.style.setProperty('--ac45', ac(.45));
+    r.style.setProperty('--ac50', ac(.50));
+    r.style.setProperty('--ac55', ac(.55));
+    r.style.setProperty('--ac62', ac(.62));
+    r.style.setProperty('--ac65', ac(.65));
+    // Dark panel tints (shift hue slightly into panel)
+    const dp = hslToRgb(h/360, .55, .08);
+    const [dR,dG,dB] = dp;
+    const dpv = (a) => `rgba(${dR},${dG},${dB},${a})`;
+    r.style.setProperty('--dp1', dpv(.60));
+    r.style.setProperty('--dp2', dpv(.70));
+    r.style.setProperty('--dp3', dpv(.80));
+    r.style.setProperty('--dp4', dpv(.88));
+    r.style.setProperty('--dp5', dpv(.92));
+    r.style.setProperty('--dp6', dpv(.95));
+    // Overlay base (nearly black with hue tint)
+    const ov = hslToRgb(h/360, .30, .025);
+    const [oR,oG,oB] = ov;
+    const ovv = (a) => `rgba(${oR},${oG},${oB},${a})`;
+    r.style.setProperty('--ov1', ovv(.82));
+    r.style.setProperty('--ov2', ovv(.85));
+    r.style.setProperty('--ov3', ovv(.88));
+    r.style.setProperty('--ov4', ovv(.92));
+    r.style.setProperty('--ov5', ovv(.96));
+    // Highlight panels
+    const hp = hslToRgb(h/360, .50, .22);
+    const [hR,hG,hB] = hp;
+    r.style.setProperty('--hp1', `rgba(${hR},${hG},${hB},.60)`);
+    const hp2 = hslToRgb(h/360, .45, .055);
+    const [h2R,h2G,h2B] = hp2;
+    r.style.setProperty('--hp2', `rgba(${h2R},${h2G},${h2B},.98)`);
+    r.style.setProperty('--hp3', `rgba(${h2R},${h2G},${h2B},.95)`);
+  }
+
+  function hslToRgb(h, s, l) {
+    let r, g, b;
+    if(s === 0){ r = g = b = l; }
+    else {
+      const q = l < .5 ? l*(1+s) : l+s-l*s;
+      const p = 2*l-q;
+      r = hue2rgb(p,q,h+1/3);
+      g = hue2rgb(p,q,h);
+      b = hue2rgb(p,q,h-1/3);
+    }
+    return [Math.round(r*255), Math.round(g*255), Math.round(b*255)];
+  }
+  function hue2rgb(p,q,t){ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; }
+
+  // Convert hue pick (#rrggbb) → hue angle
+  function hexToHue(hex){
+    const r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
+    const max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min;
+    if(d===0) return 220;
+    let h;
+    if(max===r) h=((g-b)/d)%6;
+    else if(max===g) h=(b-r)/d+2;
+    else h=(r-g)/d+4;
+    return Math.round(h*60+360)%360;
+  }
+
+  // Apply saved hue on load
+  applyUiHue(_hue);
+
+  // Expose globally
+  window.applyUiHue = applyUiHue;
+  window._getUiHue  = () => _hue;
+  window._saveUiHue = (h) => { localStorage.setItem(STORAGE_KEY, h); };
+  window._hexToHue  = hexToHue;
+  window._hslToRgb  = hslToRgb;
+
+  // Sync color picker swatch to current hue on open
+  window._syncUiColorPicker = function(){
+    const inp = document.getElementById('ui-hue-picker');
+    if(!inp) return;
+    // Convert current hue to a saturated hex for the picker
+    const [r,g,b] = hslToRgb(_hue/360, .75, .55);
+    inp.value = '#' + [r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+  };
+})();
+
 
 // ════════════════════════════════ NAV ════════════════════════════════
 // Reliable cross-platform file input trigger (Android blocks programmatic .click()
@@ -2665,11 +3008,10 @@ function triggerFileInput(id){
 }
 
 function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.add('hide')); document.getElementById(id).classList.remove('hide'); }
-function _syncThemeBtns(){ document.querySelectorAll('.theme-btn').forEach(b=>{ b.style.borderColor=b.dataset.theme===bgTheme?'rgba(100,180,255,.65)':'rgba(64,128,255,.2)'; b.style.background=b.dataset.theme===bgTheme?'rgba(30,50,90,.6)':'rgba(8,14,30,.8)'; }); }
+function _syncThemeBtns(){ document.querySelectorAll('.theme-btn').forEach(b=>{ b.style.borderColor=b.dataset.theme===bgTheme?'var(--ac65)':'var(--ac20)'; b.style.background=b.dataset.theme===bgTheme?'var(--hp1)':'var(--dp3)'; }); }
 function goStart(){
   show('s-start');
   document.getElementById('viewport').classList.remove('active');
-  document.getElementById('start-credits').style.opacity='1';
   _syncThemeBtns();
   closeSidebar();
   // Swap label based on whether a session exists
@@ -2685,13 +3027,12 @@ function goStart(){
 function goNew(){
   show('s-new');
   document.getElementById('viewport').classList.add('active');
-  document.getElementById('start-credits').style.opacity='0';
   vpOffX = 0; vpOffY = 0; vpZ = 1;
   document.getElementById('sb-zoom').textContent = '100%';
   setTimeout(resizeViewport, 100);
   syncAddBodyBtn();
 }
-function goOpen(){ show('s-open'); document.getElementById('start-credits').style.opacity='0'; }
+function goOpen(){ show('s-open'); }
 
 // ════════════════════════════════ PRESET DATA ════════════════════════════════
 // ════════════ FILE-BASED PRESETS (loaded from Presets zip) ════════════
@@ -2964,6 +3305,50 @@ function openSysSettings(){
   setVal('sc-height',  sc.position_LaunchPad.height);
   document.getElementById('modal-syssettings').classList.add('open');
 }
+function switchSettingsTab(tab){
+  ['general','credits'].forEach(t=>{
+    const active = t===tab;
+    const btn = document.getElementById('stab-'+t);
+    const content = document.getElementById('stab-'+t+'-content');
+    if(btn){
+      btn.style.background = active ? 'var(--ac13)' : 'transparent';
+      btn.style.border = active ? '1px solid var(--ac28)' : '1px solid transparent';
+      btn.style.borderBottom = 'none';
+      btn.style.color = active ? 'var(--sky2)' : 'var(--ink4)';
+    }
+    if(content) content.style.display = active ? '' : 'none';
+  });
+}
+
+function switchAppTab(tab){
+  ['theme','appcredits'].forEach(t=>{
+    const active = t===tab;
+    const btn = document.getElementById('apptab-'+t);
+    const content = document.getElementById('apptab-'+t+'-content');
+    if(btn){
+      btn.style.background = active ? 'var(--ac13)' : 'transparent';
+      btn.style.border = active ? '1px solid var(--ac28)' : '1px solid transparent';
+      btn.style.borderBottom = 'none';
+      btn.style.color = active ? 'var(--sky2)' : 'var(--ink4)';
+    }
+    if(content) content.style.display = active ? '' : 'none';
+  });
+  if(tab === 'theme'){
+    if(window._syncUiColorPicker) window._syncUiColorPicker();
+    if(window._getUiHue) _updateUiSwatches(window._getUiHue());
+    _syncThemeBtns();
+    _updateCustomBgUI(!!_customBgImg);
+  }
+}
+
+function openAppSettings(){
+  document.getElementById('modal-appsettings').classList.add('open');
+  switchAppTab('theme');
+}
+function closeAppSettings(){
+  document.getElementById('modal-appsettings').classList.remove('open');
+}
+
 function closeSysSettings(){
   const tog2 = id => document.getElementById(id).classList.contains('on');
   systemSettings.importSettings = {
@@ -3313,6 +3698,17 @@ function confirmPreset(){
 const vp = document.getElementById('viewport');
 const ctx2 = vp.getContext('2d');
 let vpOffX = 0, vpOffY = 0, vpZ = 1;
+let iconScale = parseFloat(localStorage.getItem('sfs_icon_scale') || '0.75');
+
+function setIconScale(v){
+  iconScale = Math.max(0.3, Math.min(1.5, v));
+  localStorage.setItem('sfs_icon_scale', iconScale);
+  const sl = document.getElementById('icon-scale-slider');
+  if(sl) sl.value = iconScale;
+  const lbl = document.getElementById('icon-scale-val');
+  if(lbl) lbl.textContent = Math.round(iconScale * 100) + '%';
+  drawViewport();
+}
 let bodyWorldPos = {};  // populated each drawViewport(); read by zoomToBody()
 let viewDifficulty = 'normal'; // 'normal' | 'hard' | 'realistic'
 // Data files use Title Case keys ('Normal','Hard','Realistic') — compute once on change
@@ -3868,14 +4264,14 @@ function _drawViewportNow(){
     // Fixed icon sizes — always the same pixel size regardless of zoom.
     // physR_px grows as you zoom in; once it exceeds the icon, the icon takes over.
     // This way bodies are always visible at any zoom level.
-    const iconR = b.isCenter ? 18
+    const iconR = (b.isCenter ? 18
                 : b.preset === 'star'         ? 14
                 : b.preset === 'blackhole'    ? 12
                 : (b.preset === 'gasgiant' || b.preset === 'ringedgiant') ? 10
                 : (b.preset === 'planet' || b.preset === 'marslike' || b.preset === 'mercurylike') ? 7
                 : b.preset === 'moon'         ? 5
                 : b.preset === 'barycentre'   ? 4
-                : 4; // asteroid
+                : 4) * iconScale; // asteroid
 
     // Physical radius in screen pixels at current zoom.
     // Apply radiusDifficultyScale so the body disc scales correctly relative to
@@ -4830,10 +5226,13 @@ function _drawViewportNow(){
     if(labelFadeA > 0.01){
       const fontSize = 9;
       ctx2.globalAlpha = labelFadeA;
-      ctx2.fillStyle = selectedBody===name ? 'rgba(180,230,255,0.95)' : 'rgba(150,200,240,0.7)';
       ctx2.font = `${fontSize}px "JetBrains Mono",monospace`;
       ctx2.textAlign = 'center';
       const displayName = (selectedBody===name && drawViewport._pendingName) ? drawViewport._pendingName : name;
+      // Dark shadow for readability against any background
+      ctx2.fillStyle = 'rgba(0,0,0,0.65)';
+      ctx2.fillText(displayName, sp.x+1, sp.y + r + fontSize + 3);
+      ctx2.fillStyle = selectedBody===name ? 'rgba(180,230,255,0.98)' : 'rgba(160,210,255,0.85)';
       ctx2.fillText(displayName, sp.x, sp.y + r + fontSize + 2);
       ctx2.globalAlpha = 1;
     }
@@ -5362,7 +5761,7 @@ vp.addEventListener('mousedown', e => {
       const b = bodies[name];
       if(b.isCenter) return; // center can't be orbit-dragged
       const br = (b.data.BASE_DATA||{}).radius || 1;
-      const iconR = b.preset==='star'?14 : (b.preset==='gasgiant'||b.preset==='ringedgiant')?10:(b.preset==='planet'||b.preset==='marslike'||b.preset==='mercurylike')?7:b.preset==='moon'?5:4;
+      const iconR = (b.preset==='star'?14 : (b.preset==='gasgiant'||b.preset==='ringedgiant')?10:(b.preset==='planet'||b.preset==='marslike'||b.preset==='mercurylike')?7:b.preset==='moon'?5:4) * iconScale;
       const r = Math.max(iconR, br * sc2 * vpZ);
       const d = Math.hypot(mx - sp.x, my - sp.y);
       if(d < r + 12) hits.push({name, iconR, d});
@@ -5452,7 +5851,7 @@ vp.addEventListener('click', e => {
     if(!bodyVisibleMap[name]) return;
     const b = bodies[name];
     const bodyRadius_m = (b.data.BASE_DATA||{}).radius || 1;
-    const iconR = b.isCenter?18 : b.preset==='star'?14 : (b.preset==='gasgiant'||b.preset==='ringedgiant')?10:(b.preset==='planet'||b.preset==='marslike'||b.preset==='mercurylike')?7:b.preset==='moon'?5:4;
+    const iconR = (b.isCenter?18 : b.preset==='star'?14 : (b.preset==='gasgiant'||b.preset==='ringedgiant')?10:(b.preset==='planet'||b.preset==='marslike'||b.preset==='mercurylike')?7:b.preset==='moon'?5:4) * iconScale;
     const r = Math.max(iconR, bodyRadius_m * sc2 * vpZ);
     const d = Math.hypot(mx - sp.x, my - sp.y);
     if(d < r + 10) hitCandidates.push({name, iconR, d});
@@ -5489,7 +5888,7 @@ vp.addEventListener('dblclick', e => {
     if(!bodyVisibleMap[name]) return;
     const b = bodies[name];
     const br = (b.data.BASE_DATA||{}).radius || 1;
-    const iconR = b.isCenter?18 : b.preset==='star'?14 : (b.preset==='gasgiant'||b.preset==='ringedgiant')?10:(b.preset==='planet'||b.preset==='marslike'||b.preset==='mercurylike')?7:b.preset==='moon'?5:4;
+    const iconR = (b.isCenter?18 : b.preset==='star'?14 : (b.preset==='gasgiant'||b.preset==='ringedgiant')?10:(b.preset==='planet'||b.preset==='marslike'||b.preset==='mercurylike')?7:b.preset==='moon'?5:4) * iconScale;
     const r = Math.max(iconR, br * sc2 * vpZ);
     const d = Math.hypot(mx-sp.x, my-sp.y);
     if(d < r + 10) hits.push({name, iconR, d});
@@ -5519,7 +5918,7 @@ vp.addEventListener('touchstart', e => {
       const b = bodies[name];
       if(b.isCenter) return;
       const br = (b.data.BASE_DATA||{}).radius || 1;
-      const iconR = b.preset==='star'?14:(b.preset==='gasgiant'||b.preset==='ringedgiant')?10:(b.preset==='planet'||b.preset==='marslike'||b.preset==='mercurylike')?7:b.preset==='moon'?5:4;
+      const iconR = (b.preset==='star'?14:(b.preset==='gasgiant'||b.preset==='ringedgiant')?10:(b.preset==='planet'||b.preset==='marslike'||b.preset==='mercurylike')?7:b.preset==='moon'?5:4) * iconScale;
       const r = Math.max(iconR, br * sc2 * vpZ);
       const d = Math.hypot(mx - sp.x, my - sp.y);
       if(d < r + 16) hits.push({name, iconR, d});
@@ -5980,7 +6379,7 @@ function refreshJsonView(){
   const out = { version: _jv || '1.5', ..._jr };
   const el = document.getElementById('json-editor');
   el.value = JSON.stringify(out, null, 2);
-  el.style.borderColor = 'rgba(64,128,255,.15)';
+  el.style.borderColor = 'var(--ac15)';
   el.style.color = '#90d8a0';
   document.getElementById('json-error').style.display = 'none';
 }
@@ -6021,7 +6420,7 @@ function applyJsonEdit(){
     drawViewport();
     const el = document.getElementById('json-editor');
     el.style.borderColor = 'rgba(48,200,100,.5)';
-    setTimeout(()=>{ el.style.borderColor='rgba(64,128,255,.15)'; }, 1000);
+    setTimeout(()=>{ el.style.borderColor='var(--ac15)'; }, 1000);
   } catch(e){
     document.getElementById('json-error').textContent = '⚠ Cannot apply — invalid JSON: ' + e.message;
     document.getElementById('json-error').style.display = 'block';
@@ -7395,7 +7794,7 @@ function buildDropdownItems(pickId, query){
     const thumb = getTexThumb(name);
     el.innerHTML = thumb
       ? `<img class="tpick-opt-thumb" src="${thumb}"><span class="tpick-opt-name">${name}</span>`
-      : `<span style="width:24px;height:24px;flex-shrink:0;background:rgba(64,128,255,.1);border:1px solid var(--rim)"></span><span class="tpick-opt-name">${name}</span>`;
+      : `<span style="width:24px;height:24px;flex-shrink:0;background:var(--ac10);border:1px solid var(--rim)"></span><span class="tpick-opt-name">${name}</span>`;
     el.onclick = () => commitTexPick(pickId, name);
     dd.appendChild(el);
   });
@@ -8262,69 +8661,17 @@ document.addEventListener('touchstart', e => {
 initTexPickers();
 // Prevent browser "please enter a valid value" tooltip on number inputs with decimal values
 document.querySelectorAll('input[type="number"].finput').forEach(el => el.step = 'any');
-// Close theme modal on backdrop click
-document.getElementById('modal-theme').addEventListener('mousedown', function(e){ if(e.target===this) this.classList.remove('open'); });
-document.getElementById('modal-theme').addEventListener('touchstart', function(e){ if(e.target===this) this.classList.remove('open'); }, {passive:true});
 _syncThemeBtns();
 setTimeout(_syncEnvButtons, 0);
-// Credits bar: push it above the Android browser bottom nav bar.
-// On Android Chrome the browser UI sits below window.innerHeight but
-// document.documentElement.clientHeight == the actual usable area.
-// We also listen to visualViewport for dynamic nav bar show/hide.
+// Close app settings on backdrop click
+document.getElementById('modal-appsettings').addEventListener('mousedown', function(e){ if(e.target===this) closeAppSettings(); });
+document.getElementById('modal-appsettings').addEventListener('touchstart', function(e){ if(e.target===this) closeAppSettings(); }, {passive:true});
+// Init icon scale slider
 (function(){
-  const bar = document.getElementById('start-credits');
-  const track = document.getElementById('credits-track');
-  const inner = document.getElementById('credits-inner');
-  if(!bar || !track || !inner) return;
-
-  // ── Bottom padding: clear Android nav bar ──
-  function adjust(){
-    const vv = window.visualViewport;
-    let gap = 0;
-    if(vv) gap = Math.round(window.innerHeight - vv.height - vv.offsetTop);
-    const isTouch = window.matchMedia('(pointer:coarse)').matches;
-    const floor = isTouch ? 56 : 0;
-    bar.style.paddingBottom = Math.max(gap, floor) + 'px';
-  }
-  adjust();
-  if(window.visualViewport){
-    window.visualViewport.addEventListener('resize', adjust);
-    window.visualViewport.addEventListener('scroll', adjust);
-  }
-  window.addEventListener('resize', adjust);
-
-  // ── Marquee: fill screen width with enough clones, then scroll one copy width ──
-  // On wide PC screens two copies may not cover the viewport — clone until we exceed 2× screen width
-  function ensureCovers(){
-    // Keep adding clones until track content is wider than 2× viewport
-    const needed = window.innerWidth * 2;
-    while(track.scrollWidth < needed){
-      const clone = inner.cloneNode(true);
-      clone.removeAttribute('id');
-      clone.setAttribute('aria-hidden','true');
-      track.appendChild(clone);
-    }
-  }
-  ensureCovers();
-  window.addEventListener('resize', ensureCovers);
-
-  let offset = 0;
-  const SPEED = 38; // px/sec
-  let last = null;
-  let rafId;
-  function tick(ts){
-    if(last === null) last = ts;
-    const dt = (ts - last) / 1000;
-    last = ts;
-    const oneW = inner.offsetWidth; // width of one copy (the original)
-    if(oneW > 0){
-      offset += SPEED * dt;
-      if(offset >= oneW) offset -= oneW; // seamless wrap by exactly one copy
-      track.style.transform = `translateX(${-offset}px)`;
-    }
-    rafId = requestAnimationFrame(tick);
-  }
-  rafId = requestAnimationFrame(tick);
+  const sl = document.getElementById('icon-scale-slider');
+  if(sl) sl.value = iconScale;
+  const lbl = document.getElementById('icon-scale-val');
+  if(lbl) lbl.textContent = Math.round(iconScale * 100) + '%';
 })();
 show('s-start');
 </script>
@@ -8369,6 +8716,17 @@ show('s-start');
       style="width:100%;accent-color:rgba(255,180,80,.8);cursor:pointer"
       oninput="document.getElementById('wasd-sens-val').textContent=parseFloat(this.value).toFixed(1)">
     <span style="font-size:.5rem;color:rgba(150,150,180,.5);letter-spacing:.04em">Camera pan speed (W / A / S / D keys)</span>
+  </div>
+  <div style="height:1px;background:rgba(255,180,80,.1);margin:0 10px"></div>
+  <div style="padding:9px 14px 10px;display:flex;flex-direction:column;gap:5px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(255,180,80,.9);letter-spacing:.05em">⊙ ICON SIZE</span>
+      <span id="icon-scale-val" style="font-family:'JetBrains Mono',monospace;font-size:.58rem;color:rgba(150,200,255,.8);min-width:32px;text-align:right">75%</span>
+    </div>
+    <input type="range" id="icon-scale-slider" min="0.3" max="1.5" step="0.05" value="0.75"
+      style="width:100%;accent-color:rgba(255,180,80,.8);cursor:pointer"
+      oninput="setIconScale(parseFloat(this.value))">
+    <span style="font-size:.5rem;color:rgba(150,150,180,.5);letter-spacing:.04em">Planet icon display size</span>
   </div>
   <div style="height:1px;background:rgba(255,180,80,.1);margin:0 10px"></div>
   <button onclick="toggleHighResSurface()" id="btn-hires" style="display:flex;align-items:center;gap:10px;
