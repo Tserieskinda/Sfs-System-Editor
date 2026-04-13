@@ -11,9 +11,12 @@ If Bad internet, click on cancel and load manually or Just Read "How to use offl
 If you're on mobile/weak device You might have to wait a bit more.
 
 ## How to use offline
-1) Download these two files-
+1) Download these two files -
+
   The zip https://github.com/Tserieskinda/Sfs-System-Editor/releases/tag/v5_0
+
   The Program https://github.com/Tserieskinda/Sfs-System-Editor/blob/main/index.html
+
 2) Open open the index.html with a browser
 3) Click on load sfs assets
 4) Navigate to the Zip file you just downloaded
