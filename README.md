@@ -103,7 +103,7 @@ things may break, bugs may appear, so i do not reccomend you to make a giant sys
 Its still beta and has limited support for clouds and hieghtmaps, also it does not support 1.4~ and below systems.
 Its aimed to support both pc and mobile.
 
-Before you say, it is vibecoded.
+Before you say, it is 99% vibecoded.
 
 Thanks to Astray Galaxy and Neverger (creator of tts) and the Celestia community for the Zip assets.
 Beta testers and contributors- Krameter, Mistiy, ReoreyBoi, Akselajin, Cyn, Cresign, Razan T3, AStray
