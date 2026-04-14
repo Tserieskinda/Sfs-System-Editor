@@ -23,12 +23,12 @@ If you're on mobile/weak device You might have to wait a bit more.
 5) Click on the zip file and wait for it to load
 Now you can use the program.
 
-# Create a new system-
-Select a system centre, you can choose from the many presets available from the zip.
-Add body- allows you to add a body orbiting whatever you just selected
-Search tool- download induvidual txt files of the planets in your system or zoom into them if you have lots of bodies.
-Double click to zoom into a planet
-Shortcut keys (pc) WASD to move, (you can also use scroll wheel), R to replace, B to add body, Z to zoom and delete key to delete.
+# Creating a new system-
+- Select a system centre, you can choose from the many presets available from the zip.
+- Add body- allows you to add a body orbiting whatever you just selected
+- Search tool- download induvidual txt files of the planets in your system or zoom into them if you have lots of bodies.
+- Double click to zoom into a planet
+- Shortcut keys (pc) WASD to move, (you can also use scroll wheel), R to replace, B to add body, Z to zoom and delete key to delete.
 
 ### Difficulty Changer-
 Allows you to view the solar system in different difficulties
