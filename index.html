@@ -4958,44 +4958,47 @@ function _drawViewportNow(){
           const startH_m  = (CLD.startHeight || 0)                              * atmoMult;
           const cloudH_m  = Math.max(1, (CLD.height || 1))                      * atmoMult;
           const rawAlpha  = CLD.alpha || 0;
-          const widthM    = Math.max(1, (CLD.width || 1))                       * atmoMult;
-          const gradH_m   = (b.data.ATMOSPHERE_VISUALS_DATA?.GRADIENT?.height || (CLD.height||1)) * atmoMult;
+          const widthM    = Math.max(1, (CLD.width || 1)) * atmoMult; // ScalePlanetData: width *= atmoMult
 
           if(rawAlpha > 0.005){
-            const cldScale = 1;
-            // outer = R + startH + cloudH — the true cloud disc extent.
-            // Use R_eff (difficulty-scaled radius) for all cloud geometry — the game calls
-            // ScalePlanetData before CreateAtmosphereMaterial so R in the shader = R * radiusMult.
-            const R_eff_px = bodyRadius_m * radiusMult;
-            const inner_px = physR_px * (R_eff_px + startH_m) / R_eff_px * cldScale;
-            const outer_px = physR_px * (R_eff_px + startH_m + cloudH_m) / R_eff_px * cldScale;
-            const band_px  = outer_px - inner_px;
+            // Match Planet.cs exactly:
+            //   _CloudStartY = (R + startH + gradH) / gradH - 1  (line 427)
+            //   _CloudSizeY  = (R + gradH) / cloudH              (line 428)
+            //   _CloudSizeX  = ceil((R + startH) * 2π / width)   (line 429)
+            // Cloud mesh covers the full gradient disc (planet surface → R+gradH).
+            // UV v=0 is disc outer edge, increasing inward. _CloudStartY offsets
+            // where texture starts; _CloudSizeY tiles it radially.
+            const R_eff_px    = bodyRadius_m * radiusMult;
+            const gradH_cld   = _gradH_m;
+            const atmoOuter_m = R_eff_px + gradH_cld;
+            const atmoDisk_px = physR_px * atmoOuter_m / R_eff_px;
+            // Cloud disc spans full gradient disc: planet surface → atmo outer
+            const inner_px    = physR_px;
+            const outer_px    = atmoDisk_px;
 
-            // Scale threshold inversely with cloud size so big clouds render from further away.
             const cldThr = 2;
-            const cldLod = cldThr * R_eff_px / (R_eff_px + startH_m + cloudH_m);
-            if(outer_px >= cldLod){
-              const cldFade = Math.max(0, Math.min(1, (outer_px - cldLod) / Math.max(cldLod, 0.01)));
+            if(atmoDisk_px >= cldThr){
+              const cldFade = Math.max(0, Math.min(1, (atmoDisk_px - cldThr) / Math.max(cldThr, 0.01)));
               if(cldFade > 0){
                 const baseAlpha = Math.min(rawAlpha, 1) * cldFade;
 
-                // Shader uniforms must use R_eff (difficulty-scaled radius) — the game
-                // calls ScalePlanetData(radius *= radiusScale) before CreateAtmosphereMaterial.
-                // Using raw bodyRadius_m gives wrong numTiles (e.g. 10× instead of 1 for wormholes).
-                // _CloudSizeX: horizontal tile count around circumference
+                // _CloudSizeX = ceil((R + startH) * 2π / width)  — Planet.cs line 429
                 const numTiles = Math.max(1, Math.ceil((R_eff_px + startH_m) * 6.283185307 / widthM));
+                // _CloudSizeY = (R + gradH) / cloudH  — Planet.cs line 428
+                const cloudSizeY = (R_eff_px + gradH_cld) / cloudH_m;
+                // _CloudStartY = (R + startH + gradH) / gradH - 1  — Planet.cs line 427
+                const cloudStartY_val = (R_eff_px + startH_m + gradH_cld) / gradH_cld - 1;
 
-                // _CloudSizeY: how many texture heights fit in the gradient span
-                const cloudSizeY = (R_eff_px + gradH_m) / cloudH_m;
+                if(!drawViewport._cldDbg) drawViewport._cldDbg = {};
+                if(!drawViewport._cldDbg[name]){ drawViewport._cldDbg[name]=true; console.log(`[CLD] ${name}: R=${R_eff_px}, startH=${startH_m}, cloudH=${cloudH_m}, gradH=${gradH_cld}, numTiles=${numTiles}, cloudSizeY=${cloudSizeY.toFixed(3)}, cloudStartY=${cloudStartY_val.toFixed(3)}`); }
 
-                // _CloudStartY: V offset where the cloud band begins in the gradient strip
-                const cloudStartY = (R_eff_px + startH_m + gradH_m) / gradH_m - 1;
-
-                // Cache key: all world-space, zoom-independent
-                const cacheKey = 'cld5:' + CLD.texture
-                                + '|' + cloudStartY.toFixed(5)
-                                + '|' + cloudSizeY.toFixed(5)
+                const cacheKey = 'cld9:' + CLD.texture
+                                + '|' + R_eff_px.toFixed(1)
+                                + '|' + gradH_cld.toFixed(1)
+                                + '|' + startH_m.toFixed(1)
+                                + '|' + cloudH_m.toFixed(1)
                                 + '|' + numTiles
+                                + '|' + cloudSizeY.toFixed(3)
                                 + '|' + _surfaceSZ();
                 if(!drawViewport._cloudCache) drawViewport._cloudCache = {};
                 let wc = drawViewport._cloudCache[cacheKey];
@@ -5014,32 +5017,31 @@ function _drawViewportNow(){
                   const od = wctx.createImageData(SZ, SZ);
                   const out = od.data;
                   const cx0 = SZ / 2, cy0 = SZ / 2;
+                  // outerN = half canvas = full gradient disc radius
                   const outerN = SZ / 2;
-                  // innerFrac from world-space: inner_m / outer_m (zoom-independent)
-                  const inner_m = R_eff_px + startH_m;
-                  const outer_m = R_eff_px + startH_m + cloudH_m;
-                  const innerFrac = inner_m / outer_m;
-                  const innerN = outerN * innerFrac;
+                  // innerN = planet surface radius in canvas px
+                  const innerN = outerN * (physR_px / atmoDisk_px);
 
-                  const edgeFade = 1.5; // px to feather inner/outer edges
+                  const edgeFade = 1.5;
                   for(let py = 0; py < SZ; py++){
                     for(let px2 = 0; px2 < SZ; px2++){
                       const dx = px2 - cx0, dy = py - cy0;
                       const dist = Math.sqrt(dx * dx + dy * dy);
                       if(dist < innerN - edgeFade || dist > outerN + edgeFade) continue;
-                      // Soft fade at inner and outer edges
                       const innerAlpha = Math.min(1, (dist - (innerN - edgeFade)) / edgeFade);
                       const outerAlpha = Math.min(1, ((outerN + edgeFade) - dist) / edgeFade);
                       const edgeA = Math.min(innerAlpha, outerAlpha);
-                      // radFrac_world: 0 at inner edge (planet surface), 1 at outer edge
-                      const radFrac_world = Math.max(0, Math.min(1, (dist - innerN) / (outerN - innerN)));
+                      // v_disc: 0 at atmo outer edge, 1 at planet surface — matches shader
+                      const v_disc = Math.max(0, Math.min(1, (outerN - dist) / (outerN - innerN)));
+                      // shader: sample at cloudStartY + v_disc * cloudSizeY, tiled
+                      const v_raw = cloudStartY_val + v_disc * cloudSizeY;
+                      const v_frac = v_raw - Math.floor(v_raw);
                       let ang = Math.atan2(dy, dx) / (2 * Math.PI);
                       if(ang < 0) ang += 1;
                       const u = (ang * numTiles) % 1;
-                      const v = (radFrac_world * cloudSizeY + cloudStartY) % 1;
                       const sx = Math.min(tw - 1, Math.floor(u * tw));
-                      // Unity V=0 is texture bottom; Canvas2D y=0 is top — flip required
-                      const sy = Math.min(th - 1, Math.floor((1 - v) * th));
+                      // Unity V=0 is texture bottom; Canvas2D y=0 is top — flip
+                      const sy = Math.min(th - 1, Math.floor(v_frac * th));
                       const si = (sy * tw + sx) * 4;
                       const oi = (py * SZ + px2) * 4;
                       out[oi]     = sd[si];
@@ -6163,7 +6165,7 @@ function importBodyFromTxt(input){
     } catch(_){}
 
     let bodyData;
-    try { bodyData = JSON.parse(raw); }
+    try { bodyData = normalizeDiffScaleKeys(JSON.parse(raw)); }
     catch(err) { alert('Could not parse .txt file:\n' + err.message); return; }
 
     // Derive name from filename (strip .txt)
@@ -6404,7 +6406,7 @@ function applyJsonEdit(){
   if(!selectedBody) return;
   const text = document.getElementById('json-editor').value;
   try {
-    const parsed = JSON.parse(text);
+    const parsed = normalizeDiffScaleKeys(JSON.parse(text));
     // Remove version from data (it's added on export)
     delete parsed.version;
     pushUndo();
@@ -6953,11 +6955,14 @@ function liveSync(){
 
   // ATMOSPHERE PHYSICS
   if(tog('ap-has')){
+    // Preserve fields with no UI controls so edits don't wipe per-body difficulty scales
+    const _apPrev = d.ATMOSPHERE_PHYSICS_DATA || {};
     d.ATMOSPHERE_PHYSICS_DATA = {
       height: parseFloat(val('ap-height'))||0, density: parseFloat(val('ap-density'))||0,
-      curve: parseFloat(val('ap-curve'))||0, curveScale:{},
+      curve: parseFloat(val('ap-curve'))||0, curveScale: _apPrev.curveScale || {},
       parachuteMultiplier: parseFloat(val('ap-chute'))||1,
-      upperAtmosphere: parseFloat(val('ap-upper'))||0, heightDifficultyScale:{},
+      upperAtmosphere: parseFloat(val('ap-upper'))||0,
+      heightDifficultyScale: _apPrev.heightDifficultyScale || {},
       shockwaveIntensity: parseFloat(val('ap-shock'))||0,
       minHeatingVelocityMultiplier: parseFloat(val('ap-mhvm'))||1
     };
@@ -6971,8 +6976,10 @@ function liveSync(){
     const fogObj = tog('fog-has')
       ? { keys: collectFogKeys() }
       : { keys: [] };
+    // Preserve heightDifficultyScale on GRADIENT — it has no UI control
+    const _gradPrev = d.ATMOSPHERE_VISUALS_DATA?.GRADIENT || {};
     d.ATMOSPHERE_VISUALS_DATA = {
-      GRADIENT: { positionZ:parseInt(val('av-pz'))||0, height:parseFloat(val('av-height'))||0, heightDifficultyScale:{}, texture:val('av-tex') },
+      GRADIENT: { positionZ:parseInt(val('av-pz'))||0, height:parseFloat(val('av-height'))||0, heightDifficultyScale: _gradPrev.heightDifficultyScale || {}, texture:val('av-tex') },
       CLOUDS: cloudsObj,
       FOG: fogObj
     };
@@ -7246,6 +7253,42 @@ function finaliseRename(newName){
   document.getElementById('sbb-type').textContent = bodies[newName].isCenter ? 'System Center' : (bodies[newName].data.ORBIT_DATA ? `orbiting ${bodies[newName].data.ORBIT_DATA.parent}` : '');
   updateStatusBar();
   drawViewport();
+}
+
+// Normalises difficulty-scale sub-objects so lowercase keys from SFS game files
+// ('normal','hard','realistic') become Title Case ('Normal','Hard','Realistic').
+// Must be called on every bodyData object right after JSON.parse.
+function normalizeDiffScaleKeys(bodyData){
+  if(!bodyData || typeof bodyData !== 'object') return bodyData;
+  const DIFF_FIELDS = [
+    'radiusDifficultyScale','gravityDifficultyScale',
+    'smaDifficultyScale','soiDifficultyScale',
+    'heightDifficultyScale','terrainFormulaDifficulties',
+    'flatZonesDifficulties'
+  ];
+  const LC = ['normal','hard','realistic'];
+  function fixScaleObj(o){
+    if(!o || typeof o !== 'object') return;
+    for(const lk of LC){
+      if(o[lk] !== undefined){
+        const tk = lk.charAt(0).toUpperCase() + lk.slice(1);
+        if(o[tk] === undefined) o[tk] = o[lk];
+        delete o[lk];
+      }
+    }
+  }
+  function walk(node){
+    if(!node || typeof node !== 'object') return;
+    for(const field of DIFF_FIELDS){
+      if(node[field]) fixScaleObj(node[field]);
+    }
+    // Recurse one level into nested sections (ATMOSPHERE_PHYSICS_DATA, etc.)
+    for(const k of Object.keys(node)){
+      if(node[k] && typeof node[k] === 'object' && !Array.isArray(node[k])) walk(node[k]);
+    }
+  }
+  walk(bodyData);
+  return bodyData;
 }
 
 function buildDiffScale(nId,hId,rId){
@@ -8196,7 +8239,7 @@ async function loadZipFile(file){
           const _fixedRaw = raw
             .replace(/,\s*([}\]])/g, '$1')           // trailing commas
             .replace(/(\d)\.(?=[,\s}\]])/g, '$10'); // bare decimals: 0. → 0.0
-          const bodyData = JSON.parse(_fixedRaw);
+          const bodyData = normalizeDiffScaleKeys(JSON.parse(_fixedRaw));
           // isCenter determined later — first pass just stores data
           const lacksOrbit = !bodyData.ORBIT_DATA;
           const r   = bodyData.BASE_DATA?.radius || 0;
@@ -8426,7 +8469,7 @@ function _parsePresetTxt(raw){
     let fixed = raw
       .replace(/,(\s*[}\]])/g, '$1')           // trailing commas
       .replace(/(\d)\.(?=[,\s}\]])/g, '$10');   // bare decimal: 0. → 0.0
-    return JSON.parse(fixed);
+    return normalizeDiffScaleKeys(JSON.parse(fixed));
   } catch(e){
     console.warn('Preset parse error:', e);
     return null;
