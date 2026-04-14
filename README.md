@@ -60,8 +60,6 @@ Allows to disable certain rendering Like
 Disable SOI Circle, Atmosphere, Water, Fog, Post processing,
 Clouds, Front clouds, Surface Texture 
 
-Disable post processing and Fog if your device is TOO weak.
-
 # Open existing system- 
 Used to edit an already made system (1.5+)
 1) Locate the system folder you want to load
@@ -70,6 +68,18 @@ Used to edit an already made system (1.5+)
 4) After the assets have loaded, click on "Open existing system" button.
 5) Select the system.zip you just compressed.
 6) You can explore the system in the editor and make changes to it.
+
+## How to reduce lag
+1) Use a different browser
+2) Turn off some things in the environments icon (Globe Icon) like Disable post processing and Fog if your device is weak.
+
+## How to make your own presets-
+1) Get your custom body, and all the textures it uses.
+2) Download the latest zip from releases.
+3) Extract it
+4) Put the TXT file in Custom presets> Planet Data
+5) Put the textures and hieghtmaps in their respective folders.
+6) Compress the Zip and load it in the editor, your custom preset will appear.
 
 # Known Bugs-
 Innacurate SOI
