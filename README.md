@@ -30,6 +30,9 @@ Search tool- download induvidual txt files of the planets in your system or zoom
 Double click to zoom into a planet
 Shortcut keys (pc) WASD to move, (you can also use scroll wheel), R to replace, B to add body, Z to zoom and delete key to delete.
 
+### Difficulty Changer-
+Allows you to view the solar system in different difficulties
+
 ## Tool bar- has 4 options, 
 1. Drag to adjust orbit, allows you to physically move a planbet by your finger and itll automatically calculate the orbital values, 
 (if they do not appear at that position the same in game, its because the world starts at time 11 day, but the program shows the world at time 0, so make orbital direction 0 so the planet does not move)
