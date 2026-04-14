@@ -87,7 +87,7 @@ Cloud related bugs
 Hieghtmap Related bugs
 Minor UI Issues
 4 Million solar mass black hole preset is broken, Do not use it
-Landmark is Broken
+Landmarks are a bit Broken
 
 ## Warning
 Any unsaved progress will be deleted and progress will be lost if you exit the program. Save progess by clicking Export.zip, and you can load the same zip later
@@ -101,5 +101,6 @@ Its aimed to support both pc and mobile.
 
 Before you say, it is vibecoded.
 
-Thanks to Astray Galaxy and Neverger for the Zip assets.
-Beta testers and contributors- Krameter, Mistiy, ReoreyBoi, Akselajin, Cyn
+Thanks to Astray Galaxy and Neverger (creator of tts) and the Celestia community for the Zip assets.
+Beta testers and contributors- Krameter, Mistiy, ReoreyBoi, Akselajin, Cyn, Cresign, Razan T3, AStray
+Promoter- JJC Aerospace on youtube
