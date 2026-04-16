@@ -10,6 +10,8 @@ If Bad internet, click on cancel and load manually or Just Read "How to use offl
 
 If you're on mobile/weak device You might have to wait a bit more.
 
+
+
 # Creating a new system-
 - Select a system centre, you can choose from the many presets available from the zip.
 - Add body- allows you to add a body orbiting whatever you just selected
