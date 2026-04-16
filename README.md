@@ -106,5 +106,6 @@ Its aimed to support both pc and mobile.
 Before you say, it is **99% vibecoded.**
 
 Thanks to Astray Galaxy and Neverger (creator of tts) and the Celestia community for the Zip assets.
-Beta testers and contributors- Krameter, Mistiy, ReoreyBoi, Akselajin, Cyn, Cresign, Razan T3, AStray
+Beta testers and contributors- Krameter, Mistiy, ReoreyBoi, Akselajin, Cyn, Cresign, Razan T3, Astray
 Promoter- JJC Aerospace on youtube
+Hieghtmap code learning- Floating Fuel
