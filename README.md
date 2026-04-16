@@ -1,7 +1,7 @@
 # Tutorial 
 (How to start + Features and uses)
 
-## How to use Online-
+## How to use Online- (Auto-updated)
 1) Go to the website https://tserieskinda.github.io/Sfs-System-Editor/
 2) Wait for the assets to load automatically.
 3) Now you can Use the program, no external zip needed From the website.
@@ -10,7 +10,7 @@ If Bad internet, click on cancel and load manually or Just Read "How to use offl
 
 If you're on mobile/weak device You might have to wait a bit more.
 
-## How to use offline
+## How to use offline (**NOT** Auto-updated)
 1) Download these two files -
 
   The zip https://github.com/Tserieskinda/Sfs-System-Editor/releases/tag/v5_0
