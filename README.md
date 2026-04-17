@@ -98,3 +98,5 @@ Thanks to Astray Galaxy and Neverger (creator of tts) and the Celestia community
 Beta testers and contributors- Krameter, Mistiy, ReoreyBoi, Akselajin, Cyn, Cresign, Razan T3, Astray
 Promoter- JJC Aerospace on youtube
 Hieghtmap code learning- Floating Fuel
+
+[**SFS Forums Page*](https://sfsforum.com/index.php?threads/sfs-system-editor-beta.18444/)
