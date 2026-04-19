@@ -21,9 +21,9 @@ If you're on mobile/weak device You might have to wait a bit more for loading.
 2) Extract the Editor zip
 
 3) for Android-
-- Open simple HTTPS and select the root folder to the one you just extracted, Ezample- Download/SFS Editor
+- Open simple HTTPS and select the root folder to the one you just extracted, Example- Download/SFS Editor (where you can see the .js and .css files)
 - Click on start server and copy the web adress shown in the app
-- Paster the adress in a browser, the program will load and now you can insert the presets/textures zip
+- Paste the adress in a browser, the program will load and now you can insert the presets/textures zip by the button
  
  PC-
  - Press Win+X and open Terminal 
