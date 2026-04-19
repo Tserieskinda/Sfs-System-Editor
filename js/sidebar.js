@@ -1289,7 +1289,7 @@ function collectLandmarks(){
   const lms=[]; let i=0;
   while(document.getElementById('lm-'+i)){
     const n=val('lm-'+i+'-n');
-    if(n) lms.push({name:n, startAngle:parseFloat(val('lm-'+i+'-s'))||0, endAngle:parseFloat(val('lm-'+i+'-e'))||0});
+    if(n){ let sa=parseFloat(val('lm-'+i+'-s'))||0, ea=parseFloat(val('lm-'+i+'-e'))||0; if(ea<sa) ea+=360; lms.push({name:n, startAngle:sa, endAngle:ea}); }
     i++;
   }
   return lms;
