@@ -28,11 +28,11 @@ If you're on mobile/weak device You might have to wait a bit more for loading.
  PC-
  - Press Win+X and open Terminal 
  - Navigate to the Extracted Editor folder with this command- 
-    cd "{yourfilepath}\Downloads\SFS Editor"
+    ```cd "{yourfilepath}\Downloads\SFS Editor"```
 - Paste this into the terminal-
-    python -m http.server 8000
+    ```python -m http.server 8000```
 - Open your Web broser and go to-
-    http://localhost:8000
+    ```http://localhost:8000```
 - Upload the textures + presets zip you downloaded, done
 
 # Creating a new system-
