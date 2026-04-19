@@ -804,7 +804,7 @@ body {
   box-shadow: 0 0 30px var(--ac18), inset 0 0 20px var(--ac08);
 }
 #add-center-btn:hover {
-  background: rgba(12,20,45,.96); border-color: var(--sky2);
+  background: var(--dp6); border-color: var(--sky2);
   box-shadow: 0 0 50px var(--ac45), inset 0 0 30px var(--ac08);
   color: var(--ink3);
 }
@@ -911,7 +911,7 @@ body {
   display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
   position: relative;
 }
-.prs-card:hover { border-color: var(--rim2); background: rgba(12,20,42,.85); }
+.prs-card:hover { border-color: var(--rim2); background: var(--dp5); }
 .prs-card.sel { border-color: var(--sky); background: var(--ac08); }
 .prs-card-icon { font-size: 1.3rem; line-height: 1; margin-bottom: 3px; }
 .prs-card-name {
@@ -968,7 +968,7 @@ body {
 #sidebar {
   position: fixed; right: 0; top: 48px; bottom: 28px;
   width: 340px; z-index: 90;
-  background: rgba(5,8,18,.97); border-left: 1px solid var(--rim);
+  background: var(--dp6); border-left: 1px solid var(--rim);
   display: flex; flex-direction: column;
   transform: translateX(100%);
   transition: transform .35s cubic-bezier(.4,0,.2,1);
@@ -1051,7 +1051,7 @@ body {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  background: rgba(4,8,20,.6);
+  background: var(--dp3);
   border: 1px solid var(--ac12);
   border-radius: 6px;
   padding: 4px;
@@ -1135,12 +1135,12 @@ body {
   color: var(--ink2); font-family: 'JetBrains Mono', monospace; font-size: .85rem;
   padding: 5px 8px; outline: none; cursor: pointer;
 }
-.fselect option { background: #0a0e1e; }
+.fselect option { background: var(--hp2); }
 .ftoggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
 .ftoggle-row .flabel { flex: 1; }
 .tog {
   width: 36px; height: 19px; border-radius: 10px;
-  background: rgba(20,30,60,.8); border: 1px solid var(--ac18);
+  background: var(--dp4); border: 1px solid var(--ac18);
   position: relative; cursor: pointer; flex-shrink: 0; transition: background .2s;
 }
 .tog.on { background: var(--ac35); border-color: var(--sky); }
@@ -1495,7 +1495,7 @@ body {
   }
   .menu-btn { overflow: visible !important; }
   .menu-btn::before, .menu-btn::after { pointer-events: none; }
-  .menu-btn:active  { background: rgba(30,50,100,.95); border-color: var(--sky2); }
+  .menu-btn:active  { background: var(--dp6); border-color: var(--sky2); }
 
   /* Texture picker dropdown: absolute inside wrap on touch, pops ABOVE input (away from keyboard) */
   .tpick-dropdown {
