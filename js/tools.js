@@ -393,16 +393,21 @@ vp.addEventListener('dblclick', e => {
   if(hits.length) zoomToBody(hits[0].name);
 });
 
-// ── Touch support: pan (1 finger) + pinch zoom (2 fingers) ──
+// ── Touch support: pan (1 finger) + pinch zoom (2 fingers) + double-tap zoom ──
 let _touches = {};
 let _pinchStartDist = null;
 let _pinchStartZ    = null;
 let _pinchMidX = 0, _pinchMidY = 0;
-let _lastPinchDist = null; // track delta-based zoom to prevent teleport
+let _lastPinchDist  = null;
+let _hadPinch       = false;  // true if 2+ fingers were ever active in this gesture
+let _tapStartX = 0, _tapStartY = 0; // finger-down position for tap validation
+let _lastTapTime = 0, _lastTapX = 0, _lastTapY = 0; // for double-tap detection
 
 vp.addEventListener('touchstart', e => {
   e.preventDefault();
   Array.from(e.changedTouches).forEach(t => { _touches[t.identifier] = {x: t.clientX, y: t.clientY}; });
+  const ids = Object.keys(_touches);
+
   if(dragOrbitMode && e.touches.length === 1){
     const t = e.touches[0];
     const rect = vp.getBoundingClientRect();
@@ -423,8 +428,10 @@ vp.addEventListener('touchstart', e => {
     if(hits.length){ _dob_body = hits[0].name; _dob_active = true; _dob_freeze(_dob_body); pushUndo(); }
     return;
   }
-  const ids = Object.keys(_touches);
+
   if(ids.length === 2){
+    // Second finger down — start pinch
+    _hadPinch = true;
     const t0 = _touches[ids[0]], t1 = _touches[ids[1]];
     const dist = Math.hypot(t1.x - t0.x, t1.y - t0.y);
     _pinchStartDist = dist;
@@ -433,7 +440,15 @@ vp.addEventListener('touchstart', e => {
     _pinchMidX = (t0.x + t1.x) / 2;
     _pinchMidY = (t0.y + t1.y) / 2;
   }
-  if(ids.length === 1){ dragSX = e.touches[0].clientX; dragSY = e.touches[0].clientY; }
+
+  if(ids.length === 1){
+    // First finger down — record position for tap validation
+    _hadPinch = false;
+    dragSX = e.touches[0].clientX;
+    dragSY = e.touches[0].clientY;
+    _tapStartX = dragSX;
+    _tapStartY = dragSY;
+  }
 }, {passive: false});
 
 vp.addEventListener('touchmove', e => {
@@ -444,17 +459,13 @@ vp.addEventListener('touchmove', e => {
   if(ids.length === 2 && _pinchStartDist && _lastPinchDist){
     const t0 = _touches[ids[0]], t1 = _touches[ids[1]];
     const dist = Math.hypot(t1.x - t0.x, t1.y - t0.y);
-
-    // Delta-based zoom: multiply by ratio of current-to-last distance each frame.
-    // This prevents teleport when a third finger briefly touches or fingers rejoin.
-    // Increased sensitivity: 1.8× multiplier on the delta
-    const delta = dist / _lastPinchDist;
+    if(dist < 10 || _lastPinchDist < 10){ _lastPinchDist = dist; return; }
+    const rawDelta = dist / _lastPinchDist;
+    const clampedDelta = Math.max(0.75, Math.min(1.333, rawDelta));
     const sensitivity = 1.8;
-    const scaledDelta = 1 + (delta - 1) * sensitivity;
+    const scaledDelta = 1 + (clampedDelta - 1) * sensitivity;
     const newZ = Math.max(0.0001, vpZ * scaledDelta);
     _lastPinchDist = dist;
-
-    // Zoom toward midpoint between the two fingers
     const rect = vp.getBoundingClientRect();
     const midX = (t0.x + t1.x) / 2 - rect.left;
     const midY = (t0.y + t1.y) / 2 - rect.top;
@@ -489,42 +500,67 @@ vp.addEventListener('touchmove', e => {
 
 vp.addEventListener('touchend', e => {
   Array.from(e.changedTouches).forEach(t => { delete _touches[t.identifier]; });
+
   if(dragOrbitMode && _dob_active){
     _dob_active = false; _dob_body = null;
     _dob_frozenScale = null; _dob_frozenParentSP = null; _dob_frozenVpZ = null;
     _cachedSMAScale = null; drawViewport(); return;
   }
+
   const remaining = Object.keys(_touches).length;
   if(remaining < 2){
-    // Reset pinch when we drop below 2 fingers
     _pinchStartDist = null; _pinchStartZ = null; _lastPinchDist = null;
-    // If 1 finger remains, reset pan start to avoid jump
     if(remaining === 1){
       const id = Object.keys(_touches)[0];
       dragSX = _touches[id].x; dragSY = _touches[id].y;
     }
   }
-  // Tap detection
-  if(e.changedTouches.length === 1 && remaining === 0){
+
+  // Tap detection — only fire if this was a clean single-finger gesture (no pinch involved)
+  if(e.changedTouches.length === 1 && remaining === 0 && !_hadPinch){
     const t = e.changedTouches[0];
-    if(Math.abs(t.clientX - dragSX) < 8 && Math.abs(t.clientY - dragSY) < 8){
-      const rect = vp.getBoundingClientRect();
-      const mx = t.clientX - rect.left, my = t.clientY - rect.top;
-      const sc2t = getSMAScale();
-      const hitCandidatesT = [];
-      Object.entries(bodyScreenPos).forEach(([name, sp]) => {
-        if(!bodyVisibleMap[name]) return;
-        const b = bodies[name];
-        const br = (b.data.BASE_DATA||{}).radius || 1;
-        const iconR = b.isCenter?18 : b.preset==='star'?14 : (b.preset==='gasgiant'||b.preset==='ringedgiant')?10:(b.preset==='planet'||b.preset==='marslike'||b.preset==='mercurylike')?7:b.preset==='moon'?5:4;
-        const r = Math.max(iconR, br * sc2t * vpZ);
-        const d = Math.hypot(mx-sp.x, my-sp.y);
-        if(d < r + 14) hitCandidatesT.push({name, iconR, d});
-      });
-      hitCandidatesT.sort((a,b) => b.iconR - a.iconR || a.d - b.d);
-      const hit = hitCandidatesT.length ? hitCandidatesT[0].name : null;
-      if(hit) selectBody(hit);
-      else if(selectedBody){ selectedBody=null; document.getElementById('sb-sel').textContent='—'; document.getElementById('sidebar').classList.remove('open'); document.getElementById('statusbar').style.right='0'; setTimeout(resizeViewport,360); drawViewport(); }
+    const dx = t.clientX - _tapStartX, dy = t.clientY - _tapStartY;
+    const moved = Math.hypot(dx, dy);
+    if(moved < 10){
+      const now = Date.now();
+      const dtap = now - _lastTapTime;
+      const tapDx = t.clientX - _lastTapX, tapDy = t.clientY - _lastTapY;
+      const tapClose = Math.hypot(tapDx, tapDy) < 40;
+
+      if(dtap < 350 && tapClose){
+        // ── Double-tap: zoom toward tap point ──
+        _lastTapTime = 0; // consume
+        const rect = vp.getBoundingClientRect();
+        const mx = t.clientX - rect.left, my = t.clientY - rect.top;
+        const wx = (mx - vp.width/2)  / vpZ - vpOffX;
+        const wy = (my - vp.height/2) / vpZ - vpOffY;
+        const newZ = vpZ * 2.5;
+        vpOffX = (mx - vp.width/2)  / newZ - wx;
+        vpOffY = (my - vp.height/2) / newZ - wy;
+        vpZ = newZ;
+        document.getElementById('sb-zoom').textContent = Math.round(vpZ * 100) + '%';
+        drawViewport();
+      } else {
+        // ── Single tap: hit-test bodies ──
+        _lastTapTime = now; _lastTapX = t.clientX; _lastTapY = t.clientY;
+        const rect = vp.getBoundingClientRect();
+        const mx = t.clientX - rect.left, my = t.clientY - rect.top;
+        const sc2t = getSMAScale();
+        const hitCandidatesT = [];
+        Object.entries(bodyScreenPos).forEach(([name, sp]) => {
+          if(!bodyVisibleMap[name]) return;
+          const b = bodies[name];
+          const br = (b.data.BASE_DATA||{}).radius || 1;
+          const iconR = b.isCenter?18 : b.preset==='star'?14 : (b.preset==='gasgiant'||b.preset==='ringedgiant')?10:(b.preset==='planet'||b.preset==='marslike'||b.preset==='mercurylike')?7:b.preset==='moon'?5:4;
+          const r = Math.max(iconR, br * sc2t * vpZ);
+          const d = Math.hypot(mx-sp.x, my-sp.y);
+          if(d < r + 8) hitCandidatesT.push({name, iconR, d});
+        });
+        hitCandidatesT.sort((a,b) => b.iconR - a.iconR || a.d - b.d);
+        const hit = hitCandidatesT.length ? hitCandidatesT[0].name : null;
+        if(hit) selectBody(hit);
+        else if(selectedBody){ selectedBody=null; document.getElementById('sb-sel').textContent='—'; document.getElementById('sidebar').classList.remove('open'); document.getElementById('statusbar').style.right='0'; setTimeout(resizeViewport,360); drawViewport(); }
+      }
     }
   }
 }, {passive: false});
