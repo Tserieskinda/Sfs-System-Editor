@@ -8,9 +8,9 @@
 
 If Bad internet, click on cancel and load manually or Just Read "How to use offline"
 
-If you're on mobile/weak device You might have to wait a bit more.
+If you're on mobile/weak device You might have to wait a bit more for loading.
 
-
+## How to use offline (complicated and not autoupdated)
 
 # Creating a new system-
 - Select a system centre, you can choose from the many presets available from the zip.
