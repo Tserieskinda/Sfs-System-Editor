@@ -6,11 +6,34 @@
 2) Wait for the assets to load automatically.
 3) Now you can Use the program, no external zip needed From the website.
 
-If Bad internet, click on cancel and load manually or Just Read "How to use offline"
+If you have Bad internet, click on cancel and load manually or Just Read "How to use offline"
 
 If you're on mobile/weak device You might have to wait a bit more for loading.
 
-## How to use offline (complicated and not autoupdated)
+## How to use without internet (complicated and not autoupdated)
+1) Download these 3 things-
+- Editor zip https://github.com/Tserieskinda/Sfs-System-Editor/releases/download/v5_0/SFS.Editor.zip
+- Assets Zip https://github.com/Tserieskinda/Sfs-System-Editor/releases/download/v5_0/SFS.Textures.+.Presets.zip
+- (For android) Install Simple HTTP from playstore
+- (For PC) Install Python
+- In Iphone/mac, any app that can allow you to host local web servers, (i dont have an apple device to test)
+
+2) Extract the Editor zip
+
+3) for Android-
+- Open simple HTTPS and select the root folder to the one you just extracted, Ezample- Download/SFS Editor
+- Click on start server and copy the web adress shown in the app
+- Paster the adress in a browser, the program will load and now you can insert the presets/textures zip
+ 
+ PC-
+ - Press Win+X and open Terminal 
+ - Navigate to the Extracted Editor folder with this command 
+    cd "<yourfilepath>\Downloads\SFS Editor"
+- Paste this into the terminal-
+    python -m http.server 8000
+- Open your Web broser and go to
+    http://localhost:8000
+- Upload the textures + presets zip you downloaded, done
 
 # Creating a new system-
 - Select a system centre, you can choose from the many presets available from the zip.
