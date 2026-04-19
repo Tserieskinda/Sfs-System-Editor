@@ -21,7 +21,7 @@
   --rose: #cc4455;
   --lilac: #8866cc;
 
-  /* ── UI accent tint (updated by color picker) ── */
+  /* ── UI accent tint (updated by color picker)  ── */
   --ui-hue: 220;
   /* Accent rgba aliases — JS rewrites these on hue change */
   --ac1:  rgba(64,128,255,1);   /* full */
