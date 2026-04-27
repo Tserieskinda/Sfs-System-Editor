@@ -11,6 +11,8 @@ If you have Bad internet, click on cancel and load manually or Just Read "How to
 If you're on mobile/weak device You might have to wait a bit more for loading.
 
 ## How to use without internet (complicated and not autoupdated)
+Skip if using online
+
 1) Download these 3 things-
 - Editor zip https://github.com/Tserieskinda/Sfs-System-Editor/releases/download/v5_0/SFS.Editor.zip
 - Assets Zip https://github.com/Tserieskinda/Sfs-System-Editor/releases/download/v5_0/SFS.Textures.+.Presets.zip
