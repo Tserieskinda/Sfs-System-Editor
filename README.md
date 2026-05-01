@@ -100,15 +100,15 @@ Used to edit an already made system (1.5+)
 6) Compress the Zip and load it in the editor, your custom preset will appear.
 
 # Known Bugs-
-Innacurate SOI
-Cloud related bugs
-Hieghtmap Related bugs
-Minor UI Issues
-4 Million solar mass black hole preset is broken, Do not use it
-Landmarks are a bit Broken
+- Innacurate SOI
+- Cloud related bugs
+- Hieghtmap Related bugs
+- Minor UI Issues
+- Water-land Interaction inconsistencies
 
 ## Warning
 Any unsaved progress will be deleted and progress will be lost if you exit the program. Save progess by clicking Export.zip, and you can load the same zip later
+
 # Credits
 ***(Im not responsible if you steal and edit someone's system without their given permission OR steal and provide the SFS assets that i provided.)***
 
