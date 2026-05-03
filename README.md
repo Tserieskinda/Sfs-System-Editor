@@ -99,6 +99,11 @@ Used to edit an already made system (1.5+)
 5) Put the textures and hieghtmaps in their respective folders.
 6) Compress the Zip and load it in the editor, your custom preset will appear.
 
+# Terrain-
+Press terrain button at the topbar to show terrain
+Live hieghtmap updating in Hmap Tab
+Water land interactions(approximate)
+
 # Known Bugs-
 Innacurate SOI
 Cloud related bugs
