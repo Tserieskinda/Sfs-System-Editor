@@ -75,6 +75,10 @@ function cacheTexture(name, dataUrl){
       texPixelCache[name + '_atmoCanvas'] = pc;
     } catch(e) { console.warn('[SFS|CACHE] atmo polar warp failed:', e); }
     drawViewport();
+    // Also refresh comparison modal if it's open
+    if(typeof _PSC !== 'undefined' && _PSC.open && typeof _pscScheduleDraw === 'function'){
+      _pscScheduleDraw();
+    }
   };
   img.src = dataUrl;
 }
@@ -161,6 +165,7 @@ function renderAssetRow(entry, type){
   if(!list) return;
   const div = document.createElement('div');
   div.className = 'asset-row'; div.id='asset-'+type+'-'+sanitize(entry.name);
+  div.dataset.name = entry.name.replace(/\.[^.]+$/,'').toLowerCase();
   const icon = type==='heightmaps' ? '📊' : '📎';
   const kb = Math.round((entry.size||0)/1024*10)/10;
   div.innerHTML = `<span class="asset-row-icon">${icon}</span>
@@ -168,12 +173,23 @@ function renderAssetRow(entry, type){
     <span class="asset-row-size">${kb} KB</span>
     <button class="asset-row-del" onclick="removeAsset('${sanitize(entry.name)}','${type}')">✕</button>`;
   list.appendChild(div);
+  // Update empty state for heightmaps
+  if(type === 'heightmaps'){
+    const empty = document.getElementById('asset-hm-empty');
+    if(empty) empty.style.display = 'none';
+  }
 }
 
 function removeAsset(safeName, type){
   if(type && type !== 'textures'){
     if(assets[type]) assets[type] = assets[type].filter(a=>sanitize(a.name)!==safeName);
     document.getElementById('asset-'+type+'-'+safeName)?.remove();
+    // Update heightmaps empty state
+    if(type === 'heightmaps'){
+      const list = document.getElementById('alist-heightmaps');
+      const empty = document.getElementById('asset-hm-empty');
+      if(empty && list) empty.style.display = list.querySelectorAll('.asset-row').length === 0 ? 'block' : 'none';
+    }
     return;
   }
   // Remove from textures list
@@ -196,9 +212,37 @@ function filterAssetGrid(){
   });
 }
 
+function filterAssetHmList(){
+  const q = (document.getElementById('asset-hm-search')?.value||'').toLowerCase();
+  document.querySelectorAll('#alist-heightmaps .asset-row').forEach(el=>{
+    const n = (el.dataset.name || '');
+    el.style.display = (!q || n.includes(q)) ? '' : 'none';
+  });
+  // Update empty state
+  const list = document.getElementById('alist-heightmaps');
+  const empty = document.getElementById('asset-hm-empty');
+  if(empty && list){
+    const visible = list.querySelectorAll('.asset-row:not([style*="display: none"]):not([style*="display:none"])');
+    const hasRows = list.querySelectorAll('.asset-row').length > 0;
+    empty.style.display = (!hasRows || (q && visible.length === 0)) ? 'block' : 'none';
+  }
+}
+
 function sanitize(name){ return name.replace(/[^a-zA-Z0-9_\-]/g,'_'); }
 
-function injectCustomHeightmap(name){ /* heightmaps referenced by formula name, no picker needed */ }
+function injectCustomHeightmap(name){
+  // Clear this heightmap from the evaluator cache so it gets re-parsed.
+  // The cache is keyed by basename WITHOUT extension (the name used in formulas),
+  // so we must delete both the full name and the stripped basename.
+  if(typeof _hmCache !== 'undefined'){
+    delete _hmCache[name];
+    const base = name.replace(/\.[^.]+$/, '');
+    if(base !== name) delete _hmCache[base];
+  }
+  if(typeof invalidateTerrainCache === 'function') invalidateTerrainCache('*');
+  if(typeof hmRefreshLoadedList === 'function') hmRefreshLoadedList();
+  if(typeof drawViewport === 'function') drawViewport();
+}
 function refreshSortUI(){ /* removed — no sorting anymore */ }
 
 // ════════ TEX-PICKER WIDGET SYSTEM ════════

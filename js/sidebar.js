@@ -1,6 +1,33 @@
 // ════════════════════════════════ SIDEBAR ════════════════════════════════
+
+// Render a shaded sphere SVG using the body's map color into #sbb-icon
+function updateBodyIcon(r, g, b, a){
+  const cr = Math.min(1, r||0), cg = Math.min(1, g||0), cb = Math.min(1, b||0);
+  const alpha = (a === undefined || a === null) ? 1 : Math.min(1, Math.max(0, a));
+  const toHex = v => Math.round(v * 255).toString(16).padStart(2,'0');
+  const baseHex = `#${toHex(cr)}${toHex(cg)}${toHex(cb)}`;
+  const hiR = Math.min(1, cr + 0.42), hiG = Math.min(1, cg + 0.42), hiB = Math.min(1, cb + 0.42);
+  const hiHex = `#${toHex(hiR)}${toHex(hiG)}${toHex(hiB)}`;
+  const shR = cr * 0.28, shG = cg * 0.28, shB = cb * 0.28;
+  const shHex = `#${toHex(shR)}${toHex(shG)}${toHex(shB)}`;
+  const id = `bg_${Math.random().toString(36).slice(2,7)}`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
+    <defs>
+      <radialGradient id="${id}" cx="35%" cy="30%" r="65%">
+        <stop offset="0%"   stop-color="${hiHex}" stop-opacity="${alpha}"/>
+        <stop offset="45%"  stop-color="${baseHex}" stop-opacity="${alpha}"/>
+        <stop offset="100%" stop-color="${shHex}" stop-opacity="${alpha}"/>
+      </radialGradient>
+    </defs>
+    <circle cx="20" cy="20" r="18" fill="url(#${id})" />
+  </svg>`;
+  const el = document.getElementById('sbb-icon');
+  if(el) el.innerHTML = svg;
+}
+
 function selectBody(name){
   selectedBody = name;
+  if (typeof NameGen !== 'undefined') NameGen.clearSession(name);
   document.getElementById('sb-sel').textContent = name;
   fillSidebar(name);
   openSidebar();
@@ -16,6 +43,7 @@ function closeSidebar(){
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('statusbar').style.right='0';
   selectedBody=null;
+  if (typeof NameGen !== 'undefined') NameGen.clearSession(null);
   document.getElementById('sb-sel').textContent='—';
   setTimeout(resizeViewport, 360);
   drawViewport();
@@ -381,7 +409,112 @@ function applyJsonEdit(){
   }
 }
 
+let _jsonAutoApplyTimer = null;
+function _jsonAutoApply(text){
+  clearTimeout(_jsonAutoApplyTimer);
+  _jsonAutoApplyTimer = setTimeout(() => {
+    try {
+      JSON.parse(text); // validate first — throws if invalid
+      applyJsonEdit();
+    } catch(e){ /* invalid JSON — wait for more input */ }
+  }, 800);
+}
+
+// Float value helper — like parseFloat but returns `fallback` only when the string is empty/NaN,
+// NOT when the parsed value is 0 or negative (unlike the `|| fallback` pattern).
+function _fv(str, fallback){ const n = parseFloat(str); return isNaN(n) ? fallback : n; }
+
 function tog(id){ return document.getElementById(id).classList.contains('on'); }
+
+// ── Gravity unit helpers (m/s², cm/s², km/s²) ────────────────────────────────
+const _GRAV_TO_MS2 = { ms2: 1, cms2: 0.01, kms2: 1000 };
+
+function _gravToMs2(val, unit) { return val * (_GRAV_TO_MS2[unit] ?? 1); }
+function _ms2ToGrav(ms2, unit) { return ms2 / (_GRAV_TO_MS2[unit] ?? 1); }
+
+function onGravUnitChange() {
+  const input = document.getElementById('b-gravity');
+  const unitSel = document.getElementById('b-gravity-unit');
+  if (!input || !unitSel) return;
+  // Convert displayed value from previous unit to new unit
+  const raw = parseFloat(input.value);
+  if (!isNaN(raw) && raw !== 0) {
+    // Store ms2 from old unit, re-express in new unit
+    // We track prev unit via data attribute
+    const prevUnit = input.dataset.gravUnit || 'ms2';
+    const ms2 = _gravToMs2(raw, prevUnit);
+    input.value = parseFloat(_ms2ToGrav(ms2, unitSel.value).toPrecision(6));
+  }
+  input.dataset.gravUnit = unitSel.value;
+  if (typeof liveSync === 'function') liveSync();
+}
+
+function getGravMs2() {
+  const input = document.getElementById('b-gravity');
+  const unitSel = document.getElementById('b-gravity-unit');
+  const raw = parseFloat(input?.value) || 0;
+  const unit = unitSel?.value || 'ms2';
+  return _gravToMs2(raw, unit);
+}
+
+function setGravDisplay(ms2) {
+  const input = document.getElementById('b-gravity');
+  const unitSel = document.getElementById('b-gravity-unit');
+  if (!input) return;
+  const unit = unitSel?.value || 'ms2';
+  const v = _ms2ToGrav(ms2, unit);
+  input.value = ms2 !== 0 ? parseFloat(v.toPrecision(6)) : '';
+  input.dataset.gravUnit = unit;
+}
+
+// ── Default difficulty scale button ───────────────────────────────────────────
+// Sets Normal=1, Hard=2, Realistic=20 — matching SFS 1:20 / 1:10 / 1:1 ratio
+function setDefaultScale(nId, hId, rId) {
+  const n = document.getElementById(nId);
+  const h = document.getElementById(hId);
+  const r = document.getElementById(rId);
+  if (n) n.value = '1';
+  if (h) h.value = '2';
+  if (r) r.value = '20';
+  if (typeof liveSync === 'function') liveSync();
+}
+
+// ── Simple km/m toggle for atmosphere, clouds, water fields ──────────────────
+// These fields store raw metres; we just scale display on unit change.
+function onSimpleKmChange(inputId) {
+  const input  = document.getElementById(inputId);
+  const unitSel = document.getElementById(inputId + '-unit');
+  if (!input || !unitSel) return;
+  const raw = parseFloat(input.value);
+  if (isNaN(raw) || raw === 0) return;
+  const newUnit = unitSel.value; // 'm' or 'km'
+  const prevUnit = newUnit === 'km' ? 'm' : 'km';
+  // Convert displayed value to metres, then to new unit
+  const metres = prevUnit === 'km' ? raw * 1000 : raw;
+  input.value = newUnit === 'km' ? parseFloat((metres / 1000).toPrecision(6)) : metres;
+  if (typeof liveSync === 'function') liveSync();
+}
+
+// Read a simple km/m field back to metres for liveSync
+function getSimpleKmMetres(inputId) {
+  const input   = document.getElementById(inputId);
+  const unitSel = document.getElementById(inputId + '-unit');
+  const raw = parseFloat(input?.value) || 0;
+  const unit = unitSel?.value || 'm';
+  return unit === 'km' ? raw * 1000 : raw;
+}
+
+// Set a simple km/m field from metres, respecting current unit selection
+function setSimpleKm(inputId, metres) {
+  const input   = document.getElementById(inputId);
+  const unitSel = document.getElementById(inputId + '-unit');
+  if (!input) return;
+  const unit = unitSel?.value || 'm';
+  input.value = unit === 'km'
+    ? (metres !== 0 ? parseFloat((metres / 1000).toPrecision(6)) : '')
+    : (metres !== 0 ? metres : '');
+}
+
 function setTog(id, v){ document.getElementById(id).classList.toggle('on', !!v); }
 function val(id){ return document.getElementById(id).value; }
 function setVal(id, v){ if(document.getElementById(id)) document.getElementById(id).value = (v==null||v===undefined)?'':v; }
@@ -449,7 +582,7 @@ function toggleAtmos(){
   document.getElementById('atmos-fields').style.opacity = on ? '1' : '0.3';
   document.getElementById('atmos-fields').style.pointerEvents = on ? 'all' : 'none';
   if(on && !val('ap-height')){
-    const r = parseFloat(val('b-radius')) || 0;
+    const r = getDistMetres('b-radius');
     if(r) setVal('ap-height', Math.round(r / 10));
   }
 }
@@ -458,10 +591,10 @@ function toggleRings(){
   document.getElementById('rings-fields').style.opacity = on ? '1' : '0.35';
   document.getElementById('rings-fields').style.pointerEvents = on ? 'all' : 'none';
   if(on && !val('rng-sr') && !val('rng-er')){
-    const r = parseFloat(val('b-radius')) || 0;
+    const r = getDistMetres('b-radius');
     if(r){
-      setVal('rng-sr', Math.round(r * 1.2));
-      setVal('rng-er', Math.round(r * 3));
+      setDistInput('rng-sr','rng-sr-unit','rng-sr-hint', Math.round(r * 1.2), 'radius');
+      setDistInput('rng-er','rng-er-unit','rng-er-hint', Math.round(r * 3),   'radius');
     }
   }
 }
@@ -500,7 +633,6 @@ function fillSidebar(name){
   if(!b){ liveSync._filling = false; return; }
   const d = b.data;
   // Header
-  document.getElementById('sbb-icon').textContent = b.icon;
   const nameInput = document.getElementById('sbb-name-input');
   nameInput.value = name;
   nameInput.classList.remove('conflict');
@@ -508,10 +640,10 @@ function fillSidebar(name){
 
   // BASE
   const BD = d.BASE_DATA||{};
-  setVal('b-radius', BD.radius);
+  setDistInput('b-radius','b-radius-unit','b-radius-hint', BD.radius ?? 0, 'radius');
   const rds = BD.radiusDifficultyScale||{};
   setVal('b-radius-n', rds.Normal); setVal('b-radius-h', rds.Hard); setVal('b-radius-r', rds.Realistic);
-  setVal('b-gravity', BD.gravity);
+  setGravDisplay(BD.gravity);
   const gds = BD.gravityDifficultyScale||{};
   setVal('b-grav-n', gds.Normal); setVal('b-grav-h', gds.Hard); setVal('b-grav-r', gds.Realistic);
   setVal('b-twh', BD.timewarpHeight);
@@ -524,6 +656,8 @@ function fillSidebar(name){
     mc.r/hdrScale, mc.g/hdrScale, mc.b/hdrScale,
     'b-ca-slider','b-ca-val','b-ca', mc.a||1);
   setVal('b-hdr', hdrScale.toFixed(1));
+  // Draw map-color sphere icon (uses clamped 0-1 values for the picker)
+  updateBodyIcon(mc.r/hdrScale, mc.g/hdrScale, mc.b/hdrScale, mc.a||1);
   setTog('b-sig', BD.significant); setTog('b-rc', BD.rotateCamera);
 
   // Achievements
@@ -535,7 +669,7 @@ function fillSidebar(name){
   const hasAtmos = !!d.ATMOSPHERE_PHYSICS_DATA;
   setTog('ap-has', hasAtmos);
   const APD = d.ATMOSPHERE_PHYSICS_DATA||{};
-  setVal('ap-height',APD.height); setVal('ap-density',APD.density); setVal('ap-curve',APD.curve);
+  setSimpleKm('ap-height',APD.height); setVal('ap-density',APD.density); setVal('ap-curve',APD.curve);
   setVal('ap-chute',APD.parachuteMultiplier); setVal('ap-upper',APD.upperAtmosphere);
   setVal('ap-shock',APD.shockwaveIntensity); setVal('ap-mhvm',APD.minHeatingVelocityMultiplier);
   toggleAtmos();
@@ -544,15 +678,15 @@ function fillSidebar(name){
   const hasAtmoVisuals = !!d.ATMOSPHERE_VISUALS_DATA;
   setTog('av-has', hasAtmoVisuals);
   const AVD = d.ATMOSPHERE_VISUALS_DATA||{};
-  const GR = AVD.GRADIENT||{}; setVal('av-pz',GR.positionZ); setVal('av-height',GR.height);
+  const GR = AVD.GRADIENT||{}; setVal('av-pz',GR.positionZ); setSimpleKm('av-height',GR.height);
   setSelectVal('av-tex', GR.texture);
   toggleAtmoSection('av-fields','av-has');
 
   // CLOUDS (sub-section of ATMO_VISUALS)
   const hasClouds = !!(AVD.CLOUDS && AVD.CLOUDS.texture && AVD.CLOUDS.texture !== 'None');
   setTog('cl-has', hasClouds);
-  const CL = AVD.CLOUDS||{}; setSelectVal('cl-tex',CL.texture); setVal('cl-sh',CL.startHeight);
-  setVal('cl-w',CL.width); setVal('cl-h',CL.height); setSlider('cl-a', CL.alpha, 0, 1); setCloudVelDisplay(CL.velocity || 0);
+  const CL = AVD.CLOUDS||{}; setSelectVal('cl-tex',CL.texture); setSimpleKm('cl-sh',CL.startHeight);
+  setSimpleKm('cl-w',CL.width); setSimpleKm('cl-h',CL.height); setSlider('cl-a', CL.alpha, 0, 1); setCloudVelDisplay(CL.velocity || 0);
   initSlider('cl-a',0,1);
   toggleAtmoSection('cl-fields','cl-has');
 
@@ -562,7 +696,7 @@ function fillSidebar(name){
   setTog('fc-has', hasFrontClouds);
   setSelectVal('fc-tex',FC.cloudsTexture); setSlider('fc-cut', FC.cloudTextureCutout, -1, 1);
   initSlider('fc-cut',-1,1);
-  setVal('fc-fzh',FC.fadeZoneHeight); setVal('fc-h',FC.height); setVal('fc-pz',FC.positionZ);
+  setSimpleKm('fc-fzh',FC.fadeZoneHeight); setSimpleKm('fc-h',FC.height); setVal('fc-pz',FC.positionZ);
   setTog('fc-sa',FC.sharpenAlpha);
   toggleAtmoSection('fc-fields','fc-has');
 
@@ -578,16 +712,19 @@ function fillSidebar(name){
   setTog('ter-has', hasTerrain);
   const TD = d.TERRAIN_DATA||{};
   const TTD = TD.TERRAIN_TEXTURE_DATA||{};
-  setSelectVal('tt-pt',TTD.planetTexture); setSlider('tt-cut', TTD.planetTextureCutout, 0, 1);
-  initSlider('tt-cut',0,1);
-  setSlider('tt-rot', TTD.planetTextureRotation, -360, 360); setTog('tt-nd',TTD.planetTextureDontDistort);
+  setSelectVal('tt-pt',TTD.planetTexture); setSlider('tt-cut', TTD.planetTextureCutout, -1, 1);
+  initSlider('tt-cut',-1,1);
+  setSlider('tt-rot', TTD.planetTextureRotation, -360, 360); setTog('tt-nd', !TTD.planetTextureDontDistort);
   initSlider('tt-rot',-360,360);
   setSelectVal('tt-sa',TTD.surfaceTexture_A);
   const sa=TTD.surfaceTextureSize_A||{}; setVal('tt-sax',sa.x); setVal('tt-say',sa.y);
+  setVal('tt-lod-a', TTD.surfaceLOD_A != null && TTD.surfaceLOD_A >= 0 ? TTD.surfaceLOD_A : '');
   setSelectVal('tt-sb',TTD.surfaceTexture_B);
   const sb=TTD.surfaceTextureSize_B||{}; setVal('tt-sbx',sb.x); setVal('tt-sby',sb.y);
+  setVal('tt-lod-b', TTD.surfaceLOD_B != null && TTD.surfaceLOD_B >= 0 ? TTD.surfaceLOD_B : '');
   setSelectVal('tt-tc',TTD.terrainTexture_C);
   const tc=TTD.terrainTextureSize_C||{}; setVal('tt-tcx',tc.x); setVal('tt-tcy',tc.y);
+  setVal('tt-lod-c', TTD.surfaceLOD_C != null && TTD.surfaceLOD_C >= 0 ? TTD.surfaceLOD_C : '');
   setVal('tt-sls',TTD.surfaceLayerSize); setSlider('tt-mif', TTD.minFade, 0, 1); setSlider('tt-maf', TTD.maxFade, 0, 1);
   initSlider('tt-mif',0,1);
   initSlider('tt-maf',0,1);
@@ -605,20 +742,24 @@ function fillSidebar(name){
 
   const RK = TD.rocks||{};
   setSelectVal('rk-type',RK.rockType||'None'); setVal('rk-den',RK.rockDensity);
-  setSlider('rk-min', RK.minSize, 0, 1); setSlider('rk-max', RK.maxSize, 0, 1);
-  initSlider('rk-min',0,1);
-  initSlider('rk-max',0,1);
+  setSlider('rk-min', RK.minSize, 0, 10); setSlider('rk-max', RK.maxSize, 0, 10);
+  initSlider('rk-min',0,10);
+  initSlider('rk-max',0,10);
   setVal('rk-pc',RK.powerCurve); setSlider('rk-ma', RK.maxAngle, 0, 90);
   initSlider('rk-ma',0,90);
   // Apply terrain toggle state (locks/unlocks terrain-fields + heightmap tab)
   toggleTerrain();
+  // Sync the visual heightmap UI from the just-filled textareas
+  setTimeout(hmSyncFromTextareas, 0);
 
   // RINGS
   const hasRings = !!d.RINGS_DATA;
   setTog('rng-has',hasRings);
   const RNG = d.RINGS_DATA||{};
-  setSelectVal('rng-tex',RNG.ringsTexture); setVal('rng-sr',RNG.startRadius);
-  setVal('rng-er',RNG.endRadius); setVal('rng-pz',RNG.positionZ);
+  setSelectVal('rng-tex',RNG.ringsTexture);
+  setDistInput('rng-sr','rng-sr-unit','rng-sr-hint', RNG.startRadius ?? 0, 'radius');
+  setDistInput('rng-er','rng-er-unit','rng-er-hint', RNG.endRadius   ?? 0, 'radius');
+  setVal('rng-pz',RNG.positionZ);
   const rmc = RNG.mapColor||{r:0.85,g:0.75,b:0.65,a:0.2};
   setCpick('rng-map-pick','rng-map-hex','rng-map-r','rng-map-g','rng-map-b',rmc.r,rmc.g,rmc.b,'rng-map-a-s','rng-map-a-v','rng-map-a',rmc.a);
   toggleRings();
@@ -628,7 +769,7 @@ function fillSidebar(name){
   setTog('wt-has',hasWater);
   const WT = d.WATER_DATA||{};
   setSelectVal('wt-tex',WT.oceanMaskTexture); setTog('wt-lt',WT.lowerTerrain);
-  setVal('wt-dep',WT.oceanDepth); setSlider('wt-so', WT.opacity_Surface, 0, 1); setSlider('wt-fo', WT.opacity_Far, 0, 1);
+  setSimpleKm('wt-dep',WT.oceanDepth); setSlider('wt-so', WT.opacity_Surface, 0, 1); setSlider('wt-fo', WT.opacity_Far, 0, 1);
   initSlider('wt-so',0,1);
   initSlider('wt-fo',0,1);
   // Water colours
@@ -645,9 +786,9 @@ function fillSidebar(name){
   setCpick('wt-map-pick','wt-map-hex','wt-map-r','wt-map-g','wt-map-b',wmc.r,wmc.g,wmc.b,'wt-map-a-s','wt-map-a-v','wt-map-a',wmc.a);
   // Opacity / visibility
   setSlider('wt-fd', WT.opacity_FullDarkness??0.95, 0, 1); initSlider('wt-fd',0,1);
-  setVal('wt-svd', WT.surfaceVisibilityDistance??1200);
-  setVal('wt-fdd', WT.fullDarknessDepth??500);
-  setVal('wt-fdvd', WT.fullDarknessVisibilityDistance??300);
+  setSimpleKm('wt-svd', WT.surfaceVisibilityDistance??1200);
+  setSimpleKm('wt-fdd', WT.fullDarknessDepth??500);
+  setSimpleKm('wt-fdvd', WT.fullDarknessVisibilityDistance??300);
   // Mask gradient — Water
   const mgw=WT.maskGradient_Water||{must:1000,cannot:700,global:2000};
   setVal('wt-mgw-must', mgw.must); setVal('wt-mgw-can', mgw.cannot); setVal('wt-mgw-glob', mgw.global);
@@ -688,7 +829,8 @@ function fillSidebar(name){
   }
 
   const OR = d.ORBIT_DATA||{};
-  setVal('or-par',OR.parent); setVal('or-sma',OR.semiMajorAxis);
+  setVal('or-par',OR.parent);
+  setDistInput('or-sma','or-sma-unit','or-sma-hint', OR.semiMajorAxis ?? 0, 'sma');
   const sds=OR.smaDifficultyScale||{}; setVal('or-sn',sds.Normal); setVal('or-sh',sds.Hard); setVal('or-sr',sds.Realistic);
   setSlider('or-ecc', OR.eccentricity, 0, 0.999); setSlider('or-aop', OR.argumentOfPeriapsis, -360, 360);
   initSlider('or-ecc',0,0.999);
@@ -705,9 +847,6 @@ function fillSidebar(name){
   // LANDMARKS
   buildLandmarks(d.LANDMARKS||[]);
 
-  // Reset apply button state
-  const applyBtn = document.getElementById('apply-btn');
-  if(applyBtn){ applyBtn.textContent = 'APPLY CHANGES'; applyBtn.classList.remove('done'); }
   liveSync._filling = false;
 }
 
@@ -779,15 +918,29 @@ function buildLandmarks(lms){
 function makeLandmark(l,i){
   const d=document.createElement('div'); d.className='lm-item'; d.id='lm-'+i;
   const sa = l.startAngle||0, ea = l.endAngle||0;
+  // Slider + synced number input for precision entry.
+  // The number input accepts any value in [-360,360] typed directly; slider stays in sync.
   d.innerHTML=`<div class="pp-key-header"><span class="pp-key-title">LANDMARK ${i+1}</span><button class="lm-del" onclick="delLandmark(${i})">✕</button></div>
   <div class="frow"><span class="flabel">Name</span><input class="finput" id="lm-${i}-n" type="text" value="${l.name||''}" onblur="liveSync()"></div>
   <div class="frow" style="flex-direction:column;gap:4px">
-    <div style="display:flex;justify-content:space-between"><span class="flabel">Start Angle</span><span style="font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--sky2)" id="lm-${i}-s-val">${sa}°</span></div>
-    <input type="range" class="finput" id="lm-${i}-s" min="-360" max="360" step="0.5" value="${sa}" style="padding:0;height:6px;cursor:pointer" oninput="document.getElementById('lm-${i}-s-val').textContent=parseFloat(this.value).toFixed(1)+'°';liveSync()">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span class="flabel">Start Angle</span>
+      <input type="number" id="lm-${i}-s-num" value="${sa}" min="-360" max="360" step="0.5"
+        style="width:64px;font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--sky2);background:var(--bg2);border:1px solid var(--ink5);border-radius:3px;padding:1px 4px;text-align:right"
+        oninput="const v=parseFloat(this.value)||0;const sl=document.getElementById('lm-${i}-s');if(sl){sl.value=Math.max(-360,Math.min(360,v));}liveSync()">
+    </div>
+    <input type="range" class="finput" id="lm-${i}-s" min="-360" max="360" step="0.5" value="${sa}" style="padding:0;height:6px;cursor:pointer"
+      oninput="const num=document.getElementById('lm-${i}-s-num');if(num)num.value=parseFloat(this.value).toFixed(1);liveSync()">
   </div>
   <div class="frow" style="flex-direction:column;gap:4px">
-    <div style="display:flex;justify-content:space-between"><span class="flabel">End Angle</span><span style="font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--sky2)" id="lm-${i}-e-val">${ea}°</span></div>
-    <input type="range" class="finput" id="lm-${i}-e" min="-360" max="360" step="0.5" value="${ea}" style="padding:0;height:6px;cursor:pointer" oninput="document.getElementById('lm-${i}-e-val').textContent=parseFloat(this.value).toFixed(1)+'°';liveSync()">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span class="flabel">End Angle</span>
+      <input type="number" id="lm-${i}-e-num" value="${ea}" min="-360" max="360" step="0.5"
+        style="width:64px;font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--sky2);background:var(--bg2);border:1px solid var(--ink5);border-radius:3px;padding:1px 4px;text-align:right"
+        oninput="const v=parseFloat(this.value)||0;const sl=document.getElementById('lm-${i}-e');if(sl){sl.value=Math.max(-360,Math.min(360,v));}liveSync()">
+    </div>
+    <input type="range" class="finput" id="lm-${i}-e" min="-360" max="360" step="0.5" value="${ea}" style="padding:0;height:6px;cursor:pointer"
+      oninput="const num=document.getElementById('lm-${i}-e-num');if(num)num.value=parseFloat(this.value).toFixed(1);liveSync()">
   </div>`;
   return d;
 }
@@ -872,33 +1025,59 @@ function liveSync(){
   if(!selectedBody) return;
   const b = bodies[selectedBody];
   if(!b) return;
-  const d = b.data;
 
-  // Debounced undo: push a snapshot at most once per 800ms of continuous editing
+  // Debounced undo: snapshot pre-edit state once, push after 800ms quiet
   if(!liveSync._undoPending){
     liveSync._undoPending = true;
     liveSync._preEditSnapshot = JSON.stringify(bodies);
     setTimeout(()=>{
-      if(liveSync._preEditSnapshot !== JSON.stringify(bodies)){
-        // State actually changed — push the pre-edit snapshot
+      const after = JSON.stringify(bodies);
+      if(liveSync._preEditSnapshot !== after){
         undoStack.push(liveSync._preEditSnapshot);
         if(undoStack.length > MAX_UNDO) undoStack.shift();
         document.getElementById('undo-btn').disabled = false;
+        document.getElementById('undo-btn').classList.add('undo-active');
       }
       liveSync._undoPending = false;
       liveSync._preEditSnapshot = null;
     }, 800);
   }
 
+  // Throttle: run the full sync + redraw at most once per animation frame.
+  // On weak mobile, oninput fires faster than the canvas can redraw —
+  // without this every keystroke queues a synchronous full render.
+  if(liveSync._rafPending) return;
+  liveSync._rafPending = true;
+  requestAnimationFrame(() => {
+    liveSync._rafPending = false;
+    _liveSyncNow();
+  });
+}
+
+function _liveSyncNow(){
+  if(liveSync._filling) return;
+  if(!selectedBody) return;
+  const b = bodies[selectedBody];
+  if(!b) return;
+  const d = b.data;
+
+  // Only invalidate terrain cache when a terrain-relevant field triggered the sync.
+  // Invalidating on every keystroke (e.g. body name, map color) forces expensive
+  // heightmap re-evaluation each frame on weak devices.
+  if(typeof invalidateTerrainCache === 'function') invalidateTerrainCache(selectedBody);
+
   // BASE DATA
   d.BASE_DATA = d.BASE_DATA || {};
-  d.BASE_DATA.radius              = parseFloat(val('b-radius')) || d.BASE_DATA.radius;
+  d.BASE_DATA.radius              = getDistMetres('b-radius') || d.BASE_DATA.radius;
   d.BASE_DATA.radiusDifficultyScale = buildDiffScale('b-radius-n','b-radius-h','b-radius-r');
-  d.BASE_DATA.gravity             = parseFloat(val('b-gravity')) || d.BASE_DATA.gravity;
+  d.BASE_DATA.gravity             = getGravMs2() || d.BASE_DATA.gravity;
   d.BASE_DATA.gravityDifficultyScale = buildDiffScale('b-grav-n','b-grav-h','b-grav-r');
   d.BASE_DATA.timewarpHeight      = parseFloat(val('b-twh'))    || d.BASE_DATA.timewarpHeight;
   d.BASE_DATA.velocityArrowsHeight= parseFloat(val('b-vah'));
   d.BASE_DATA.mapColor = getCpick('b-cr','b-cg','b-cb','b-ca','b-hdr');
+  // Keep sphere icon in sync with map color (picker values are already 0-1 clamped)
+  { const _mc = d.BASE_DATA.mapColor;
+    updateBodyIcon(_mc.r, _mc.g, _mc.b, _mc.a); }
   d.BASE_DATA.significant         = tog('b-sig');
   d.BASE_DATA.rotateCamera        = tog('b-rc');
 
@@ -910,7 +1089,7 @@ function liveSync(){
     // Preserve fields with no UI controls so edits don't wipe per-body difficulty scales
     const _apPrev = d.ATMOSPHERE_PHYSICS_DATA || {};
     d.ATMOSPHERE_PHYSICS_DATA = {
-      height: parseFloat(val('ap-height'))||0, density: parseFloat(val('ap-density'))||0,
+      height: getSimpleKmMetres('ap-height'), density: parseFloat(val('ap-density'))||0,
       curve: parseFloat(val('ap-curve'))||0, curveScale: _apPrev.curveScale || {},
       parachuteMultiplier: parseFloat(val('ap-chute'))||1,
       upperAtmosphere: parseFloat(val('ap-upper'))||0,
@@ -923,7 +1102,7 @@ function liveSync(){
   // ATMO VISUALS
   if(tog('av-has')){
     const cloudsObj = tog('cl-has')
-      ? { texture:val('cl-tex'), startHeight:parseFloat(val('cl-sh'))||0, width:parseFloat(val('cl-w'))||0, height:parseFloat(val('cl-h'))||0, alpha:parseFloat(val('cl-a'))||0, velocity:parseFloat(val('cl-v'))||0 }
+      ? { texture:val('cl-tex'), startHeight:getSimpleKmMetres('cl-sh'), width:getSimpleKmMetres('cl-w'), height:getSimpleKmMetres('cl-h'), alpha:parseFloat(val('cl-a'))||0, velocity:parseFloat(val('cl-v'))||0 }
       : { texture:'None', startHeight:0, width:0, height:0, alpha:0, velocity:0 };
     const fogObj = tog('fog-has')
       ? { keys: collectFogKeys() }
@@ -931,7 +1110,7 @@ function liveSync(){
     // Preserve heightDifficultyScale on GRADIENT — it has no UI control
     const _gradPrev = d.ATMOSPHERE_VISUALS_DATA?.GRADIENT || {};
     d.ATMOSPHERE_VISUALS_DATA = {
-      GRADIENT: { positionZ:parseInt(val('av-pz'))||0, height:parseFloat(val('av-height'))||0, heightDifficultyScale: _gradPrev.heightDifficultyScale || {}, texture:val('av-tex') },
+      GRADIENT: { positionZ:parseInt(val('av-pz'))||0, height:getSimpleKmMetres('av-height'), heightDifficultyScale: _gradPrev.heightDifficultyScale || {}, texture:val('av-tex') },
       CLOUDS: cloudsObj,
       FOG: fogObj
     };
@@ -940,7 +1119,7 @@ function liveSync(){
   // FRONT CLOUDS
   if(tog('fc-has')){
     const fctex = val('fc-tex');
-    d.FRONT_CLOUDS_DATA = { cloudsTexture:fctex||'None', cloudTextureCutout:parseFloat(val('fc-cut'))||1, fadeZoneHeight:parseFloat(val('fc-fzh'))||0, height:parseFloat(val('fc-h'))||0, positionZ:parseFloat(val('fc-pz'))||0, sharpenAlpha:tog('fc-sa') };
+    d.FRONT_CLOUDS_DATA = { cloudsTexture:fctex||'None', cloudTextureCutout:parseFloat(val('fc-cut'))||1, fadeZoneHeight:getSimpleKmMetres('fc-fzh'), height:getSimpleKmMetres('fc-h'), positionZ:parseFloat(val('fc-pz'))||0, sharpenAlpha:tog('fc-sa') };
   } else delete d.FRONT_CLOUDS_DATA;
 
   // TERRAIN — respect the "Has Terrain Data" toggle
@@ -957,13 +1136,16 @@ function liveSync(){
     d.TERRAIN_DATA = {
       TERRAIN_TEXTURE_DATA: {
         planetTexture: ptex || 'None',
-        planetTextureCutout:parseFloat(val('tt-cut'))||0,
-        planetTextureRotation:parseFloat(val('tt-rot'))||0, planetTextureDontDistort:tog('tt-nd'),
-        surfaceTexture_A:val('tt-sa'), surfaceTextureSize_A:{x:parseFloat(val('tt-sax'))||1, y:parseFloat(val('tt-say'))||1},
-        surfaceTexture_B:val('tt-sb'), surfaceTextureSize_B:{x:parseFloat(val('tt-sbx'))||-1, y:parseFloat(val('tt-sby'))||-1},
-        terrainTexture_C:val('tt-tc'), terrainTextureSize_C:{x:parseFloat(val('tt-tcx'))||1, y:parseFloat(val('tt-tcy'))||1},
-        surfaceLayerSize:parseFloat(val('tt-sls'))||10, minFade:parseFloat(val('tt-mif'))||0,
-        maxFade:parseFloat(val('tt-maf'))||1, shadowIntensity:parseFloat(val('tt-si'))||5, shadowHeight:parseFloat(val('tt-sh'))||10
+        planetTextureCutout:_fv(val('tt-cut'),-1),
+        planetTextureRotation:parseFloat(val('tt-rot'))||0, planetTextureDontDistort:!tog('tt-nd'),
+        surfaceTexture_A:val('tt-sa'), surfaceTextureSize_A:{x:_fv(val('tt-sax'),-1), y:_fv(val('tt-say'),-1)},
+        surfaceLOD_A: _fv(val('tt-lod-a'), -1),
+        surfaceTexture_B:val('tt-sb'), surfaceTextureSize_B:{x:_fv(val('tt-sbx'),-1), y:_fv(val('tt-sby'),-1)},
+        surfaceLOD_B: _fv(val('tt-lod-b'), -1),
+        terrainTexture_C:val('tt-tc'), terrainTextureSize_C:{x:_fv(val('tt-tcx'),-1), y:_fv(val('tt-tcy'),-1)},
+        surfaceLOD_C: _fv(val('tt-lod-c'), -1),
+        surfaceLayerSize:_fv(val('tt-sls'),-1), minFade:_fv(val('tt-mif'),-1),
+        maxFade:_fv(val('tt-maf'),-1), shadowIntensity:_fv(val('tt-si'),-1), shadowHeight:_fv(val('tt-sh'),-1)
       },
       terrainFormulaDifficulties: tfd,
       textureFormula: document.getElementById('tf-texture').value.trim()
@@ -997,11 +1179,11 @@ function liveSync(){
   // RINGS
   if(tog('rng-has')){
     const rngMap = getCpick('rng-map-r','rng-map-g','rng-map-b','rng-map-a');
-    d.RINGS_DATA = { ringsTexture:val('rng-tex'), startRadius:parseFloat(val('rng-sr'))||0, endRadius:parseFloat(val('rng-er'))||0, positionZ:parseFloat(val('rng-pz'))||0, mapColor:{r:rngMap.r,g:rngMap.g,b:rngMap.b,a:rngMap.a} };
+    d.RINGS_DATA = { ringsTexture:val('rng-tex'), startRadius:getDistMetres('rng-sr'), endRadius:getDistMetres('rng-er'), positionZ:parseFloat(val('rng-pz'))||0, mapColor:{r:rngMap.r,g:rngMap.g,b:rngMap.b,a:rngMap.a} };
     // Rings visually affect body size on canvas
     b.hasRings = true;
-    b.ringsInner = parseFloat(val('rng-sr'))||0;
-    b.ringsOuter = parseFloat(val('rng-er'))||0;
+    b.ringsInner = getDistMetres('rng-sr');
+    b.ringsOuter = getDistMetres('rng-er');
   } else {
     delete d.RINGS_DATA;
     b.hasRings = false;
@@ -1017,7 +1199,7 @@ function liveSync(){
     d.WATER_DATA = {
       oceanMaskTexture: val('wt-tex'),
       lowerTerrain: tog('wt-lt'),
-      oceanDepth: parseFloat(val('wt-dep'))||5000,
+      oceanDepth: getSimpleKmMetres('wt-dep')||5000,
       sand:    { r:wSand.r,  g:wSand.g,  b:wSand.b,  a:wSand.a  },
       floor:   { r:wFloor.r, g:wFloor.g, b:wFloor.b, a:wFloor.a },
       shallow: { r:wShal.r,  g:wShal.g,  b:wShal.b,  a:wShal.a  },
@@ -1033,9 +1215,9 @@ function liveSync(){
       opacity_Surface: parseFloat(val('wt-so'))||0.8,
       opacity_Far: parseFloat(val('wt-fo'))||1,
       opacity_FullDarkness: parseFloat(val('wt-fd'))??0.95,
-      surfaceVisibilityDistance: parseFloat(val('wt-svd'))||1200,
-      fullDarknessDepth: parseFloat(val('wt-fdd'))||500,
-      fullDarknessVisibilityDistance: parseFloat(val('wt-fdvd'))||300,
+      surfaceVisibilityDistance: getSimpleKmMetres('wt-svd')||1200,
+      fullDarknessDepth: getSimpleKmMetres('wt-fdd')||500,
+      fullDarknessVisibilityDistance: getSimpleKmMetres('wt-fdvd')||300,
       mapColor: { r:wMap.r, g:wMap.g, b:wMap.b, a:wMap.a }
     };
   } else delete d.WATER_DATA;
@@ -1052,7 +1234,7 @@ function liveSync(){
     const dirRaw = document.getElementById('or-dir').value;
     d.ORBIT_DATA = {
       parent:             val('or-par') || 'Sun',
-      semiMajorAxis:      parseFloat(val('or-sma')) || 0,
+      semiMajorAxis:      getDistMetres('or-sma'),
       smaDifficultyScale: buildDiffScale('or-sn','or-sh','or-sr'),
       eccentricity:       Math.min(parseFloat(val('or-ecc')) || 0, 0.999),
       argumentOfPeriapsis:parseFloat(val('or-aop')) || 0,
@@ -1083,9 +1265,28 @@ function liveSync(){
 // Delegated real-time sync: catches all current AND dynamically-added sidebar inputs/selects.
 // This fires liveSync on any input or change event bubbling up from the sidebar.
 document.getElementById('sidebar').addEventListener('input',  e => {
+  // bsearch-input is a search filter, not a body-data field — don't trigger liveSync
+  if(e.target.id === 'bsearch-input') return;
+  // hm-raw-view: live sync — push raw text into the hidden textarea then refresh
+  if(e.target.id === 'hm-raw-view'){
+    const lines = e.target.value.split('\n').filter(l => l.trim());
+    const id = _hmActiveDiff === 'Normal' ? 'tf-normal' : _hmActiveDiff === 'Hard' ? 'tf-hard' : 'tf-realistic';
+    const el = document.getElementById(id);
+    if(el) el.value = lines.join('\n');
+    _hmRenderFormulaList();
+    if(typeof invalidateTerrainCache === 'function') invalidateTerrainCache('*');
+    if(typeof drawViewport !== 'undefined'){
+      if(drawViewport._surfCache) drawViewport._surfCache = {};
+      if(drawViewport._terrCache) drawViewport._terrCache = {};
+    }
+    if(!liveSync._filling) liveSync();
+    return;
+  }
   if(!liveSync._filling) liveSync();
 });
 document.getElementById('sidebar').addEventListener('change', e => {
+  if(e.target.id === 'bsearch-input') return;
+  if(e.target.id === 'hm-raw-view') return;
   if(!liveSync._filling) liveSync();
 });
 // Delegated click on all toggles — fires after their own onclick toggles the class
@@ -1097,6 +1298,31 @@ document.getElementById('sidebar').addEventListener('click', e => {
 // In SFS the body name IS the filename (Earth → Earth.txt), so renaming is first-class.
 
 
+// ── Cloud Width auto-generator ────────────────────────────────────────────────
+// Formula: 2π × (StartHeight + Radius) / N
+function _clWidthCalc(){
+  const b      = selectedBody && bodies[selectedBody];
+  const radius = getDistMetres('b-radius') || b?.data?.BASE_DATA?.radius || 314970;
+  const startH = getSimpleKmMetres('cl-sh') || 0;
+  const N      = parseFloat(document.getElementById('cl-w-n')?.value) || 100;
+  if(N <= 0) return null;
+  return (2 * Math.PI * (startH + radius)) / N;
+}
+
+function clWidthAutoSync(){
+  const w = _clWidthCalc();
+  const preview = document.getElementById('cl-w-preview');
+  if(w === null || !isFinite(w)){
+    if(preview) preview.textContent = '';
+    return;
+  }
+  const rounded = Math.round(w);
+  const input = document.getElementById('cl-w');
+  if(input) input.value = rounded;
+  if(preview) preview.textContent = `≈ ${rounded.toLocaleString()} m`;
+  liveSync();
+}
+
 function syncCloudVel(){
   const mode  = document.getElementById('cl-v-mode')?.value || 'ms';
   const raw   = parseFloat(document.getElementById('cl-v-input')?.value) || 0;
@@ -1106,7 +1332,7 @@ function syncCloudVel(){
   // Use current body radius + cloud startHeight for inner circumference
   const b = selectedBody && bodies[selectedBody];
   const radius = (b?.data?.BASE_DATA?.radius) || 314970;
-  const startH = parseFloat(document.getElementById('cl-sh')?.value) || 0;
+  const startH = getSimpleKmMetres('cl-sh') || 0;
   const innerCirc = 2 * Math.PI * (radius + startH); // metres
 
   let ms = 0; // final value in m/s
@@ -1142,7 +1368,7 @@ function setCloudVelDisplay(ms){
   const mode = document.getElementById('cl-v-mode')?.value || 'ms';
   const b = selectedBody && bodies[selectedBody];
   const radius = (b?.data?.BASE_DATA?.radius) || 314970;
-  const startH = parseFloat(document.getElementById('cl-sh')?.value) || 0;
+  const startH = getSimpleKmMetres('cl-sh') || 0;
   const innerCirc = 2 * Math.PI * (radius + startH);
   let display = ms;
   if(mode === 'rph' && innerCirc > 0) display = (ms * 3600) / innerCirc;
@@ -1153,6 +1379,12 @@ function setCloudVelDisplay(ms){
   if(hidden) hidden.value = ms;
   syncCloudVel();
 }
+let _finaliseRenameTimer = null;
+function _schedFinaliseRename(newName){
+  clearTimeout(_finaliseRenameTimer);
+  _finaliseRenameTimer = setTimeout(() => finaliseRename(newName), 600);
+}
+
 function renameBody(newName){
   if(!selectedBody || !newName) return;
   const input = document.getElementById('sbb-name-input');
@@ -1165,6 +1397,7 @@ function renameBody(newName){
 }
 
 function finaliseRename(newName){
+  clearTimeout(_finaliseRenameTimer);
   if(!selectedBody || !newName || newName === selectedBody) return;
   const input = document.getElementById('sbb-name-input');
 
@@ -1289,9 +1522,248 @@ function collectLandmarks(){
   const lms=[]; let i=0;
   while(document.getElementById('lm-'+i)){
     const n=val('lm-'+i+'-n');
-    if(n){ let sa=parseFloat(val('lm-'+i+'-s'))||0, ea=parseFloat(val('lm-'+i+'-e'))||0; if(ea<sa) ea+=360; lms.push({name:n, startAngle:sa, endAngle:ea}); }
+    // Read from number inputs (precise); fall back to range slider if not present
+    const lmS = parseFloat(document.getElementById('lm-'+i+'-s-num')?.value ?? val('lm-'+i+'-s')) || 0;
+    const lmE = parseFloat(document.getElementById('lm-'+i+'-e-num')?.value ?? val('lm-'+i+'-e')) || 0;
+    if(n) lms.push({name:n, startAngle:lmS, endAngle:lmE});
     i++;
   }
   return lms;
 }
 
+
+// ── Heightmap visual UI ───────────────────────────────────────────────────────
+let _hmActiveDiff = 'Normal';
+
+function hmUploadClick(){
+  document.getElementById('hm-file-input').click();
+}
+
+function hmFileAdded(files){
+  if(!files || !files.length) return;
+  // Route through existing asset upload system
+  handleFiles(files, 'heightmaps');
+  // Refresh the loaded list after a short delay so the asset registers
+  setTimeout(hmRefreshLoadedList, 300);
+}
+
+function hmToggleLibrary(){
+  const wrap = document.getElementById('hm-library-wrap');
+  const btn  = document.getElementById('hm-collapse-btn');
+  if(!wrap || !btn) return;
+  const collapsed = wrap.style.display === 'none';
+  wrap.style.display = collapsed ? '' : 'none';
+  btn.textContent = collapsed ? '▾ HIDE' : '▸ SHOW';
+}
+
+// Build the list of loaded heightmap cards
+function hmRefreshLoadedList(){
+  const list = document.getElementById('hm-loaded-list');
+  const hint = document.getElementById('hm-empty-hint');
+  const insertRow = document.getElementById('hm-insert-row');
+  const mapSel = document.getElementById('hm-map');
+  if(!list) return;
+
+  const hms = (typeof assets !== 'undefined') ? (assets.heightmaps || []) : [];
+
+  // Populate the map picker with loaded names + builtins
+  const builtins = ['Perlin'];
+  const customNames = hms.map(e => e.name.replace(/\.[^.]+$/, ''));
+  const allMaps = [...new Set([...builtins, ...customNames])];
+  const curMap = mapSel.value;
+  mapSel.innerHTML = allMaps.map(n =>
+    `<option value="${n}"${n===curMap?' selected':''}>${n}${builtins.includes(n)?' (built-in)':' (custom)'}</option>`
+  ).join('');
+
+  if(hms.length === 0){
+    list.innerHTML = '';
+    hint.style.display = '';
+    insertRow.style.display = 'none';
+    insertRow.innerHTML = '';
+    return;
+  }
+
+  hint.style.display = 'none';
+  insertRow.style.display = 'none'; // handled inside list now
+
+  // Separate into image and text groups
+  const imgHMs = hms.filter(e => /\.(png|jpe?g)/i.test(e.name));
+  const txtHMs = hms.filter(e => /\.txt$/i.test(e.name));
+
+  // Track collapse state per group (persisted in memory only)
+  if(!hmRefreshLoadedList._collapsed) hmRefreshLoadedList._collapsed = {};
+  const _col = hmRefreshLoadedList._collapsed;
+
+  function buildGroup(items, groupLabel, groupKey){
+    if(!items.length) return '';
+    const isCollapsed = !!_col[groupKey];
+    const cards = items.map(e => {
+      const base = e.name.replace(/\.[^.]+$/, '');
+      const isImg = /\.(png|jpe?g)/i.test(e.name);
+      const preview = isImg && e.url
+        ? `<img src="${e.url}" style="width:100%;height:52px;object-fit:cover;border-radius:3px 3px 0 0;image-rendering:pixelated;display:block">`
+        : `<div style="width:100%;height:52px;border-radius:3px 3px 0 0;background:var(--bg1);display:flex;align-items:center;justify-content:center;font-size:.72rem;color:var(--sky2);font-family:'JetBrains Mono',monospace;font-weight:700;letter-spacing:.04em">TXT</div>`;
+      return `<div style="background:var(--bg2);border-radius:4px;overflow:hidden;border:1px solid var(--ink6,#2a2a2a);cursor:pointer;transition:border-color .15s" onclick="hmInsertMap('${base}')" title="Click to use: ${base}">
+        ${preview}
+        <div style="padding:4px 5px;font-size:.72rem;font-family:'JetBrains Mono',monospace;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${base}">${base}</div>
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:6px">
+      <div onclick="hmToggleGroup('${groupKey}')" style="font-size:.68rem;color:var(--ink3);font-family:'JetBrains Mono',monospace;letter-spacing:.06em;margin-bottom:4px;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;gap:5px;user-select:none">
+        <span style="color:var(--sky2);font-size:.7rem">${isCollapsed ? '▸' : '▾'}</span>
+        <span>${groupLabel} (${items.length})</span>
+      </div>
+      <div id="hm-group-${groupKey}" style="display:${isCollapsed ? 'none' : 'grid'};grid-template-columns:repeat(3,1fr);gap:4px">${cards}</div>
+    </div>`;
+  }
+
+  list.innerHTML =
+    `<div style="font-size:.65rem;color:var(--ink4);font-family:'JetBrains Mono',monospace;margin-bottom:6px;line-height:1.5">
+      <span style="color:var(--sky2)">Tap a card</span> to set it as the active map in the formula builder below.
+    </div>` +
+    buildGroup(imgHMs, 'Image maps', 'img') +
+    buildGroup(txtHMs, 'Text maps', 'txt');
+}
+
+function hmApplyFilter(){ /* filter removed — grid is compact enough */ }
+function hmToggleCollapse(){ /* no-op */ }
+function hmToggleGroup(key){
+  if(!hmRefreshLoadedList._collapsed) hmRefreshLoadedList._collapsed = {};
+  const _col = hmRefreshLoadedList._collapsed;
+  _col[key] = !_col[key];
+  hmRefreshLoadedList();
+}
+
+// Insert a heightmap name into the map picker and focus add-line
+function hmInsertMap(name){
+  const mapSel = document.getElementById('hm-map');
+  // Select this map in the picker
+  for(let i = 0; i < mapSel.options.length; i++){
+    if(mapSel.options[i].value === name){ mapSel.selectedIndex = i; break; }
+  }
+  // Scroll to add-line area
+  document.getElementById('hm-scale').focus();
+}
+
+function hmSetDiff(diff){
+  // Save current textarea to hidden field first
+  _hmFlushRawToHidden();
+  _hmActiveDiff = diff;
+  // Update button styles
+  ['Normal','Hard','Realistic'].forEach(d => {
+    const btn = document.getElementById('hm-btn-' + d[0].toLowerCase() + d.slice(1).toLowerCase().replace('istic','').replace('ard','')[0]);
+    // simpler: by id pattern
+  });
+  document.getElementById('hm-btn-n').style.background = diff==='Normal' ? 'var(--sky2)' : 'transparent';
+  document.getElementById('hm-btn-n').style.color      = diff==='Normal' ? '#000' : 'var(--ink3)';
+  document.getElementById('hm-btn-h').style.background = diff==='Hard'   ? 'var(--sky2)' : 'transparent';
+  document.getElementById('hm-btn-h').style.color      = diff==='Hard'   ? '#000' : 'var(--ink3)';
+  document.getElementById('hm-btn-r').style.background = diff==='Realistic' ? 'var(--sky2)' : 'transparent';
+  document.getElementById('hm-btn-r').style.color      = diff==='Realistic' ? '#000' : 'var(--ink3)';
+  document.getElementById('hm-diff-badge').textContent = diff;
+  _hmRenderFormulaList();
+  _hmSyncRawView();
+}
+
+// Get lines for active difficulty from the hidden textareas
+function _hmGetLines(){
+  const id = _hmActiveDiff === 'Normal' ? 'tf-normal' : _hmActiveDiff === 'Hard' ? 'tf-hard' : 'tf-realistic';
+  const txt = document.getElementById(id)?.value.trim() || '';
+  return txt ? txt.split('\n').filter(l => l.trim()) : [];
+}
+function _hmSetLines(lines){
+  const id = _hmActiveDiff === 'Normal' ? 'tf-normal' : _hmActiveDiff === 'Hard' ? 'tf-hard' : 'tf-realistic';
+  const el = document.getElementById(id);
+  if(el) el.value = lines.join('\n');
+  _hmRenderFormulaList();
+  _hmSyncRawView();
+  // Bust all terrain-related caches so the viewport re-evaluates the formula immediately.
+  // _surfCache is keyed with only a 0/1 terrRes flag (not the formula content), so it must
+  // be explicitly cleared here to prevent stale surface strips after a formula edit.
+  if(typeof invalidateTerrainCache === 'function') invalidateTerrainCache('*');
+  if(typeof drawViewport !== 'undefined'){
+    if(drawViewport._surfCache) drawViewport._surfCache = {};
+    if(drawViewport._terrCache) drawViewport._terrCache = {};
+  }
+  if(typeof liveSync === 'function') liveSync();
+}
+
+function _hmRenderFormulaList(){
+  const container = document.getElementById('hm-formula-list');
+  if(!container) return;
+  const lines = _hmGetLines();
+  if(lines.length === 0){
+    container.innerHTML = `<div style="font-size:.6rem;color:var(--ink4);font-family:'JetBrains Mono',monospace;padding:4px 2px;font-style:italic">No lines yet — add one below.</div>`;
+    return;
+  }
+  container.innerHTML = lines.map((line, i) => {
+    // Parse for display: "OUTPUT = Op(map, scale, height)"
+    const m = line.match(/OUTPUT\s*=\s*(\w+)\(([^)]*)\)/);
+    let label = line;
+    let tag = '';
+    if(m){
+      const op   = m[1].replace('HeightMap','').replace('Output','');
+      const args = m[2].split(',').map(s=>s.trim());
+      const map  = args[0] || '?';
+      const sc   = args[1] ? (parseFloat(args[1])/1000).toFixed(0)+'k' : '';
+      const ht   = args[2] || '';
+      label = `<strong style="color:var(--sky2)">${op}</strong> <span style="color:var(--ink2)">${map}</span>${sc?' <span style="color:var(--ink4)">'+sc+'</span>':''}${ht?' <span style="color:var(--ink4)">h:'+ht+'m</span>':''}`;
+      tag = op;
+    }
+    return `<div style="display:flex;align-items:center;gap:5px;padding:4px 6px;background:var(--bg2);border-radius:4px;margin-bottom:2px">
+      <span style="flex:1;font-size:.6rem;font-family:'JetBrains Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>
+      <button onclick="hmMoveLine(${i},-1)" title="Move up"   style="font-size:.6rem;padding:1px 5px;border-radius:3px;background:var(--bg3);color:var(--ink2);border:1px solid var(--ink5);cursor:pointer" ${i===0?'disabled':''}>▲</button>
+      <button onclick="hmMoveLine(${i}, 1)" title="Move down" style="font-size:.6rem;padding:1px 5px;border-radius:3px;background:var(--bg3);color:var(--ink2);border:1px solid var(--ink5);cursor:pointer" ${i===lines.length-1?'disabled':''}>▼</button>
+      <button onclick="hmRemoveLine(${i})" title="Delete"     style="font-size:.6rem;padding:1px 5px;border-radius:3px;background:transparent;color:#f66;border:1px solid #f66;cursor:pointer">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function hmAddLine(){
+  const op     = document.getElementById('hm-op').value;
+  const map    = document.getElementById('hm-map').value;
+  const scale  = parseFloat(document.getElementById('hm-scale').value) || 100000;
+  const height = parseFloat(document.getElementById('hm-height').value) || 35;
+  const line   = `OUTPUT = ${op.split(' = ')[1]}(${map}, ${scale}, ${height})`;
+  const lines  = _hmGetLines();
+  lines.push(line);
+  _hmSetLines(lines);
+}
+
+function hmRemoveLine(i){
+  const lines = _hmGetLines();
+  lines.splice(i, 1);
+  _hmSetLines(lines);
+}
+
+function hmMoveLine(i, dir){
+  const lines = _hmGetLines();
+  const j = i + dir;
+  if(j < 0 || j >= lines.length) return;
+  [lines[i], lines[j]] = [lines[j], lines[i]];
+  _hmSetLines(lines);
+}
+
+function _hmSyncRawView(){
+  const rv = document.getElementById('hm-raw-view');
+  if(!rv) return;
+  // Only update if not focused — don't clobber user typing
+  if(document.activeElement !== rv){
+    rv.value = _hmGetLines().join('\n');
+  }
+}
+
+// Legacy stubs — raw view is always live now
+function hmEditRaw(){ document.getElementById('hm-raw-view')?.focus(); }
+function hmSaveRaw(){ /* no-op — live */ }
+
+function _hmFlushRawToHidden(){
+  // no-op: hidden textareas are kept in sync by _hmSetLines
+}
+
+// Call after fillSidebar to populate the visual UI from the textareas
+function hmSyncFromTextareas(){
+  _hmActiveDiff = 'Normal';
+  hmSetDiff('Normal');
+  hmRefreshLoadedList();
+}

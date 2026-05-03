@@ -20,6 +20,14 @@ let viewDiffKey = 'Normal'; // Title-case version used for smaDifficultyScale / 
 let dragging = false, dragSX, dragSY;
 const BODY_PX = { star:28, planet:16, gasgiant:22, ringedgiant:22, marslike:14, mercurylike:12, moon:11, asteroid:7, blackhole:18, barycentre:5 };
 
+// Draw a high-sided polygon approximating a circle — avoids the per-frame bezier
+// tessellation cost of ctx.arc() when the radius is large on screen.
+function polygonCircle(ctx, cx, cy, r, sides){
+  const step = (Math.PI * 2) / sides;
+  ctx.moveTo(cx + r, cy);
+  for(let i = 1; i <= sides; i++) ctx.lineTo(cx + r * Math.cos(step * i), cy + r * Math.sin(step * i));
+}
+
 // SMA scale: map the largest SMA to ~38% of the viewport half-width in pixels
 const SMA_SCALE_TARGET = 0.38;
 let _cachedSMAScale = null; // invalidated at start of _drawViewportNow each frame
@@ -141,15 +149,16 @@ let dbgFogOpacity = 1.0;   // kept for any legacy references (unused by new syst
 
 // ── Environment render flags ──
 const envFlags = {
-  soi:     true,
-  atmo:    true,
-  clouds:  true,
-  fclouds: true,
-  fog:     true,
-  water:   true,
-  surface: true,
-  physAtmo: false,
-  postProc: false,
+  soi:       true,
+  atmo:      true,
+  clouds:    true,
+  fclouds:   true,
+  fog:       true,
+  water:     true,
+  surface:   true,
+  physAtmo:  false,
+  postProc:  false,
+  heightmaps: false,
 };
 
 function toggleEnvFlag(key){
@@ -158,6 +167,9 @@ function toggleEnvFlag(key){
   if(key === 'fclouds') showFrontClouds = envFlags.fclouds;
   // Remove GPU tint filter from canvas when post-proc is turned off
   if(key === 'postProc' && !envFlags.postProc) _clearPostProcessingFilter();
+  // Invalidate clip path cache when heightmaps toggled so the smooth/terrain
+  // disc is redrawn correctly on the next frame
+  if(key === 'heightmaps') invalidateTerrainCache('*');
   _syncEnvButtons();
   drawViewport();
 }
@@ -361,6 +373,9 @@ function _clearPostProcessingFilter(){
   if(vp) vp.style.filter = '';
 }
 function _drawViewportNow(){
+  // Per-frame terrain clip path cache — cleared each frame so stale Path2D
+  // objects from previous zoom/pan positions don't leak across frames.
+  for (const k of Object.keys(_terrainClipCache)) delete _terrainClipCache[k];
   // Self-heal: if canvas has no size, set it now
   if(!vp.width || !vp.height){
     vp.width  = window.innerWidth;
@@ -621,7 +636,7 @@ function _drawViewportNow(){
       ctx2.beginPath(); ctx2.moveTo(sp.x,sp.y-6); ctx2.lineTo(sp.x,sp.y+6); ctx2.stroke();
       ctx2.beginPath(); ctx2.arc(sp.x,sp.y,4,0,Math.PI*2);
       ctx2.strokeStyle='rgba(180,180,255,0.35)'; ctx2.stroke();
-      if(selectedBody===name){ ctx2.beginPath(); ctx2.arc(sp.x,sp.y,10,0,Math.PI*2); ctx2.strokeStyle='rgba(80,180,255,0.75)'; ctx2.lineWidth=1.5; ctx2.setLineDash([3,3]); ctx2.stroke(); ctx2.setLineDash([]); }
+      if(selectedBody===name){ ctx2.beginPath(); polygonCircle(ctx2,sp.x,sp.y,10,64); ctx2.closePath(); ctx2.strokeStyle='rgba(80,180,255,0.75)'; ctx2.lineWidth=1.5; ctx2.setLineDash([3,3]); ctx2.stroke(); ctx2.setLineDash([]); }
       ctx2.fillStyle='rgba(150,200,240,0.7)'; ctx2.font='9px "JetBrains Mono",monospace'; ctx2.textAlign='center';
       ctx2.fillText(name, sp.x, sp.y+18);
       ctx2.restore(); // must restore before early return
@@ -867,7 +882,7 @@ function _drawViewportNow(){
       }
     }
 
-    if(envFlags.atmo && atmoFade > 0 && b.data.ATMOSPHERE_PHYSICS_DATA && b.data.ATMOSPHERE_VISUALS_DATA?.GRADIENT){
+    if(envFlags.atmo && !envFlags.heightmaps && atmoFade > 0 && b.data.ATMOSPHERE_PHYSICS_DATA && b.data.ATMOSPHERE_VISUALS_DATA?.GRADIENT){
       const APD = b.data.ATMOSPHERE_PHYSICS_DATA;
       const GRD = b.data.ATMOSPHERE_VISUALS_DATA.GRADIENT;
       const atmosH_m = APD.height || 0;
@@ -897,9 +912,12 @@ function _drawViewportNow(){
             const innerFracClamped = Math.min(0.999, innerFrac);
 
             // ── Build or retrieve polar disc canvas ──
-            // Cache key: texture + exact innerFrac (4 decimal places).
+            // Quantise innerFrac to 0.025 steps (~40 buckets) so the cache doesn't
+            // rebuild on every zoom tick. Previously .toFixed(4) caused a fresh
+            // 512k-pixel rebuild every frame while zooming, causing severe lag.
+            const innerFracQ = (Math.round(innerFracClamped / 0.025) * 0.025).toFixed(3);
             if(!drawViewport._atmoPolarCache) drawViewport._atmoPolarCache = {};
-            const cacheKey = atmoTex + '|' + innerFracClamped.toFixed(4);
+            const cacheKey = atmoTex + '|' + innerFracQ;
             let polarCanvas = drawViewport._atmoPolarCache[cacheKey];
 
             if(!polarCanvas){
@@ -917,16 +935,31 @@ function _drawViewportNow(){
               const {data: srcD, w: SW, h: SH} = drawViewport._atmoSrcCache[atmoTex];
 
               // Use higher resolution for thin atmospheres (small innerFrac gap)
-              // so each texture row maps to enough polar-canvas pixels.
-              // Cap at 1024 to stay GPU-friendly; floor at 512 for large atmospheres.
+              // or large bodies (physR_px already big on screen), so each texture
+              // row maps to enough polar-canvas pixels and the limb stays sharp.
               const atmoBandFrac = 1 - innerFracClamped;
-              const SZ = atmoBandFrac < 0.15 ? 1024 : 512;
+              const SZ = (atmoBandFrac < 0.15 || physR_px > 120) ? 1024 : 512;
               polarCanvas = document.createElement('canvas');
               polarCanvas.width = SZ; polarCanvas.height = SZ;
               const pCtx = polarCanvas.getContext('2d');
               const outD = pCtx.createImageData(SZ, SZ);
               const od = outD.data;
               const half = SZ / 2;
+
+              // Pre-sample the innermost texture row (bottom of atmosphere = planet surface colour)
+              // so pixels inside innerFracClamped can be filled solid instead of left transparent.
+              // Transparent inner pixels composite as black over the canvas → dark gap ring.
+              let inner_r = 255, inner_g = 255, inner_b = 255, inner_a = 255;
+              {
+                const innerRow = SH - 1; // bottom row = planet surface
+                let rSum=0,gSum=0,bSum=0,aSum=0, cnt=0;
+                for(let ix=0;ix<SW;ix++){
+                  const ii=(innerRow*SW+ix)*4;
+                  rSum+=srcD[ii]; gSum+=srcD[ii+1]; bSum+=srcD[ii+2]; aSum+=srcD[ii+3]; cnt++;
+                }
+                inner_r=rSum/cnt+.5|0; inner_g=gSum/cnt+.5|0;
+                inner_b=bSum/cnt+.5|0; inner_a=aSum/cnt+.5|0;
+              }
 
               for(let py = 0; py < SZ; py++){
                 for(let ppx = 0; ppx < SZ; ppx++){
@@ -937,23 +970,24 @@ function _drawViewportNow(){
 
                   if(radFrac > 1.0){ od[oi+3]=0; continue; }
 
+                  // Pixels inside the planet disc: fill with innermost atmosphere colour
+                  // (fully opaque) so there is no transparent zone that composites as black.
+                  if(radFrac <= innerFracClamped){
+                    od[oi]=inner_r; od[oi+1]=inner_g; od[oi+2]=inner_b; od[oi+3]=inner_a;
+                    continue;
+                  }
+
                   let cwAngle = Math.atan2(dy, dx) / (Math.PI*2);
                   if(cwAngle < 0) cwAngle += 1;
                   const u = (1 - cwAngle) % 1;
 
-                  let texRowF;
-                  if(radFrac <= innerFracClamped){
-                    texRowF = SH - 1;
-                  } else {
-                    const t = (radFrac - innerFracClamped) / (1 - innerFracClamped);
-                    texRowF = (1 - t) * (SH - 1);
-                  }
-
+                  const t = (radFrac - innerFracClamped) / (1 - innerFracClamped);
+                  const texRowF = (1 - t) * (SH - 1);
                   const sx = Math.min(SW-1, Math.max(0, Math.round(u * (SW-1))));
                   // Bilinear interpolation along Y to avoid hard row-quantisation rings
                   const sy0 = Math.min(SH-1, Math.max(0, Math.floor(texRowF)));
                   const sy1 = Math.min(SH-1, sy0 + 1);
-                  const fy  = texRowF - sy0; // fractional part [0,1)
+                  const fy  = texRowF - sy0;
                   const si0 = (sy0 * SW + sx) * 4;
                   const si1 = (sy1 * SW + sx) * 4;
                   od[oi]   = srcD[si0]   + (srcD[si1]   - srcD[si0])   * fy + 0.5 | 0;
@@ -1021,85 +1055,88 @@ function _drawViewportNow(){
     }
 
     // ── Body disc ──
+    // Draw order: (1) terrain polygon or fallback disc  (2) texture on top  (3) water overlay
+    // The terrain polygon is ALWAYS the base fill — texture clips on top of it.
     const ptex = b.data.TERRAIN_DATA?.TERRAIN_TEXTURE_DATA?.planetTexture;
-    // When surface texture rendering is disabled, treat as if no texture is loaded
-    const texImg = envFlags.surface && ptex && ptex !== 'None' && textureCache[ptex];
+    const texImg = envFlags.surface && ptex && ptex !== 'None' && textureCache[ptex]
+                   && textureCache[ptex].complete && textureCache[ptex].naturalWidth > 0
+                   ? textureCache[ptex] : null;
 
-    // Only draw the texture when the body is physically larger than its icon floor —
-    // this prevents a blurry low-res stamp at system-zoom scale.
-    if(texImg && texImg.complete && texImg.naturalWidth > 0 && physR_px > iconR){
-      if(!_sfsDbgLogged[name + '_drawn']){ _sfsDbgLogged[name + '_drawn'] = true; console.log(`[SFS|DRAW] texture "${ptex}" drawn on "${name}" physR_px:${physR_px.toFixed(1)}`); }
-      // Read cutout & rotation live from sidebar if this is the selected body,
-      // otherwise read from stored data.  This makes the sliders update in real-time.
-      let ptCutout  = b.data.TERRAIN_DATA?.TERRAIN_TEXTURE_DATA?.planetTextureCutout  ?? 0;
-      let ptRotDeg  = b.data.TERRAIN_DATA?.TERRAIN_TEXTURE_DATA?.planetTextureRotation ?? 0;
-      if(selectedBody === name && !liveSync._filling){
-        const cutEl = document.getElementById('tt-cut');
-        const rotEl = document.getElementById('tt-rot');
-        if(cutEl && cutEl.value !== '') ptCutout = parseFloat(cutEl.value) || 0;
-        if(rotEl && rotEl.value !== '') ptRotDeg  = parseFloat(rotEl.value) || 0;
-      }
+    // ── LOD tier ─────────────────────────────────────────────────────────────
+    // Controls sample counts for terrain / surface texture / rocks based on
+    // how large the planet appears on screen (physR_px).
+    //   0 = tiny (smooth disc only — no heightmap sampling at all)
+    //   1 = far  (coarse terrain shape, no surface texture)
+    //   2 = mid  (terrain shape + surface texture at low N)
+    //   3 = near (full detail)
+    const LOD = physR_px < 6   ? 0
+              : physR_px < 40  ? 1
+              : physR_px < 120 ? 2
+              :                  3;
+    // terrN: number of terrain polygon vertices around the full circumference.
+    //
+    // The game's LOD system scales with both screen size AND planet radius — a large
+    // planet zoomed in has many more terrain vertices visible per screen pixel than
+    // a small asteroid at the same screen size.
+    //
+    // Correct formula: we need ~2 vertices per screen pixel around the circumference.
+    // Screen circumference in pixels = 2π × physR_px, so terrN = 2π × physR_px.
+    // This replaces the old π × physR_px / 45 * 45 which under-sampled by ~2× and
+    // was capped at 4096 — causing flat terrain on large planets when zoomed in.
+    //
+    // Hard physics cap: game never places vertices closer than verticeSize metres apart.
+    //   maxN = floor(2π × radius_m / verticeSize)
+    // This prevents over-sampling small bodies beyond the game's own resolution.
+    const _vsRaw = b.data.TERRAIN_DATA?.verticeSize;
+    const _vs = (_vsRaw > 0) ? _vsRaw : 2.0; // default 2m matches game default
+    const _vsMaxN = Math.max(90, Math.floor(2 * Math.PI * (bodyRadius_m * radiusMult) / _vs));
+    // Screen-based N: 2 vertices per pixel around the circumference.
+    // Quantise to multiples of 360 at high zoom (stable cache keys, divisible by common angles),
+    // multiples of 90 at low zoom (small bodies where cache thrash matters more than precision).
+    const _rawScreenN = Math.ceil(2 * Math.PI * physR_px);
+    const _qStep = physR_px > 500 ? 360 : 90;
+    const _detailMult = (typeof window !== 'undefined' && window.terrainDetail != null)
+      ? Math.max(0.01, window.terrainDetail / 100) : 1;
+    const _screenN = Math.max(90, Math.ceil((_rawScreenN * _detailMult) / _qStep) * _qStep);
+    const terrN = LOD === 0 ? 0 : Math.min(_vsMaxN, _screenN);
 
-      // planetTextureCutout: 1 = full image shown (no zoom), 0.8 = inscribed circle of square
-      // Values < 1 zoom into the image so the circle fills more of the texture.
-      // Negative values are not meaningful here — clamp to [0, 1].
-      const cutout = Math.max(0, Math.min(1, ptCutout));
-      // scale factor: cutout=1 → draw full r*2 square; cutout<1 → image is enlarged so
-      // only the central portion (inscribed circle) is visible inside the clipped arc.
-      // When cutout=1 the image fits exactly; when cutout<1 we scale the image up so
-      // the drawn square is r*2 / cutout and centred on the body.
-      const drawHalf = cutout > 0 ? r / cutout : r;
+    // Minimum physR_px to draw terrain polygon. Water depression (up to ~3% of radius)
+    // needs sufficient pixel resolution to look smooth rather than jagged.
+    // Below this threshold, draw a smooth disc instead (matches game map-view behaviour).
+    const hasWater = !!(b.data.WATER_DATA?.lowerTerrain && b.data.WATER_DATA?.oceanMaskTexture
+                        && b.data.WATER_DATA.oceanMaskTexture !== 'None');
+    const terrainDrawThreshold = hasWater ? 80 : 6;
 
-      // planetTextureRotation: editor 0° = North Up; +90° rotates texture CCW.
-      // Canvas rotation is CW-positive, so negate the angle.
-      const rotRad = -ptRotDeg * Math.PI / 180;
+    // ── Visible arc — computed once, shared by all terrain draw calls for this body ──
+    // Only meaningful when the planet is large on screen (physR_px > 200); below that
+    // the overhead of arc computation exceeds the savings from culling.
+    // Disabled for small bodies (radius < 15000m) — at that scale the full circle
+    // is cheap and arc-culling artifacts are visually prominent.
+    const _canArcCull = envFlags.heightmaps && physR_px > 200 && (bodyRadius_m * radiusMult) >= 15000;
+    const _arcInfo = _canArcCull
+      ? _computeVisibleArc(sp, Math.max(r, physR_px), W, H)
+      : null;
 
-      ctx2.save();
-      ctx2.beginPath(); ctx2.arc(sp.x, sp.y, r, 0, Math.PI*2); ctx2.clip();
-      ctx2.translate(sp.x, sp.y);
-      ctx2.rotate(rotRad);
-      ctx2.drawImage(texImg, -drawHalf, -drawHalf, drawHalf*2, drawHalf*2);
-      ctx2.restore();
-    } else {
-      // No texture rendered — log why once per body per session
-      if(!_sfsDbgLogged) _sfsDbgLogged = {};
-      if(!_sfsDbgLogged[name]){
-        _sfsDbgLogged[name] = true;
-        const hasTD   = !!b.data.TERRAIN_DATA;
-        const hasTTD  = !!b.data.TERRAIN_DATA?.TERRAIN_TEXTURE_DATA;
-        const rawPtex = b.data.TERRAIN_DATA?.TERRAIN_TEXTURE_DATA?.planetTexture;
-        const inCache = rawPtex ? !!textureCache[rawPtex] : false;
-        const cacheImg = rawPtex ? textureCache[rawPtex] : null;
-        console.warn(
-          `[SFS|NODRAW] ${name}` +
-          ` | TERRAIN_DATA:${hasTD}` +
-          ` | TERRAIN_TEXTURE_DATA:${hasTTD}` +
-          ` | planetTexture:"${rawPtex}"` +
-          ` | inCache:${inCache}` +
-          (cacheImg ? ` | img.complete:${cacheImg.complete} naturalW:${cacheImg.naturalWidth}` : '') +
-          ` | physR_px:${physR_px.toFixed(1)} iconR:${iconR}` +
-          ` | assets.textures:[${assets.textures.map(a=>a.name).join(',')}]`
-        );
-      }
+    // ── Step 1: Base fill — terrain polygon or icon gradient ─────────────────
+    {
+      const mc_disc = b.data.BASE_DATA?.mapColor;
+      // Try to draw terrain polygon (returns false if no formula / still loading).
+      // Use display radius `r` (not raw physR_px) so even sub-physical asteroids
+      // draw a visible shaped polygon — physR_px < iconR collapses to sub-pixel otherwise.
+      const _terrainDrawn = envFlags.heightmaps && b.data.TERRAIN_DATA && physR_px > terrainDrawThreshold && LOD > 0 &&
+        drawTerrainBody(ctx2, b, name, sp, Math.max(r, physR_px), bodyRadius_m * radiusMult, mc_disc, terrN, _arcInfo, texImg);
 
-      // Only fill pure black when planetTexture is explicitly "None" or not set —
-      // i.e. the designer intentionally has no surface texture.
-      // EXCEPTION: if the planet has WATER_DATA, skip the black fill and let the water
-      // render instead, so the entire planet appears covered with water.
-      // If a texture name is set but not in cache yet, fall through to icon gradient.
-      const texIsNone = !ptex || ptex === 'None';
-      const hasWater = !!b.data.WATER_DATA;
-      if(b.data.TERRAIN_DATA && texIsNone && physR_px > iconR && !hasWater){
-        ctx2.save();
-        ctx2.beginPath(); ctx2.arc(sp.x, sp.y, r, 0, Math.PI*2);
-        ctx2.fillStyle = '#000000';
-        ctx2.fill();
-        ctx2.restore();
-      } else {
-        // Fallback disc: use mapColor gradient at all zoom levels.
-        // iconFade only applies to non-terrain bodies (stars, barycentres) which
-        // should shrink to a dot at close zoom. Terrain bodies always fill the disc.
-        const mc = b.data.BASE_DATA?.mapColor;
+      if(!_terrainDrawn){
+        // Fallback: icon gradient disc. Stars/barycentres fade out when zoomed in;
+        // terrain bodies waiting for assets stay fully opaque.
+        // Skip the disc entirely when heightmaps are on and this body has TERRAIN_DATA
+        // but terrain just hasn't computed yet — the unclipped disc bleeds outside the
+        // terrain silhouette when the planet centre is off-screen (the artifact).
+        // The terrain polygon will appear the next frame once the cache is warm.
+        if(envFlags.heightmaps && b.data.TERRAIN_DATA && physR_px > terrainDrawThreshold){
+          // intentionally empty — no fallback disc for terrain bodies while loading
+        } else {
+        const mc = mc_disc;
         const atmoH  = b.data.ATMOSPHERE_PHYSICS_DATA?.height  ?? 1;
         const atmoD  = b.data.ATMOSPHERE_PHYSICS_DATA?.density ?? 1;
         const gradH  = b.data.ATMOSPHERE_VISUALS_DATA?.GRADIENT?.height ?? 1;
@@ -1120,8 +1157,6 @@ function _drawViewportNow(){
           ];
         }
         const [hi, mid, lo] = drawViewport._iconColCache[icKey];
-        // For non-terrain bodies (stars, barycentres), fade out at large zoom.
-        // For terrain bodies with a pending texture, always draw full opacity.
         const iconFade = b.data.TERRAIN_DATA
           ? 1
           : Math.max(0, Math.min(1, 1 - (physR_px - 8) / 22));
@@ -1136,12 +1171,286 @@ function _drawViewportNow(){
           ctx2.fillStyle = grad; ctx2.fill();
           ctx2.restore();
         }
+        } // end else (not a terrain body with heightmaps on)
+      }
+    }
+
+    // ── Step 2: Planet texture — clipped to terrain silhouette ───────────────
+    if(texImg && physR_px > 1){
+      let ptCutout      = b.data.TERRAIN_DATA?.TERRAIN_TEXTURE_DATA?.planetTextureCutout      ?? 0;
+      let ptRotDeg      = b.data.TERRAIN_DATA?.TERRAIN_TEXTURE_DATA?.planetTextureRotation    ?? 0;
+      let ptDontDistort = b.data.TERRAIN_DATA?.TERRAIN_TEXTURE_DATA?.planetTextureDontDistort ?? false;
+      if(selectedBody === name && !liveSync._filling){
+        const cutEl = document.getElementById('tt-cut');
+        const rotEl = document.getElementById('tt-rot');
+        const ndEl  = document.getElementById('tt-nd');
+        if(cutEl && cutEl.value !== '') ptCutout  = parseFloat(cutEl.value) || 0;
+        if(rotEl && rotEl.value !== '') ptRotDeg  = parseFloat(rotEl.value) || 0;
+        if(ndEl) ptDontDistort = !ndEl.classList.contains('on');
+      }
+
+      // ── UV formula from Chunk.cs / Planet.cs ─────────────────────────────
+      // (!DontDistortTextureCutout) ? vector2.normalized : (vector2 / radius)
+      //
+      // DontDistort = false  →  vector2.normalized  →  direction-only UV
+      //   The texture is pegged to the sphere surface and does NOT stretch
+      //   with terrain height. This is "no distortion" visually: mountains
+      //   don't warp the texture. drawHalf = physR_px / cutoutAbs (fixed).
+      //
+      // DontDistort = true   →  vector2 / radius    →  linear UV
+      //   Terrain height pushes UV coords outward — the texture stretches
+      //   over bumps ("distortion" in the visual sense).
+      //   drawHalf must cover the tallest peak.
+      //   hasWater always forces this path (Planet.DontDistortTextureCutout).
+      const hasWater    = !!(b.data.WATER_DATA);
+      const dontDistort = hasWater || ptDontDistort;
+
+      const cutoutAbs = Math.max(0.01, Math.abs((ptCutout !== 0) ? ptCutout : 1.0));
+      const _baseR    = Math.max(r, physR_px);
+      const rotRad    = -ptRotDeg * Math.PI / 180;
+
+      let drawHalf;
+      if(dontDistort){
+        // Normalized UV (vector2.normalized): direction-only, height irrelevant.
+        drawHalf = _baseR / cutoutAbs;
+      } else {
+        // Linear UV (vector2 / radius): terrain height shifts UVs outward.
+        // Scale drawHalf to cover the tallest terrain point.
+        const _tSamp = envFlags.heightmaps && _getTerrainSamples(name, b, bodyRadius_m * radiusMult, terrN, _arcInfo);
+        let _maxFrac = 0;
+        if(_tSamp){
+          const R_m = bodyRadius_m * radiusMult;
+          for(let _mi = 0; _mi < _tSamp.heights.length; _mi++){
+            const f = _tSamp.heights[_mi] / R_m;
+            if(f > _maxFrac) _maxFrac = f;
+          }
+        }
+        drawHalf = _baseR * (1 + _maxFrac) / cutoutAbs;
+      }
+
+      const _displayR = Math.max(r, physR_px);
+      const _tcp = envFlags.heightmaps && physR_px > terrainDrawThreshold && _terrainClipPath(b, name, sp, _displayR, bodyRadius_m * radiusMult, terrN, _arcInfo);
+
+      ctx2.save();
+      if (_tcp) {
+        _applyTerrainClip(ctx2, _tcp, sp);
+      } else {
+        ctx2.beginPath(); ctx2.arc(sp.x, sp.y, _displayR, 0, Math.PI*2); ctx2.clip();
+      }
+      ctx2.translate(sp.x, sp.y);
+      ctx2.rotate(rotRad);
+      // Additional screen-bounds clip in rotated local space to prevent the GPU
+      // rasterizing a massive off-screen rect. Compute viewport AABB in local space.
+      { const cosR = Math.cos(-rotRad), sinR = Math.sin(-rotRad);
+        const corners = [[0,0],[W,0],[0,H],[W,H]];
+        let lxMn=Infinity,lxMx=-Infinity,lyMn=Infinity,lyMx=-Infinity;
+        for (const [cx,cy] of corners) {
+          const lx = cx-sp.x, ly = cy-sp.y;
+          const rx = cosR*lx - sinR*ly, ry = sinR*lx + cosR*ly;
+          if(rx<lxMn)lxMn=rx; if(rx>lxMx)lxMx=rx;
+          if(ry<lyMn)lyMn=ry; if(ry>lyMx)lyMx=ry;
+        }
+        // Clamp to texture rect and add 1px margin
+        const dx = Math.max(-drawHalf, lxMn-1), dy = Math.max(-drawHalf, lyMn-1);
+        const dw = Math.min(drawHalf, lxMx+1) - dx, dh = Math.min(drawHalf, lyMx+1) - dy;
+        if (dw > 0 && dh > 0) {
+          // Map dest rect back to source UV
+          const iw = texImg.naturalWidth, ih = texImg.naturalHeight;
+          const toSrcX = iw / (drawHalf*2), toSrcY = ih / (drawHalf*2);
+          const sx = Math.max(0, (dx + drawHalf) * toSrcX);
+          const sy = Math.max(0, (dy + drawHalf) * toSrcY);
+          const sw = Math.min(iw - sx, dw * toSrcX);
+          const sh = Math.min(ih - sy, dh * toSrcY);
+          if (sw > 0 && sh > 0)
+            ctx2.drawImage(texImg, sx, sy, sw, sh, dx, dy, dw, dh);
+        }
+      }
+      ctx2.restore();
+    } else if(!texImg && ptex && ptex !== 'None'){
+      // Texture named but not in cache yet — log once
+      if(!_sfsDbgLogged) _sfsDbgLogged = {};
+      if(!_sfsDbgLogged[name]){
+        _sfsDbgLogged[name] = true;
+        const cacheImg = textureCache[ptex];
+        console.warn(`[SFS|NODRAW] ${name} | planetTexture:"${ptex}" | inCache:${!!cacheImg}` +
+          (cacheImg ? ` | complete:${cacheImg.complete} naturalW:${cacheImg.naturalWidth}` : '') +
+          ` | physR_px:${physR_px.toFixed(1)}`);
       }
     }
 
     // ── Water overlay (WATER_DATA) ─────────────────────────────────────────
     // Black = deep water, lighter grey = shallower, white = land.
     // We render the water mask as a colour overlay on the planet disc.
+    // ── Surface Textures A & B — tiled world-space overlay on terrain surface ──────────
+    // ── Surface Textures A & B — tiled strip at terrain surface ───────────────
+    // Game tiles A and B in world-space arc coordinates, blended by textureFormula.
+    if(envFlags.surface && b.data.TERRAIN_DATA && LOD >= 2){
+      const TTD  = b.data.TERRAIN_DATA.TERRAIN_TEXTURE_DATA;
+      const saName = TTD?.surfaceTexture_A;
+      const sbName = TTD?.surfaceTexture_B;
+      const saSize = TTD?.surfaceTextureSize_A;
+      const sbSize = TTD?.surfaceTextureSize_B;
+      const layerM  = (TTD?.surfaceLayerSize != null && TTD.surfaceLayerSize >= 0) ? TTD.surfaceLayerSize : 20;
+      const maxFadeV = (TTD?.maxFade != null && TTD.maxFade >= 0) ? TTD.maxFade : 1.0;
+      const minFadeV = (TTD?.minFade != null && TTD.minFade >= 0) ? TTD.minFade : 0.0;
+
+      // Per-texture LOD thresholds — surfaceLOD_A/B override the default 80px fade-in distance.
+      // Negative / missing = use default. The fade window is always 140px wide.
+      const _lodA = (TTD?.surfaceLOD_A != null && TTD.surfaceLOD_A >= 0) ? TTD.surfaceLOD_A : 80;
+      const _lodB = (TTD?.surfaceLOD_B != null && TTD.surfaceLOD_B >= 0) ? TTD.surfaceLOD_B : 80;
+      // Combined fade start = minimum of the two active textures (show whichever kicks in first)
+      const saHasTex = saName && saName !== 'None';
+      const sbHasTex = sbName && sbName !== 'None';
+      const abLodStart = (saHasTex && sbHasTex) ? Math.min(_lodA, _lodB)
+                       : saHasTex ? _lodA : sbHasTex ? _lodB : 80;
+
+      const saImg = saHasTex && textureCache[saName]?.complete && textureCache[saName].naturalWidth > 0 ? textureCache[saName] : null;
+      const sbImg = sbHasTex && textureCache[sbName]?.complete && textureCache[sbName].naturalWidth > 0 ? textureCache[sbName] : null;
+
+      if((saImg || sbImg) && layerM > 0){
+        const surfFade = Math.min(1, (physR_px - abLodStart) / 140);
+        if(surfFade > 0){
+          const radius_m = bodyRadius_m * radiusMult;
+          // N: strips per revolution — derived from LOD tier, then scaled by terrain detail.
+          // LOD 2 (mid) = 90 strips, LOD 3 (near) = 180. Each strip is one drawImage call.
+          const _detailFracSurf = (typeof window !== 'undefined' && window.terrainDetail != null)
+            ? Math.max(0.05, window.terrainDetail / 100) : 1;
+          const N = Math.max(12, Math.round((LOD >= 3 ? 180 : 90) * _detailFracSurf));
+
+          // GetRepeat: SurfaceArea = 2π*radius_m, factor = 4.712389 = 3π/2
+          // Negative sizes are valid sentinel values in SFS (-1 = default); use abs for tiling math.
+          const SURF_AREA = 2 * Math.PI * radius_m;
+          const REP_FACTOR = 4.712389;
+          const saAbsX = saSize && saSize.x !== 0 ? Math.abs(saSize.x) : 100;
+          const saAbsY = saSize && saSize.y !== 0 ? Math.abs(saSize.y) : 100;
+          const sbAbsX = sbSize && sbSize.x !== 0 ? Math.abs(sbSize.x) : 100;
+          const sbAbsY = sbSize && sbSize.y !== 0 ? Math.abs(sbSize.y) : 100;
+          const repAx = saImg ? SURF_AREA / (saAbsX * REP_FACTOR) : 8;
+          const repAy = saImg ? radius_m / saAbsY : 4;
+          const repBx = sbImg ? SURF_AREA / (sbAbsX * REP_FACTOR) : 8;
+          const repBy = sbImg ? radius_m / sbAbsY : 4;
+
+          // textureFormula blend per angle
+          const blendArr = _evalTextureFormula(name, b, radius_m, N);
+          // terrain heights for surface-following strip
+          const terrRes  = envFlags.heightmaps ? _getTerrainSamples(name, b, radius_m, N, _arcInfo) : null;
+
+          const discR_px = Math.max(r, physR_px);
+          const layerPx  = (layerM / radius_m) * discR_px;
+
+          // Pre-sample textures at TEX_SZ resolution
+          const TEX_SZ = Math.max(8, Math.round(128 * _detailFracSurf));
+          function ensurePixels(img) {
+            if(!img) return;
+            // Re-sample if the cached size doesn't match the current TEX_SZ
+            if(img._spx && img._spxSz === TEX_SZ) return;
+            const tc = document.createElement('canvas'); tc.width = tc.height = TEX_SZ;
+            tc.getContext('2d').drawImage(img, 0, 0, TEX_SZ, TEX_SZ);
+            img._spx   = tc.getContext('2d').getImageData(0,0,TEX_SZ,TEX_SZ).data;
+            img._spxSz = TEX_SZ;
+          }
+          ensurePixels(saImg); ensurePixels(sbImg);
+
+          function sampleTex(img, u, v) {
+            const tx = (((u % 1) + 1) % 1 * TEX_SZ) | 0;
+            const ty = (((v % 1) + 1) % 1 * TEX_SZ) | 0;
+            const i4 = (ty * TEX_SZ + tx) * 4;
+            return [img._spx[i4]/255, img._spx[i4+1]/255, img._spx[i4+2]/255];
+          }
+
+          // ── Polar-mapped surface layer canvas ──────────────────────────────────
+          // Render A/B surface textures into a square offscreen canvas in screen space,
+          // sampling texture coordinates in polar space around the planet centre.
+          // One drawImage call replaces the broken per-strip-rect approach.
+          // Canvas size: 2*(discR_px+layerPx) square, planet centre at (SZ/2, SZ/2).
+          // Size the offscreen canvas: diameter of planet + layer, scaled by detail,
+          // capped at 1024 to keep memory/CPU reasonable.
+          const _surfSZFull = Math.ceil((discR_px + layerPx) * 2);
+          const _surfSZ = Math.min(1024, Math.max(64, Math.round(_surfSZFull * _detailFracSurf)));
+          const _surfCx = _surfSZ / 2, _surfCy = _surfSZ / 2;
+          const _pxPerM  = discR_px / radius_m; // screen pixels per metre
+
+          const cKey = `sAB3|${name}|${radius_m.toFixed(0)}|${saName}|${sbName}|${layerM}|${maxFadeV}|${minFadeV}|${N}|${TEX_SZ}|${blendArr?1:0}|${terrRes?1:0}|${saAbsX}|${saAbsY}|${sbAbsX}|${sbAbsY}|${_lodA}|${_lodB}|${_surfSZ}`;
+          if(!drawViewport._surfCache) drawViewport._surfCache = {};
+          let surfOff = drawViewport._surfCache[cKey];
+
+          if(!surfOff){
+            surfOff = document.createElement('canvas');
+            surfOff.width = surfOff.height = _surfSZ;
+            const sc = surfOff.getContext('2d');
+            const imgData = sc.createImageData(_surfSZ, _surfSZ);
+            const pix = imgData.data;
+
+            for(let py = 0; py < _surfSZ; py++){
+              for(let px2 = 0; px2 < _surfSZ; px2++){
+                const dx = px2 - _surfCx, dy = py - _surfCy;
+                const distPx = Math.sqrt(dx*dx + dy*dy);
+
+                // Terrain radius at this angle (pixels)
+                const rawAngle = Math.atan2(-dy, dx); // trig angle
+                const angle01  = ((rawAngle / (Math.PI*2)) + 1) % 1;
+                let surfR_px = discR_px;
+                if(terrRes && terrRes.heights){
+                  // interpolate height at this angle
+                  const hN = terrRes.heights.length;
+                  const hIdx = angle01 * hN;
+                  const hLo  = Math.floor(hIdx) % hN;
+                  const hHi  = (hLo + 1) % hN;
+                  const hFrac = hIdx - Math.floor(hIdx);
+                  const h = terrRes.heights[hLo] * (1-hFrac) + terrRes.heights[hHi] * hFrac;
+                  surfR_px = discR_px * (1 + h / radius_m);
+                }
+                const outerR_px = surfR_px + layerPx;
+
+                // Only paint pixels in the surface layer band
+                if(distPx < surfR_px || distPx > outerR_px) continue;
+
+                // depthT: 0 at outer edge (surface top), 1 at inner edge (surface base)
+                const depthT = layerPx > 0 ? (outerR_px - distPx) / layerPx : 0;
+                const fade   = minFadeV + (maxFadeV - minFadeV) * (1 - depthT);
+                if(fade < 0.005) continue;
+
+                const ai    = Math.round(angle01 * (N-1));
+                const blend = blendArr ? Math.max(0, Math.min(1, blendArr[ai])) : 0;
+                const uA = angle01 * repAx,  vA = depthT * repAy;
+                const uB = angle01 * repBx,  vB = depthT * repBy;
+
+                let rr, gg, bb;
+                if(saImg && sbImg){
+                  const [ar,ag,ab] = sampleTex(saImg, uA, vA);
+                  const [br,bg,bb2] = sampleTex(sbImg, uB, vB);
+                  rr = ar+(br-ar)*blend; gg = ag+(bg-ag)*blend; bb = ab+(bb2-ab)*blend;
+                } else if(saImg){
+                  [rr,gg,bb] = sampleTex(saImg, uA, vA);
+                } else {
+                  [rr,gg,bb] = sampleTex(sbImg, uB, vB);
+                }
+
+                const idx = (py * _surfSZ + px2) * 4;
+                pix[idx]   = Math.round(rr * 255);
+                pix[idx+1] = Math.round(gg * 255);
+                pix[idx+2] = Math.round(bb * 255);
+                pix[idx+3] = Math.round(fade * 255);
+              }
+            }
+            sc.putImageData(imgData, 0, 0);
+            drawViewport._surfCache[cKey] = surfOff;
+          }
+
+          // Single drawImage — pixel loop already paints only in the surface layer band,
+          // so no clip path is needed. Just save/restore for globalAlpha and composite.
+          ctx2.save();
+          ctx2.globalAlpha *= surfFade;
+          ctx2.globalCompositeOperation = 'multiply';
+          ctx2.imageSmoothingEnabled = true;
+          ctx2.imageSmoothingQuality = 'high';
+          ctx2.drawImage(surfOff,
+            sp.x - _surfCx, sp.y - _surfCy, _surfSZ, _surfSZ);
+          ctx2.restore();
+        }
+      }
+    }
+
     if(envFlags.water && atmoFade > 0 && b.data.WATER_DATA){
       const WD = b.data.WATER_DATA;
       const maskTex = WD.oceanMaskTexture;
@@ -1234,15 +1543,20 @@ function _drawViewportNow(){
           if(cutEl && cutEl.value !== '') wtCutout = parseFloat(cutEl.value) || 1;
           if(rotEl && rotEl.value !== '') wtRotDeg  = parseFloat(rotEl.value) || 0;
         }
-        const wtCutoutClamped = Math.max(0.01, Math.min(1, wtCutout));
-        const wtDrawHalf = r / wtCutoutClamped;
+        // wtCutoutAbs drives drawHalf sizing — sign of cutout has no visual effect in the editor.
+        const wtCutoutAbs = Math.max(0.01, Math.min(1, Math.abs(wtCutout !== 0 ? wtCutout : 1.0)));
+        const wtDrawHalf = r / wtCutoutAbs;
         const wtRotRad   = -wtRotDeg * Math.PI / 180;
         // atmoFade gates rendering (same as clouds) — on Titan the thick atmo naturally
         // tints the layer via the atmosphere renderer drawn on top.
         // opacity_Surface controls base transparency.
         const waterAlpha = Math.min(1, (WD.opacity_Surface ?? 0.8));
         ctx2.save();
-        ctx2.beginPath(); ctx2.arc(sp.x, sp.y, r, 0, Math.PI*2); ctx2.clip();
+        // Water clips to plain disc (NOT terrain polygon) — water fills the depressed areas
+        // that were cut from the terrain polygon, so clipping to terrain would hide all water.
+        ctx2.beginPath();
+        ctx2.arc(sp.x, sp.y, Math.max(r, physR_px), 0, Math.PI * 2);
+        ctx2.clip();
         ctx2.globalAlpha *= waterAlpha;
         ctx2.translate(sp.x, sp.y);
         ctx2.rotate(wtRotRad);
@@ -1251,8 +1565,90 @@ function _drawViewportNow(){
       }
     }
 
+    // ── Terrain Texture C — tiled close-up detail overlay ──────────────────
+    // terrainTexture_C is a repeating texture tiled in world-space over the
+    // surface at surfaceTextureSize_C.x × surfaceTextureSize_C.y metres per tile.
+    // It is only meaningful close-up; we fade it in when physR_px > 80px.
+    if(envFlags.surface && b.data.TERRAIN_DATA){
+      const TTD = b.data.TERRAIN_DATA.TERRAIN_TEXTURE_DATA;
+      const tcName = TTD?.terrainTexture_C;
+      const tcSize = TTD?.terrainTextureSize_C;
+      const tcImg  = tcName && tcName !== 'None' && tcSize &&
+                     textureCache[tcName] && textureCache[tcName].complete &&
+                     textureCache[tcName].naturalWidth > 0
+                     ? textureCache[tcName] : null;
+      // Per-texture LOD threshold for C. surfaceLOD_C overrides the default 80px fade-in.
+      const _lodC = (TTD?.surfaceLOD_C != null && TTD.surfaceLOD_C >= 0) ? TTD.surfaceLOD_C : 80;
+      if(tcImg && physR_px > _lodC){
+        // Negative sizes are valid SFS sentinels (-1 = default ~100m); use abs for tiling.
+        const tcSzX = tcSize && tcSize.x !== 0 ? Math.abs(tcSize.x) : 100;
+        const tcSzY = tcSize && tcSize.y !== 0 ? Math.abs(tcSize.y) : 100;
+        const tileW_px = (tcSzX / (bodyRadius_m * radiusMult)) * physR_px;
+        const tileH_px = (tcSzY / (bodyRadius_m * radiusMult)) * physR_px;
+        if(tileW_px >= 0.5 && tileH_px >= 0.5){
+          // Fade: 0 at lodC threshold, full 120px later
+          const tcAlpha = Math.min(1, (physR_px - _lodC) / 120) * 0.55;
+          ctx2.save();
+          // Clip to terrain shape (or disc fallback)
+          const _tccp = envFlags.heightmaps && physR_px > terrainDrawThreshold && _terrainClipPath(b, name, sp, Math.max(r, physR_px), bodyRadius_m * radiusMult, terrN, _arcInfo);
+          if(_tccp){ _applyTerrainClip(ctx2, _tccp, sp); }
+          else { ctx2.beginPath(); ctx2.arc(sp.x, sp.y, Math.max(r, physR_px), 0, Math.PI*2); ctx2.clip(); }
+          // Tile the texture in a pattern centred on the body
+          ctx2.globalAlpha *= tcAlpha;
+          ctx2.globalCompositeOperation = 'multiply';
+          // Scale down the source image for texture C when detail < 100 —
+          // lower detail → smaller internal canvas → coarser tiling quality.
+          const _detailFracC = (typeof window !== 'undefined' && window.terrainDetail != null)
+            ? Math.max(0.05, window.terrainDetail / 100) : 1;
+          const _tcSrc = (() => {
+            if(_detailFracC >= 1) return tcImg;
+            const _tcSz = Math.max(4, Math.round(tcImg.naturalWidth * _detailFracC));
+            const _tcSzH = Math.max(4, Math.round(tcImg.naturalHeight * _detailFracC));
+            const _ckC = `tcDown|${tcName}|${_tcSz}|${_tcSzH}`;
+            if(!drawViewport._tcDownCache) drawViewport._tcDownCache = {};
+            if(!drawViewport._tcDownCache[_ckC]){
+              const _dc = document.createElement('canvas');
+              _dc.width = _tcSz; _dc.height = _tcSzH;
+              _dc.getContext('2d').drawImage(tcImg, 0, 0, _tcSz, _tcSzH);
+              drawViewport._tcDownCache[_ckC] = _dc;
+            }
+            return drawViewport._tcDownCache[_ckC];
+          })();
+          const pat = ctx2.createPattern(_tcSrc, 'repeat');
+          if(pat){
+            // Scale the pattern to tileW_px × tileH_px, anchored at sp
+            const mx = new DOMMatrix();
+            mx.a = tileW_px / _tcSrc.width;
+            mx.d = tileH_px / _tcSrc.height;
+            mx.e = sp.x % tileW_px;
+            mx.f = sp.y % tileH_px;
+            pat.setTransform(mx);
+            ctx2.fillStyle = pat;
+            // Use the terrain-aware max radius so the fillRect covers the full
+            // heightmap silhouette. When the heightmap extends beyond physR_px
+            // (e.g. large terrain bumps), using plain `r` leaves the pattern
+            // short of the terrain polygon edges, making the square rect boundary
+            // visible as a box artifact against the bumpy silhouette.
+            const _tcSamp = envFlags.heightmaps && _getTerrainSamples(name, b, bodyRadius_m * radiusMult, terrN, _arcInfo);
+            let _tcMaxR = Math.max(r, physR_px);
+            if(_tcSamp){
+              const R_m = bodyRadius_m * radiusMult;
+              for(let _tci = 0; _tci < _tcSamp.heights.length; _tci++){
+                const _tcFrac = _tcSamp.heights[_tci] / R_m;
+                const _tcR = physR_px * (1 + _tcFrac);
+                if(_tcR > _tcMaxR) _tcMaxR = _tcR;
+              }
+            }
+            ctx2.fillRect(sp.x - _tcMaxR - tileW_px, sp.y - _tcMaxR - tileH_px,
+                          (_tcMaxR + tileW_px) * 2, (_tcMaxR + tileH_px) * 2);
+          }
+          ctx2.restore();
+        }
+      }
+    }
+
     // ── Cloud texture band — gated on outer_px threshold, independent of atmoFade ──
-    if(envFlags.clouds){
+    if(envFlags.clouds && !envFlags.heightmaps){
       const CLD = b.data.ATMOSPHERE_VISUALS_DATA?.CLOUDS;
       if(CLD && CLD.texture && CLD.texture !== 'None'){
         const srcImg = textureCache[CLD.texture];
@@ -1380,7 +1776,7 @@ function _drawViewportNow(){
     // NOT altitude. We evaluate the gradient at bodyRadius_m (typical map-view
     // distance) to get the representative fog colour for the current zoom level,
     // then apply it as a centre→limb radial, scaled by dbgFogOpacity.
-    if(envFlags.fog && atmoFade > 0 && b.data.ATMOSPHERE_VISUALS_DATA?.FOG?.keys){
+    if(envFlags.fog && !envFlags.heightmaps && atmoFade > 0 && b.data.ATMOSPHERE_VISUALS_DATA?.FOG?.keys){
       const fogKeys = b.data.ATMOSPHERE_VISUALS_DATA.FOG.keys;
       if(fogKeys.length >= 1){
         // ColorGradient.Evaluate — mirrors the C# implementation exactly:
@@ -1451,7 +1847,7 @@ function _drawViewportNow(){
     // Soft edge fade: the game's FrontClouds shader uses a _FadeZoneM that fades
     // alpha toward zero at the disc edge. We replicate this with a destination-out
     // radial mask applied after drawing the image.
-    if(envFlags.fclouds && atmoFade > 0 && b.data.FRONT_CLOUDS_DATA){
+    if(envFlags.fclouds && !envFlags.heightmaps && atmoFade > 0 && b.data.FRONT_CLOUDS_DATA){
       const FCD = b.data.FRONT_CLOUDS_DATA;
       const fcTex = FCD.cloudsTexture;
       const fcImg = fcTex && fcTex !== 'None' && textureCache[fcTex];
@@ -1521,7 +1917,19 @@ function _drawViewportNow(){
 
     // ── Selection ring ──
     if(selectedBody === name){
-      ctx2.beginPath(); ctx2.arc(sp.x, sp.y, r+6, 0, Math.PI*2);
+      // When terrain is on, expand ring to cover the tallest peak
+      let ringR = r + 6;
+      if(envFlags.heightmaps && b.data.TERRAIN_DATA && physR_px > terrainDrawThreshold){
+        const _tSampRing = _getTerrainSamples(name, b, bodyRadius_m * radiusMult, 360, null);
+        if(_tSampRing && _tSampRing.heights){
+          let maxH = 0;
+          for(let _i = 0; _i < _tSampRing.heights.length; _i++)
+            if(_tSampRing.heights[_i] > maxH) maxH = _tSampRing.heights[_i];
+          const maxR_px = maxH * (physR_px / (bodyRadius_m * radiusMult));
+          ringR = Math.max(ringR, maxR_px + 6);
+        }
+      }
+      ctx2.beginPath(); polygonCircle(ctx2, sp.x, sp.y, ringR, 128); ctx2.closePath();
       ctx2.strokeStyle='rgba(80,180,255,0.75)'; ctx2.lineWidth=1.5;
       ctx2.setLineDash([4,4]); ctx2.stroke(); ctx2.setLineDash([]);
     }
@@ -1530,7 +1938,7 @@ function _drawViewportNow(){
 
     // ── Label — fades out earlier than the body ──
     if(labelFadeA > 0.01){
-      const fontSize = 9;
+      const fontSize = Math.round(9 * iconScale);
       ctx2.globalAlpha = labelFadeA;
       ctx2.font = `${fontSize}px "JetBrains Mono",monospace`;
       ctx2.textAlign = 'center';
@@ -1559,50 +1967,88 @@ function _drawViewportNow(){
       ];
       const showLmArcs = document.getElementById('lm-show')?.checked && selectedBody === name;
 
+      // ── Terrain height lookup for landmark placement ──────────────────────
+      // Fetch the N=360 full-circle sample (always cached; non-blocking).
+      // When heightmaps are enabled and terrain exists, use actual surface radius
+      // so landmark dots/arcs sit on the terrain surface rather than on the bare disc.
+      const _lmTerrRes = envFlags.heightmaps && b.data.TERRAIN_DATA
+        ? _getTerrainSamples(name, b, bodyRadius_m * radiusMult, 360, null)
+        : null;
+      const _lmRadius_m = bodyRadius_m * radiusMult;
+
+      // Given a SFS angle in degrees → screen-space {x,y} on the terrain surface.
+      // SFS convention: 0°=right, 90°=top.
+      // Canvas convention: angle 0=right, positive=CW (y-down).
+      // So canvas_rad = deg * PI/180, and we use cos(rad) for x, -sin(rad) for y
+      // (because SFS +angle is CCW = canvas -y direction).
+      function _lmSurfaceXY(deg) {
+        const rad = deg * Math.PI / 180;  // trig angle (CCW)
+        let rPx = physR_px;
+        if(_lmTerrRes) {
+          // Find nearest sample index for this angle
+          const normAng = ((rad % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
+          const idx = Math.round(normAng / (Math.PI*2) * _lmTerrRes.N) % _lmTerrRes.N;
+          const h = _lmTerrRes.heights[idx] || 0;
+          rPx = physR_px * (1 + h / _lmRadius_m);
+        }
+        return { x: sp.x + rPx * Math.cos(rad), y: sp.y - rPx * Math.sin(rad), rPx };
+      }
+
       lms.forEach((lm, lmIdx) => {
         if(!lm.name) return;
         const neon = NEON_COLORS[lmIdx % NEON_COLORS.length];
         const midDeg = (lm.startAngle + lm.endAngle) / 2;
-        // SFS: 0°=right, 90°=top.  Canvas: 0=right, -PI/2=top.
-        // canvas_ang = -deg * PI/180
-        const ang = -midDeg * Math.PI / 180;
-        const lx = sp.x + r * Math.cos(ang);
-        const ly = sp.y + r * Math.sin(ang);
+        const { x: lx, y: ly } = _lmSurfaceXY(midDeg);
 
-        // ── Full arc extent (neon glow) ──
+        // ── Full arc extent (neon glow) — follows terrain surface ──
         if(showLmArcs){
-          const startRad = -lm.startAngle * Math.PI / 180;
-          const endRad   = -lm.endAngle   * Math.PI / 180;
-          // Determine arc direction: draw from startAngle to endAngle in the short direction
-          // SFS stores start < end typically; canvas arc goes CCW when end < start in canvas coords.
-          // We always draw from startRad toward endRad anticlockwise (canvas CCW = decreasing angle).
-          const arcStart = Math.min(startRad, endRad);
-          const arcEnd   = Math.max(startRad, endRad);
+          // Build a polyline along the terrain surface between startAngle and endAngle.
+          // Step every 1° so the arc hugs the terrain bumps.
+          const angMin = Math.min(lm.startAngle, lm.endAngle);
+          const angMax = Math.max(lm.startAngle, lm.endAngle);
+          const arcSteps = Math.max(2, Math.ceil(angMax - angMin));
+
+          // Helper: build Path2D polyline along terrain surface for this arc
+          function _buildLmArcPath(offset_px) {
+            const p = new Path2D();
+            for(let si = 0; si <= arcSteps; si++){
+              const deg = angMin + (si / arcSteps) * (angMax - angMin);
+              const rad = deg * Math.PI / 180;
+              let rPx = physR_px;
+              if(_lmTerrRes){
+                const normAng = ((rad % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
+                const idx = Math.round(normAng / (Math.PI*2) * _lmTerrRes.N) % _lmTerrRes.N;
+                const h = _lmTerrRes.heights[idx] || 0;
+                rPx = physR_px * (1 + h / _lmRadius_m);
+              }
+              rPx += offset_px;
+              const px = sp.x + rPx * Math.cos(rad);
+              const py = sp.y - rPx * Math.sin(rad);
+              si === 0 ? p.moveTo(px, py) : p.lineTo(px, py);
+            }
+            return p;
+          }
 
           // Outer glow pass
           ctx2.save();
           ctx2.globalAlpha = lmAlpha * 0.45;
-          ctx2.beginPath();
-          ctx2.arc(sp.x, sp.y, r + 5, arcStart, arcEnd);
           ctx2.strokeStyle = neon;
           ctx2.lineWidth = 10;
           ctx2.lineCap = 'round';
           ctx2.shadowColor = neon;
           ctx2.shadowBlur = 14;
-          ctx2.stroke();
+          ctx2.stroke(_buildLmArcPath(5));
           ctx2.restore();
 
           // Solid neon arc
           ctx2.save();
           ctx2.globalAlpha = lmAlpha * 0.9;
-          ctx2.beginPath();
-          ctx2.arc(sp.x, sp.y, r + 5, arcStart, arcEnd);
           ctx2.strokeStyle = neon;
           ctx2.lineWidth = 3;
           ctx2.lineCap = 'round';
           ctx2.shadowColor = neon;
           ctx2.shadowBlur = 8;
-          ctx2.stroke();
+          ctx2.stroke(_buildLmArcPath(5));
           ctx2.restore();
         }
 
@@ -1808,3 +2254,996 @@ function shadeHex(hex, amt){
 }
 
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  SFS TERRAIN ENGINE — HeightMap evaluator + TerrainSampler JS port
+//  Mirrors: HeightMap.cs · TerrainSampler.cs · TerrainModule.cs
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── HeightMap cache — keyed by asset name ────────────────────────────────────
+const _hmCache = {};
+
+// ── HeightMap.EvaluateDoubleOut — mirrors game C# exactly ────────────────────
+// Game: a *= (points.Length-1); num = (int)a % (points.Length-1); frac = a % 1
+// The caller passes a as angle_rad * (radius_m / width), which can be a very
+// large number (e.g. 20000+). Operating directly on such values loses fractional
+// precision: at a=80,000,000 a float64 has ~1 ULP of ~0.016, so
+// (a - Math.floor(a)) snaps to 0 or 1 in chunks -> hard steps -> rectangular blocks.
+// Fix: wrap a to [0,1) at low magnitude first, then scale by N.
+function _hmEval(points, a) {
+  const N = points.length - 1; // index range 0..N-1; points[N] is wrap sentinel
+  if (N <= 0) return 0;
+  // Wrap to [0,1) before scaling -- preserves fractional precision regardless of
+  // how large the tiling multiplier (radius_m/width) is.
+  a = ((a % 1) + 1) % 1;
+  a *= N;
+  const lo = Math.trunc(a) | 0;             // integer index, always in [0, N-1]
+  const t  = a - lo;                        // fractional part, precise since a < N+1
+  return points[lo] * (1 - t) + points[lo + 1] * t;
+}
+
+// ── Parse JSON-text heightmap → Float64Array ──────────────────────────────────
+function _parseHmText(content, filename) {
+  const label = filename ? `"${filename}"` : '(unknown)';
+  if (!content || !content.trim()) {
+    console.warn(`[SFS|HM] ${label}: empty content`);
+    return new Float64Array([0, 1]);
+  }
+
+  // ── Format 1: Unity JsonUtility  { "points": [0.1, 0.2, ...] }
+  try {
+    const obj = JSON.parse(content);
+    if (Array.isArray(obj.points) && obj.points.length > 1) {
+      console.log(`[SFS|HM] ${label}: parsed JSON {points:[]} → ${obj.points.length} pts, range [${Math.min(...obj.points).toFixed(4)}, ${Math.max(...obj.points).toFixed(4)}]`);
+      return new Float64Array(obj.points);
+    }
+    if (Array.isArray(obj) && obj.length > 1) {
+      console.log(`[SFS|HM] ${label}: parsed JSON array → ${obj.length} pts`);
+      return new Float64Array(obj);
+    }
+    console.warn(`[SFS|HM] ${label}: JSON parsed OK but no usable array (keys: ${Object.keys(obj).join(',')})`);
+  } catch(e) {
+    console.log(`[SFS|HM] ${label}: not JSON (${e.message.slice(0,40)}), trying plain float list…`);
+  }
+
+  // ── Format 2: plain whitespace/comma-separated floats (some export tools)
+  const nums = content.trim().split(/[\s,;]+/).map(Number).filter(v => !isNaN(v));
+  if (nums.length > 1) {
+    console.log(`[SFS|HM] ${label}: parsed plain floats → ${nums.length} pts, range [${Math.min(...nums).toFixed(4)}, ${Math.max(...nums).toFixed(4)}]`);
+    return new Float64Array(nums);
+  }
+
+  console.error(`[SFS|HM] ${label}: FAILED to parse — content starts with: ${JSON.stringify(content.slice(0,80))}`);
+  return new Float64Array([0, 1]);
+}
+
+// ── Parse PNG heightmap → Promise<Float64Array> ───────────────────────────────
+// SFS PNG heightmaps are silhouette images: terrain fills from the bottom up.
+// Encoding: black = sky/empty, non-black = terrain body.
+// Per column, scan TOP→BOTTOM to find the first non-black pixel.
+// That row y gives height fraction = 1 - (y / H)  (0=flat, 1=full radius).
+// Files are RGB with no alpha (sometimes JPEG data inside a .png extension).
+// A luminance threshold of 8 rejects compression noise from near-black sky.
+// Game convention: column x → points[W - x - 1] (horizontally mirrored).
+function _parseHmPng(dataUrl) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const W = img.width, H = img.height;
+      const oc = document.createElement('canvas');
+      oc.width = W; oc.height = H;
+      oc.getContext('2d').drawImage(img, 0, 0);
+      const px = oc.getContext('2d').getImageData(0, 0, W, H).data;
+
+      // Detect whether alpha channel varies (true RGBA PNG with transparency mask).
+      // JPEG-inside-PNG and plain RGB PNGs will have alpha=255 everywhere.
+      let hasAlphaVariation = false;
+      for (let i = 3; i < px.length; i += 4) {
+        if (px[i] < 255) { hasAlphaVariation = true; break; }
+      }
+
+      // Game (HeightMap.cs): scan bottom→top (Unity Y-up, j=0 is bottom row).
+      // First pixel where alpha < 1.0 = terrain top edge.
+      // height = (j + alpha_frac) / H   where j=0 means bottom of image.
+      // Canvas pixel data is Y-down, so bottom row = index (H-1-j).
+      // Only alpha is used — RGB content is irrelevant.
+      const pts = new Float64Array(W);
+      for (let x = 0; x < W; x++) {
+        let frac = 1.0; // default: full height (all pixels opaque = solid column)
+        for (let j = 0; j < H; j++) {
+          // j=0 → bottom of image → canvas row (H-1)
+          const canvasY = H - 1 - j;
+          const a = px[(canvasY * W + x) * 4 + 3] / 255;
+          if (a < 1.0) {
+            frac = (j + a) / H;
+            break;
+          }
+        }
+        pts[W - x - 1] = frac;
+      }
+      if (!hasAlphaVariation) {
+        console.warn(`[SFS|HM] PNG has no alpha variation — all columns will be height 1.0. ` +
+          `SFS heightmap PNGs must have an alpha channel (RGBA). JPEG files are not supported.`);
+      }
+
+      resolve(pts);
+    };
+    img.onerror = () => resolve(new Float64Array([0, 1]));
+    img.src = dataUrl;
+  });
+}
+
+// ── Resolve heightmap by name → Float64Array (sync) or null (loading) ────────
+function _getHeightMap(hmName) {
+  if (!hmName || hmName === 'null' || hmName === 'None') return new Float64Array([0, 1]);
+  if (_hmCache[hmName] instanceof Float64Array) return _hmCache[hmName];
+  if (_hmCache[hmName]) return null; // Promise in-flight
+
+  // Search assets — match by full name OR basename (formula uses name without extension,
+  // but custom uploaded files have e.name = "Earth.txt")
+  const assetList = (typeof assets !== 'undefined') ? assets.heightmaps : [];
+  const entry = assetList.find(e =>
+    e.name === hmName ||
+    e.name.replace(/\.[^.]+$/, '') === hmName
+  );
+
+  if (!entry) {
+    // Do NOT permanently cache flat here — assets load async and may arrive later.
+    // Return flat without caching so the next render retries the lookup.
+    return new Float64Array([0, 1]);
+  }
+
+  if (entry.content) {
+    // .txt heightmap — parse JSON immediately and cache by lookup name
+    const parsed = _parseHmText(entry.content, entry.name);
+    _hmCache[hmName] = parsed;
+    return _hmCache[hmName];
+  }
+
+  if (entry.url) {
+    _hmCache[hmName] = _parseHmPng(entry.url).then(pts => {
+      _hmCache[hmName] = pts;
+      if (typeof drawViewport === 'function') drawViewport();
+    });
+    return null;
+  }
+
+  return new Float64Array([0, 1]);
+}
+
+// ── TerrainSampler JS port ────────────────────────────────────────────────────
+// Mirrors Compiler.Compile() + Executor.Calculate().
+// Returns Float64Array of heights (metres), or null if an asset is still loading.
+//
+// KEY DIFFERENCES FROM GAME:
+//   - surfaceArea = radius_m  (game passes planet.data.basics.radius)
+//   - Strings in formula lines may be quoted ("name") OR bare identifiers (name)
+//   - OUTPUT is the required output variable name (game checks userVariables["OUTPUT"])
+//
+function _evalTerrainFormula(formulaLines, angles_rad, radius_m) {
+  if (!formulaLines || formulaLines.length === 0) return null;
+
+  const N = angles_rad.length;
+  const userVars = {};
+  // current output target — mirrors sampler.output pointer
+  let outputTarget = new Float64Array(N); // default flat if no OUTPUT assigned
+  let outputName = null;
+
+  function getVar(name) {
+    if (!userVars[name]) userVars[name] = new Float64Array(N);
+    return userVars[name];
+  }
+
+  // ── Parser — mirrors game's character-by-character approach ─────────────────
+  // Handles: VARNAME = FUNC(args)  and  FUNC(args)
+  // Args: quoted strings "foo", bare identifiers bar, numbers 123.4
+  for (const rawLine of formulaLines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('//')) continue;
+
+    // State machine parser (mirrors game exactly)
+    let inString = false, inIdent = false, inNumber = false, inFunc = false;
+    let strBuf = null, identBuf = null, numBuf = null;
+    let fname = '', varName = null, isAssign = false;
+    const args = [];
+
+    for (let ci = 0; ci < line.length; ci++) {
+      const c = line[ci];
+
+      if (!inFunc) {
+        // Outside function call — parsing "VARNAME =" or "FUNCNAME"
+        if (c === '(') {
+          // Open function
+          if (inIdent) { fname = identBuf; identBuf = null; inIdent = false; }
+          inFunc = true;
+        } else if (c === '=' && inIdent) {
+          // Assignment: varName = ...
+          varName = identBuf.trim(); identBuf = null; inIdent = false; isAssign = true;
+        } else if (c === ' ' || c === '\t') {
+          // whitespace — if we were accumulating an ident and no = yet, keep it
+          // (game trims names)
+        } else if (char_isLetter(c)) {
+          if (!inIdent) { inIdent = true; identBuf = ''; }
+          identBuf += c;
+        }
+        continue;
+      }
+
+      // Inside function args
+      if (inString) {
+        if (c === '"') { inString = false; args.push(strBuf); strBuf = null; }
+        else strBuf += c;
+      } else if (inIdent) {
+        if (c === ',' || c === ')') {
+          args.push(identBuf.trim()); identBuf = null; inIdent = false;
+          if (c === ')') { inFunc = false; }
+        } else {
+          identBuf += c;
+        }
+      } else if (inNumber) {
+        if (c === ',' || c === ')') {
+          args.push(parseFloat(numBuf)); numBuf = null; inNumber = false;
+          if (c === ')') { inFunc = false; }
+        } else {
+          numBuf += c;
+        }
+      } else {
+        if (c === '"') { inString = true; strBuf = ''; }
+        else if (c === ')') { inFunc = false; }
+        else if (c === ',') { /* separator between args */ }
+        else if (c === ' ' || c === '\t') { /* skip whitespace */ }
+        else if (c === '-' || char_isDigit(c)) { inNumber = true; numBuf = c; }
+        else if (char_isLetter(c)) { inIdent = true; identBuf = c; }
+      }
+    }
+
+    // Execute the parsed function call
+    const target = isAssign ? getVar(varName) : outputTarget;
+    if (isAssign) {
+      outputTarget = target;
+      outputName = varName;
+    }
+
+    switch (fname) {
+      case 'AddHeightMap': {
+        const hmName  = args[0];
+        const width   = typeof args[1] === 'number' ? args[1] : parseFloat(args[1]);
+        const hmHeight= typeof args[2] === 'number' ? args[2] : parseFloat(args[2]);
+        const curveName = (args[3] && args[3] !== 'null' && args[3] !== 'None') ? args[3] : null;
+        const multName  = args[4] ? args[4] : null;
+
+        const pts = _getHeightMap(hmName);
+        if (!pts) return null; // still loading
+
+        const curvePts = curveName ? _getHeightMap(curveName) : null;
+        if (curveName && !curvePts) return null;
+
+        const multArr = multName ? getVar(multName) : null;
+        // Game: num = surfaceArea / width  where surfaceArea = radius_m
+        const num = radius_m / width;
+
+        for (let i = 0; i < N; i++) {
+          let v = _hmEval(pts, angles_rad[i] * num);
+          if (curvePts) v = _hmEval(curvePts, Math.max(0, Math.min(1, v)));
+          if (multArr)  v *= multArr[i];
+          target[i] += v * hmHeight;
+        }
+        break;
+      }
+      case 'ApplyCurve': {
+        const cPts = _getHeightMap(args[0]);
+        if (!cPts) return null;
+        for (let i = 0; i < N; i++) {
+          target[i] = _hmEval(cPts, Math.max(0, Math.min(1, target[i])));
+        }
+        break;
+      }
+      case 'Add': {
+        const v = typeof args[0] === 'number' ? args[0] : parseFloat(args[0]);
+        for (let i = 0; i < N; i++) target[i] += v;
+        break;
+      }
+      case 'Multiply': {
+        const v = typeof args[0] === 'number' ? args[0] : parseFloat(args[0]);
+        for (let i = 0; i < N; i++) target[i] *= v;
+        break;
+      }
+      case 'ClampMinMax': {
+        const mn = typeof args[0] === 'number' ? args[0] : parseFloat(args[0]);
+        const mx = typeof args[1] === 'number' ? args[1] : parseFloat(args[1]);
+        for (let i = 0; i < N; i++) target[i] = Math.max(mn, Math.min(mx, target[i]));
+        break;
+      }
+      default:
+        if (fname) console.warn('[SFS|TERRAIN] Unknown function:', fname);
+    }
+  }
+
+  // Game returns userVariables["OUTPUT"] — if not set, returns zeros
+  return userVars['OUTPUT'] || new Float64Array(N);
+}
+
+// ── Seeded RNG matching .NET System.Random (subtractive generator) ────────────
+// .NET uses a 55-element subtractive table seeded from the integer seed.
+// This matches DynamicTerrain.GenerateRocks: new System.Random((int)(from*100000))
+function _seededRng(seed) {
+  seed = seed | 0;
+  // .NET System.Random init
+  const MBIG = 2147483647;
+  const table = new Int32Array(56);
+  let mj = 161803398 - Math.abs(seed);
+  table[55] = mj;
+  let mk = 1;
+  for (let i = 1; i < 55; i++) {
+    const ii = (21 * i) % 55;
+    table[ii] = mk;
+    mk = mj - mk;
+    if (mk < 0) mk += MBIG;
+    mj = table[ii];
+  }
+  for (let k = 1; k < 5; k++) {
+    for (let i = 1; i < 56; i++) {
+      table[i] -= table[1 + (i + 30) % 55];
+      if (table[i] < 0) table[i] += MBIG;
+    }
+  }
+  let inext = 0, inextp = 21;
+  return function() {
+    if (++inext  >= 56) inext  = 1;
+    if (++inextp >= 56) inextp = 1;
+    let retVal = table[inext] - table[inextp];
+    if (retVal < 0) retVal += MBIG;
+    table[inext] = retVal;
+    return retVal / MBIG;
+  };
+}
+
+// ── Evaluate textureFormula → per-vertex blend [0..1] across N samples ────────
+// Same evaluator as terrain formula but for the texture sampler.
+// Returns Float64Array[N] with values in [0..1], or null if still loading.
+function _evalTextureFormula(bodyName, b, radius_m, N) {
+  const TD = b.data.TERRAIN_DATA;
+  if (!TD) return null;
+  const formula = TD.textureFormula;
+  if (!formula || formula.length === 0) return new Float64Array(N); // all zeros → full A
+  // Reuse terrain sample cache with a 'tex|' prefix key
+  const fHash = formula.join('§');
+  const key = `tex|${bodyName}|${radius_m.toFixed(0)}|${N}|${fHash}`;
+  if (_terrainSampleCache[key]) return _terrainSampleCache[key].heights;
+  const angles = new Float64Array(N);
+  for (let i = 0; i < N; i++) angles[i] = (i / N) * Math.PI * 2;
+  const result = _evalTerrainFormula(formula, angles, radius_m);
+  if (!result) return null;
+  // Clamp to [0,1]
+  const clamped = new Float64Array(N);
+  for (let i = 0; i < N; i++) clamped[i] = Math.max(0, Math.min(1, result[i]));
+  _terrainSampleCache[key] = { heights: clamped, angles };
+  return clamped;
+}
+
+function char_isLetter(c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_'; }
+function char_isDigit(c)  { return c >= '0' && c <= '9'; }
+
+// ── Water depression (mirrors GetTerrainSamples water loop) ──────────────────
+// Game: num = GetWaterColor(CosSin(angle - texRotRad)) * 2f
+//       depression = num * oceanDepth + 50
+// GetWaterColor samples the ocean mask texture: black(0)=water, white(1)=land
+// So waterMask = maskR (red channel, 0=ocean, 1=land)
+// num = (1 - maskR) * 2  → ranges 0 (land) to 2 (deep ocean)
+// cutout mirrors game's GetWaterColor UV formula:
+//   vector = normalPosition * (cutout * 0.5) + (0.5, 0.5)
+// where normalPosition is a unit vector (cos,sin).
+// The mask canvas stores the texture occupying the full [0,1] UV space,
+// so we must scale the unit circle by (cutout * 0.5) before mapping to pixels.
+function _applyWaterDepression(heights, angles_rad, maskPixels, maskSZ, oceanDepth, texRotRad, cutout) {
+  if (!maskPixels) return;
+  const SZ = maskSZ;
+  // cutout scales how far from centre the planet edge sits in UV space.
+  // cutout=1 → edge at UV 0 or 1 (full texture). cutout<1 → edge sits inside.
+  // Game: vector = normalPosition * (cutout * 0.5) + 0.5
+  // Negative cutout flips both axes (same as the main texture). Use signed value.
+  const uvScale = cutout * 0.5; // signed — game passes cutout directly (can be negative)
+  const SZ2 = SZ;
+  for (let i = 0; i < angles_rad.length; i++) {
+    const ang = angles_rad[i] - texRotRad;
+    // Game UV: vec = normalPos * (cutout*0.5) + 0.5  — Y-up in game, flip for canvas
+    const uvX =  Math.cos(ang) * uvScale + 0.5;
+    const uvY = -Math.sin(ang) * uvScale + 0.5;  // negate sin: game +Y is up, canvas +Y is down
+    // Convert UV [0,1] → pixel [0,SZ]
+    const fx = uvX * SZ;
+    const fy = uvY * SZ;
+    const x0 = Math.floor(fx), y0 = Math.floor(fy);
+    const x1 = x0 + 1, y1 = y0 + 1;
+    const tx = fx - x0, ty = fy - y0;
+    const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
+    const sample = (px, py) => {
+      const cx2 = clamp(px, 0, SZ-1), cy2 = clamp(py, 0, SZ-1);
+      return maskPixels[(cy2 * SZ + cx2) * 4] / 255;
+    };
+    const r00 = sample(x0, y0), r10 = sample(x1, y0);
+    const r01 = sample(x0, y1), r11 = sample(x1, y1);
+    const pixelR = r00*(1-tx)*(1-ty) + r10*tx*(1-ty) + r01*(1-tx)*ty + r11*tx*ty;
+    // Game: GetWaterColor = 1 - r - 0.5 = 0.5 - r
+    //       num = GetWaterColor * 2  (ranges -1 land → +1 ocean)
+    //       depression = num * oceanDepth + 50
+    const num = (0.5 - pixelR) * 2 * oceanDepth + 50;
+    if (num > 0) heights[i] -= num;
+  }
+}
+
+// ── FlatZones (mirrors GetTerrainSamples flatzone loop exactly) ───────────────
+// Game code uses raw angles_Rad[k] with no wrapping — it does a bounds check
+// (num3 > endAngle, num4 < startAngle) to skip irrelevant zones, then applies
+// InverseLerp directly on the raw angle values.  We replicate that exactly.
+// The editor's angles array runs [0, 2π), and fz.angle is stored in that same
+// space, so no wrapping is needed or correct here.
+function _applyFlatZones(heights, angles_rad, flatZones, radius_m) {
+  if (!flatZones || !flatZones.length) return;
+  for (const fz of flatZones) {
+    // Game: num2 = (width + transition) / radius / 2
+    const halfFull  = (fz.width + fz.transition) / radius_m / 2;  // outer half-angle (rad)
+    const halfInner = fz.width / radius_m / 2;                     // inner half-angle (rad)
+    const angleCenter = fz.angle; // radians — stored directly from JSON
+    const zoneMin = angleCenter - halfFull;   // num3
+    const zoneMax = angleCenter + halfFull;   // num4
+    const innerMin = angleCenter - halfInner; // b
+    const innerMax = angleCenter + halfInner; // b2
+
+    // Game skips the whole zone if it is entirely outside the chunk's angle range.
+    // In the editor we always process all angles, so skip the start/end guard.
+    for (let i = 0; i < angles_rad.length; i++) {
+      const a = angles_rad[i]; // raw angle, no wrapping
+      // Game: value3 = Min(InverseLerp(num3, b, a), InverseLerp(num4, b2, a))
+      // Left ramp:  0 at outer edge (zoneMin), 1 at inner edge (innerMin)
+      // Right ramp: 0 at outer edge (zoneMax), 1 at inner edge (innerMax)
+      const tLeft  = halfFull === halfInner ? 0 : (a - zoneMin)  / (innerMin - zoneMin);
+      const tRight = halfFull === halfInner ? 0 : (a - zoneMax)  / (innerMax - zoneMax);
+      const tc = Math.max(0, Math.min(1, Math.min(tLeft, tRight)));
+      if (tc > 0) heights[i] = heights[i] * (1 - tc) + fz.height * tc;
+    }
+  }
+}
+
+// ── Visible arc computation ───────────────────────────────────────────────────
+// Returns the angular range [arcStart, arcEnd] of the planet circumference that
+// is actually visible within the viewport rectangle [0,W]×[0,H].
+// When the entire circumference is visible (planet fits on screen) returns
+// { fullCircle: true }.  The arc is expressed in the canvas coordinate system
+// (angles increase clockwise, angle 0 = right) and arcEnd >= arcStart always.
+// If arc spans > 355° we also set fullCircle=true to avoid rounding edge cases.
+function _computeVisibleArc(sp, physR_px, vpW, vpH) {
+  // If the planet is small enough to fit fully on screen → full circle
+  if (sp.x - physR_px >= 0 && sp.x + physR_px <= vpW &&
+      sp.y - physR_px >= 0 && sp.y + physR_px <= vpH) {
+    return { fullCircle: true, arcStart: 0, arcEnd: Math.PI * 2 };
+  }
+
+  // If the entire viewport is inside the planet disc → full circle
+  // (planet centre is off-screen but disc covers the whole canvas)
+  const corners = [[0,0],[vpW,0],[0,vpH],[vpW,vpH]];
+  const r2 = physR_px * physR_px;
+  if (corners.every(([cx,cy]) => (cx-sp.x)**2 + (cy-sp.y)**2 <= r2)) {
+    // Viewport fully inside disc — fall through to arc intersection logic below.
+    // Culling is most valuable here: only a small arc of terrain is near the screen edges.
+  }
+
+  // Collect candidate angles: where the planet disc edge intersects each
+  // viewport edge (top, bottom, left, right).  Also include planet-centre
+  // angles toward each screen corner so we never miss a partially visible arc.
+  const angles = [];
+
+  // Planet-centre → corner angles (always include even if outside disc)
+  for (const [cx, cy] of corners) {
+    angles.push(Math.atan2(-(cy - sp.y), cx - sp.x)); // canvas Y-down → negate for trig
+  }
+
+  // Intersections of planet disc with horizontal lines y = 0 and y = vpH
+  for (const ey of [0, vpH]) {
+    const dy = -(ey - sp.y); // negate for canvas Y-down
+    const disc = r2 - dy * dy;
+    if (disc >= 0) {
+      const dx = Math.sqrt(disc);
+      angles.push(Math.atan2(dy,  dx));
+      angles.push(Math.atan2(dy, -dx));
+    }
+  }
+  // Intersections with vertical lines x = 0 and x = vpW
+  for (const ex of [0, vpW]) {
+    const dx = ex - sp.x;
+    const disc = r2 - dx * dx;
+    if (disc >= 0) {
+      const dy = Math.sqrt(disc);
+      angles.push(Math.atan2( dy, dx));
+      angles.push(Math.atan2(-dy, dx));
+    }
+  }
+
+  // Normalise angles to [0, 2π)
+  const TWO_PI = Math.PI * 2;
+  const norm = angles.map(a => ((a % TWO_PI) + TWO_PI) % TWO_PI);
+
+  // Filter to angles where that point on the disc is actually inside the viewport
+  const MARGIN = 2; // 2px tolerance
+  const visible = norm.filter(a => {
+    const px = sp.x + Math.cos(a) * physR_px;
+    const py = sp.y - Math.sin(a) * physR_px;
+    return px >= -MARGIN && px <= vpW + MARGIN && py >= -MARGIN && py <= vpH + MARGIN;
+  });
+
+  if (visible.length < 2) {
+    // Disc intersects screen but we couldn't find endpoints → full circle fallback
+    return { fullCircle: true, arcStart: 0, arcEnd: TWO_PI };
+  }
+
+  // Find the min and max angle of the visible set, but we need the smallest arc
+  // that contains all visible angles — handle wrap-around by choosing the
+  // complement arc if it's smaller.
+  const sorted = [...visible].sort((a, b) => a - b);
+  // Largest gap between consecutive angles (mod circle) tells us the hidden arc
+  let maxGap = 0, gapAfter = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    const next = sorted[(i + 1) % sorted.length];
+    const gap = i + 1 < sorted.length ? next - sorted[i] : sorted[0] + TWO_PI - sorted[i];
+    if (gap > maxGap) { maxGap = gap; gapAfter = i; }
+  }
+  // The visible arc is everything EXCEPT the largest gap
+  const arcStart = sorted[(gapAfter + 1) % sorted.length];
+  const arcEndRaw = sorted[gapAfter];
+  const arcEnd   = arcEndRaw < arcStart ? arcEndRaw + TWO_PI : arcEndRaw;
+  const arcSpan  = arcEnd - arcStart;
+
+  if (arcSpan >= TWO_PI * (355 / 360)) {
+    return { fullCircle: true, arcStart: 0, arcEnd: TWO_PI };
+  }
+
+
+  // Add a small angular margin (~3°) so we never clip a vertex right on the edge
+  const ANGLE_MARGIN = 0.05;
+  return {
+    fullCircle: false,
+    arcStart: arcStart - ANGLE_MARGIN,
+    arcEnd:   arcEnd   + ANGLE_MARGIN,
+  };
+}
+
+// ── Terrain sample cache ──────────────────────────────────────────────────────
+const _terrainSampleCache = {};
+// Per-frame clip path cache — keyed by "bodyName|N|spx|spy|physR_px" so it's
+// reused when drawTerrainBody and _terrainClipPath request the same shape in
+// the same frame without recomputing the Path2D.
+const _terrainClipCache = {};
+
+function invalidateTerrainCache(bodyName) {
+  const all = bodyName === '*';
+  const prefix = bodyName + '|';
+  for (const k of Object.keys(_terrainSampleCache)) {
+    if (all || k.startsWith(prefix)) delete _terrainSampleCache[k];
+  }
+  for (const k of Object.keys(_terrainClipCache)) {
+    if (all || k.startsWith(prefix)) delete _terrainClipCache[k];
+  }
+  // Also clear _lastSample so stale geometry (e.g. after radius edit) doesn't
+  // persist as the clip source for the next frame.
+  if (drawTerrainBody._lastSample) {
+    if (all) {
+      for (const k of Object.keys(drawTerrainBody._lastSample)) delete drawTerrainBody._lastSample[k];
+    } else if (drawTerrainBody._lastSample[bodyName]) {
+      delete drawTerrainBody._lastSample[bodyName];
+    }
+  }
+}
+
+// ── Main sample resolver — cached, arc-culled ─────────────────────────────────
+// arcInfo: optional { fullCircle, arcStart, arcEnd } from _computeVisibleArc.
+// When arcInfo is provided and NOT fullCircle, we use a two-tier strategy:
+//   • Coarse baseline (360 vertices, full circle) — always evaluated, cheap.
+//   • Fine detail (N vertices) — evaluated ONLY for the visible arc slice.
+// The returned result always has N entries covering the full 0…2π range, but
+// only the arc region has high-res formula heights; the rest use the coarse
+// baseline.  This reduces formula evaluation work from O(N) to
+// O(360 + N × arcFraction), typically 10–50× faster when zoomed in.
+// ── Main sample resolver — cached, arc-culled when zoomed in ─────────────────
+// arcInfo: optional { fullCircle, arcStart, arcEnd } from _computeVisibleArc.
+//
+// STRATEGY: when physR_px is large and only a partial arc is visible, we evaluate
+// the terrain formula only for the ~arcFraction × N angles that fall inside the
+// visible arc.  The result carries those arc angles+heights directly.  The draw
+// functions close the polygon on the hidden side with a single ctx.arc() call at
+// the bare disc radius — no need to evaluate hidden terrain at all.
+//
+// Cache keys snap arcStart/arcEnd to the nearest 2° bucket so that small pans
+// don't bust the cache on every pixel.
+function _getTerrainSamples(bodyName, b, radius_m, N, arcInfo) {
+  const TD = b.data.TERRAIN_DATA;
+  if (!TD) return null;
+
+  const tfd = TD.terrainFormulaDifficulties;
+  const formula = (tfd && (tfd[viewDiffKey] || tfd[viewDifficulty] || tfd['Normal'] || tfd['normal'])) || TD.terrainFormula;
+  if (!formula || !formula.length) return null;
+
+  const fHash = formula.join('§');
+  const TWO_PI = Math.PI * 2;
+
+  // Arc culling is only worthwhile at high N with a partial arc visible
+  const useArcCull = arcInfo && !arcInfo.fullCircle && N > 180;
+
+  if (!useArcCull) {
+    // ── Full-circle path ──────────────────────────────────────────────────
+    const key = `${bodyName}|${radius_m.toFixed(0)}|${viewDiffKey}|${N}|${fHash}`;
+    if (_terrainSampleCache[key]) return _terrainSampleCache[key];
+
+    // Return nearest cached N as fallback while computing (avoids blank frames)
+    let fallback = null;
+    for (const k of Object.keys(_terrainSampleCache)) {
+      if (k.startsWith(`${bodyName}|${radius_m.toFixed(0)}|${viewDiffKey}|`) &&
+          !k.includes('|arc|')) {
+        fallback = _terrainSampleCache[k]; break;
+      }
+    }
+
+    const angles = new Float64Array(N);
+    for (let i = 0; i < N; i++) angles[i] = (i / N) * TWO_PI;
+    const heights = _evalTerrainFormula(formula, angles, radius_m);
+    if (!heights) return fallback; // async heightmap — return stale data if available
+
+    _applyWaterDepressionIfNeeded(b, TD, heights, angles);
+    const fzd = TD.flatZonesDifficulties;
+    const flatZones = (fzd && (fzd[viewDiffKey] || fzd['Normal'])) || TD.flatZones || [];
+    _applyFlatZones(heights, angles, flatZones, radius_m);
+
+    const result = { heights, angles, N, arcCulled: false };
+    const keys = Object.keys(_terrainSampleCache);
+    if (keys.length >= 50) delete _terrainSampleCache[keys[0]];
+    _terrainSampleCache[key] = result;
+    return result;
+  }
+
+  // ── Arc-culled path ───────────────────────────────────────────────────────
+  // Snap arc bounds to 2° buckets → stable cache key while panning
+  const DEG2 = TWO_PI / 180;
+  const snapS = Math.round(arcInfo.arcStart / DEG2) * DEG2;
+  const snapE = Math.round(arcInfo.arcEnd   / DEG2) * DEG2;
+
+  const arcKey = `${bodyName}|${radius_m.toFixed(0)}|${viewDiffKey}|arc|${N}|${snapS.toFixed(4)}|${snapE.toFixed(4)}|${fHash}`;
+  if (_terrainSampleCache[arcKey]) return _terrainSampleCache[arcKey];
+
+  // Determine which of the N full-circle indices fall inside the visible arc
+  const arcSpan = snapE - snapS; // > 0, < 2π
+  const arcAngles = [];
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * TWO_PI;
+    const d = ((a - snapS) % TWO_PI + TWO_PI) % TWO_PI;
+    if (d <= arcSpan) arcAngles.push(a);
+  }
+
+  if (arcAngles.length === 0) {
+    // Visible arc maps to zero vertices at this N — return full-circle baseline
+    return _getTerrainSamples(bodyName, b, radius_m, 360, null);
+  }
+
+  const angArr = new Float64Array(arcAngles);
+  const heights = _evalTerrainFormula(formula, angArr, radius_m);
+  if (!heights) {
+    // Still loading — return baseline if available
+    return _getTerrainSamples(bodyName, b, radius_m, 360, null);
+  }
+
+  _applyWaterDepressionIfNeeded(b, TD, heights, angArr);
+  const fzd = TD.flatZonesDifficulties;
+  const flatZones = (fzd && (fzd[viewDiffKey] || fzd['Normal'])) || TD.flatZones || [];
+  _applyFlatZones(heights, angArr, flatZones, radius_m);
+
+  const result = {
+    heights,
+    angles: angArr,
+    N: angArr.length,
+    arcCulled: true,
+    arcStart: snapS,
+    arcEnd:   snapE,
+    discR_px: null, // filled in by draw functions from physR_px
+  };
+  const keys = Object.keys(_terrainSampleCache);
+  if (keys.length >= 60) delete _terrainSampleCache[keys[0]];
+  _terrainSampleCache[arcKey] = result;
+  return result;
+}
+
+// ── Water depression helper ───────────────────────────────────────────────────
+function _applyWaterDepressionIfNeeded(b, TD, heights, angles) {
+  if (!b.data.WATER_DATA?.lowerTerrain) return;
+  const WD = b.data.WATER_DATA;
+  const maskTex = WD.oceanMaskTexture;
+  if (!maskTex || maskTex === 'None') return;
+  if (!drawViewport._waterMaskPx) drawViewport._waterMaskPx = {};
+  const cacheKey = maskTex + '_px';
+  if (!drawViewport._waterMaskPx[cacheKey]) {
+    const img = typeof textureCache !== 'undefined' && textureCache[maskTex];
+    if (img && img.complete && img.naturalWidth > 0) {
+      const SZ = 1024;
+      const src = document.createElement('canvas'); src.width = src.height = SZ;
+      src.getContext('2d').drawImage(img, 0, 0, SZ, SZ);
+      const mc = document.createElement('canvas'); mc.width = mc.height = SZ;
+      const mCtx = mc.getContext('2d');
+      mCtx.filter = 'blur(3px)';
+      mCtx.drawImage(src, 0, 0);
+      mCtx.filter = 'none';
+      drawViewport._waterMaskPx[cacheKey] = { px: mCtx.getImageData(0,0,SZ,SZ).data, sz: SZ };
+    }
+  }
+  const wmp = drawViewport._waterMaskPx[cacheKey];
+  if (wmp) {
+    const texRotRad = (TD.TERRAIN_TEXTURE_DATA?.planetTextureRotation ?? 0) * Math.PI / 180;
+    const cutout = TD.TERRAIN_TEXTURE_DATA?.planetTextureCutout ?? 1.0;
+    _applyWaterDepression(heights, angles, wmp.px, wmp.sz, WD.oceanDepth || 3000, texRotRad, cutout);
+  }
+}
+
+// ── Shared polygon builder ────────────────────────────────────────────────────
+// Draws (or builds into a Path2D) the terrain silhouette.
+// When result.arcCulled is true the hidden back is closed with a single arc()
+// call at the base disc radius — this correctly fills the interior.
+//
+// Canvas arc() convention:  angles increase CLOCKWISE (Y-down).
+// Our terrain angles are trig-space (Y-up): canvas_angle = -trig_angle.
+// arc(cx, cy, r, startAngle, endAngle, anticlockwise):
+//   anticlockwise=true  → goes counter-clockwise in canvas space = CLOCKWISE in trig = hidden interior
+//   anticlockwise=false → goes clockwise in canvas space = the visible circumference side
+//
+// To close the hidden back from arcEnd → arcStart going THROUGH the interior
+// (the short way, not around the visible front), we use anticlockwise=true.
+function _buildTerrainPath(ctx_or_p, result, sp, physR_px, radius_m) {
+  const { heights, angles, arcCulled, arcStart, arcEnd } = result;
+  const N = angles.length;
+
+  if (!arcCulled) {
+    // Full circle — emit all vertices
+    const r0 = physR_px * (1 + heights[0] / radius_m);
+    ctx_or_p.moveTo(sp.x + Math.cos(angles[0]) * r0, sp.y - Math.sin(angles[0]) * r0);
+    for (let i = 1; i < N; i++) {
+      const rPx = physR_px * (1 + heights[i] / radius_m);
+      ctx_or_p.lineTo(sp.x + Math.cos(angles[i]) * rPx, sp.y - Math.sin(angles[i]) * rPx);
+    }
+  } else {
+    if (N === 0) {
+      // No arc vertices — plain disc
+      ctx_or_p.arc(sp.x, sp.y, physR_px, 0, Math.PI * 2);
+      return;
+    }
+    // Enter arc at arcStart on the disc
+    ctx_or_p.moveTo(sp.x + Math.cos(arcStart) * physR_px,
+                    sp.y - Math.sin(arcStart) * physR_px);
+    // Emit terrain vertices for the visible arc
+    for (let i = 0; i < N; i++) {
+      const rPx = physR_px * (1 + heights[i] / radius_m);
+      ctx_or_p.lineTo(sp.x + Math.cos(angles[i]) * rPx,
+                      sp.y - Math.sin(angles[i]) * rPx);
+    }
+    // Return to disc edge at arcEnd
+    ctx_or_p.lineTo(sp.x + Math.cos(arcEnd) * physR_px,
+                    sp.y - Math.sin(arcEnd) * physR_px);
+    // Close through the interior (hidden back of planet) via anticlockwise arc.
+    // canvas arc angle = -trig angle.
+    // We want to sweep from arcEnd back to arcStart going the short hidden way.
+    // In canvas coords: from -arcEnd to -arcStart, anticlockwise=true.
+    ctx_or_p.arc(sp.x, sp.y, physR_px, -arcEnd, -arcStart, true);
+  }
+}
+
+// ── drawTerrainBody — polygon fill ────────────────────────────────────────────
+// Also caches the built Path2D (in screen space) into drawTerrainBody._lastPath[bodyName]
+// so _terrainClipPath can reuse it directly — guaranteeing clip == polygon, same frame.
+function drawTerrainBody(ctx, b, bodyName, sp, physR_px, radius_m, mapColor, N, arcInfo, texImg) {
+  if (!b.data.TERRAIN_DATA) return false;
+  if (!N) N = physR_px < 10 ? 90 : physR_px < 40 ? 180 : 360;
+
+  // Always kick off a full-circle N=360 request so it's cached by next frame.
+  // This ensures _terrainClipPath always has a non-arc-culled result available.
+  _getTerrainSamples(bodyName, b, radius_m, 360, null);
+
+  const result = _getTerrainSamples(bodyName, b, radius_m, N, arcInfo);
+  if (!result) return false;
+
+  // ── Edge-disk fill ───────────────────────────────────────────────────────
+  // Sample the outermost few rows of the planet texture once and cache the
+  // result on the img object.  Build a radial gradient from the mean centre
+  // colour to the per-column edge colours around the rim so the terrain
+  // silhouette looks like the planet surface extends into the heightmap bumps
+  // rather than showing a flat mapColor blob.
+  let fillStyle;
+  if (texImg && texImg.complete && texImg.naturalWidth > 0 && radius_m >= 15000) {
+    if (!texImg._edgeDisk) {
+      const tw = texImg.naturalWidth, th = texImg.naturalHeight;
+      const ec = document.createElement('canvas');
+      ec.width = tw; ec.height = th;
+      ec.getContext('2d').drawImage(texImg, 0, 0);
+      const px = ec.getContext('2d').getImageData(0, 0, tw, th).data;
+
+      // Sample the equator band (middle 10% of rows).
+      // Bottom/top rows are often black (transparent poles in SFS) — equator
+      // is what's visible at the terrain silhouette edge.
+      const bandH    = Math.max(2, Math.round(th * 0.10));
+      const startRow = Math.floor((th - bandH) / 2);
+      const endRow   = startRow + bandH;
+
+      const colR = new Float32Array(tw);
+      const colG = new Float32Array(tw);
+      const colB = new Float32Array(tw);
+      for (let row = startRow; row < endRow; row++) {
+        for (let col = 0; col < tw; col++) {
+          const i = (row * tw + col) * 4;
+          colR[col] += px[i];
+          colG[col] += px[i+1];
+          colB[col] += px[i+2];
+        }
+      }
+      let sumR = 0, sumG = 0, sumB = 0;
+      for (let col = 0; col < tw; col++) {
+        colR[col] /= bandH; colG[col] /= bandH; colB[col] /= bandH;
+        sumR += colR[col]; sumG += colG[col]; sumB += colB[col];
+      }
+      const meanR = sumR / tw, meanG = sumG / tw, meanB = sumB / tw;
+      texImg._edgeDisk = { colR, colG, colB, meanR, meanG, meanB, tw };
+    }
+
+    // Build gradient: centre = mean colour, outer rim uses per-angle edge colours.
+    // The 64×64 canvas is zoom-independent — it's always stretched via drawImage
+    // destination rect, so no per-zoom regeneration.
+    const { colR, colG, colB, meanR, meanG, meanB, tw } = texImg._edgeDisk;
+
+    const SZ = 128;
+    if (!texImg._edgePat) {
+      const pc = document.createElement('canvas');
+      pc.width = SZ; pc.height = SZ;
+      const pctx = pc.getContext('2d');
+      const imgData = pctx.createImageData(SZ, SZ);
+      const d = imgData.data;
+      const cx = SZ / 2, cy = SZ / 2;
+      for (let py = 0; py < SZ; py++) {
+        for (let px2 = 0; px2 < SZ; px2++) {
+          const dx = px2 - cx, dy = py - cy;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          const maxR = cx;
+          if (dist > maxR) {
+            // Outside circle — fill with mean colour so clip boundary has no seam
+            const i4=(py*SZ+px2)*4;
+            d[i4]=Math.round(meanR); d[i4+1]=Math.round(meanG); d[i4+2]=Math.round(meanB); d[i4+3]=255;
+            continue;
+          }
+          const angle = (Math.atan2(-dy, dx) / (Math.PI*2) + 1) % 1;
+          const col   = Math.round(angle * (tw - 1));
+          const frac  = dist / maxR;
+          const er = colR[col], eg = colG[col], eb = colB[col];
+          const i4 = (py * SZ + px2) * 4;
+          d[i4]   = Math.round(meanR + (er - meanR) * frac);
+          d[i4+1] = Math.round(meanG + (eg - meanG) * frac);
+          d[i4+2] = Math.round(meanB + (eb - meanB) * frac);
+          d[i4+3] = 255;
+        }
+      }
+      pctx.putImageData(imgData, 0, 0);
+      texImg._edgePat = pc;
+    }
+
+    // Draw the edge-disk clipped to terrain shape.
+    // Skip entirely when the planet is so large on screen that the surface
+    // texture (drawn next) will fully cover the viewport — the edge-disk is
+    // only needed to colour the heightmap bumps beyond the texture boundary,
+    // which are sub-pixel when the body exceeds ~4× the viewport diagonal.
+    const _diagPx2 = Math.sqrt(ctx.canvas.width * ctx.canvas.width + ctx.canvas.height * ctx.canvas.height);
+    if (physR_px <= _diagPx2 * 4) {
+      const _arcKey = result.arcCulled ? `a${(result.arcStart*10)|0}_${(result.arcEnd*10)|0}` : 'full';
+      const _cacheKey = `${bodyName}|${N}|${sp.x|0}|${sp.y|0}|${physR_px|0}|${_arcKey}`;
+      let _terrPath = _terrainClipCache[_cacheKey];
+      if (!_terrPath) {
+        _terrPath = new Path2D();
+        _buildTerrainPath(_terrPath, result, sp, physR_px, radius_m);
+        _terrainClipCache[_cacheKey] = _terrPath;
+      }
+      // Clamp destination rect to viewport so the GPU only blits visible pixels.
+      const fullL = sp.x - physR_px, fullT = sp.y - physR_px, fullS = physR_px * 2;
+      const dstX = Math.max(0, fullL), dstY = Math.max(0, fullT);
+      const dstR = Math.min(ctx.canvas.width,  fullL + fullS);
+      const dstB = Math.min(ctx.canvas.height, fullT + fullS);
+      const dstW = dstR - dstX, dstH = dstB - dstY;
+      if (dstW > 0 && dstH > 0) {
+        const SZ = texImg._edgePat.width;
+        const scale = SZ / fullS;
+        const srcX = (dstX - fullL) * scale, srcY = (dstY - fullT) * scale;
+        const srcW = dstW * scale,            srcH = dstH * scale;
+        ctx.save();
+        ctx.clip(_terrPath);
+        ctx.drawImage(texImg._edgePat, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH);
+        ctx.restore();
+      }
+    } else {
+      // Planet fills screen — just write the cache key with a plain disc clip
+      // so downstream _terrainClipPath calls still get a cached Path2D.
+      const _arcKey = result.arcCulled ? `a${(result.arcStart*10)|0}_${(result.arcEnd*10)|0}` : 'full';
+      const _cacheKey = `${bodyName}|${N}|${sp.x|0}|${sp.y|0}|${physR_px|0}|${_arcKey}`;
+      if (!_terrainClipCache[_cacheKey]) {
+        const _terrPath = new Path2D();
+        _buildTerrainPath(_terrPath, result, sp, physR_px, radius_m);
+        _terrainClipCache[_cacheKey] = _terrPath;
+      }
+    }
+  } else {
+    // Fallback: flat mapColor disc (no texture loaded)
+    const mc = mapColor;
+    const mr = mc ? Math.min(255, Math.round(mc.r * 255)) : 100;
+    const mg = mc ? Math.min(255, Math.round(mc.g * 255)) : 100;
+    const mb = mc ? Math.min(255, Math.round(mc.b * 255)) : 120;
+
+    ctx.save();
+    ctx.beginPath();
+    _buildTerrainPath(ctx, result, sp, physR_px, radius_m);
+    ctx.closePath();
+    ctx.fillStyle = `rgb(${mr},${mg},${mb})`;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Store the sample result so _terrainClipPath can build an exact-match clip this frame.
+  // Store full-circle result for clip — NEVER store arc-culled result.
+  // Arc-culled path only covers the visible wedge; used as a clip it leaves
+  // the rest of the disc unclipped → texture bleeds when body is near screen edge.
+  // Try progressively smaller N until we find a cached full-circle result.
+  if (!drawTerrainBody._lastSample) drawTerrainBody._lastSample = {};
+  let fullResult = null;
+  if (!result.arcCulled) {
+    fullResult = result; // already full-circle
+  } else {
+    // N=360 is the cheapest full-circle; always computed within 1-2 frames.
+    for (const tryN of [360, 180, 90, N]) {
+      const r2 = _getTerrainSamples(bodyName, b, radius_m, tryN, null);
+      if (r2 && !r2.arcCulled) { fullResult = r2; break; }
+    }
+  }
+  // Only store if we have a genuine full-circle result — stale is fine, missing is not.
+  if (fullResult) {
+    drawTerrainBody._lastSample[bodyName] = { result: fullResult, physR_px, radius_m };
+  }
+
+  return true;
+}
+
+// Terrain clip path — always builds fresh from cached sample data so it exactly
+// matches the terrain polygon drawn this frame at the current sp and scale.
+//
+// Priority:
+//  1. Use the sample stored by drawTerrainBody this frame (same scale, guaranteed).
+//  2. Find any cached full-circle samples for this body at any N.
+//  3. Return null (caller falls back to plain disc clip).
+function _terrainClipPath(b, bodyName, sp, physR_px, radius_m, N, arcInfo) {
+  if (!b.data.TERRAIN_DATA) return null;
+  if (!N) N = physR_px < 10 ? 90 : physR_px < 40 ? 180 : 360;
+
+  // Resolve the sample first so we can build an arc-aware cache key.
+  // Use the same arcInfo that drawTerrainBody used — this guarantees the
+  // clip path has the exact same shape as the filled polygon.
+  let result = _getTerrainSamples(bodyName, b, radius_m, N, arcInfo);
+  if (!result) {
+    // Fallback: full-circle at any available N
+    result = _getTerrainSamples(bodyName, b, radius_m, 360, null);
+    if (!result) {
+      for (const fallN of [720, 180, 90]) {
+        result = _getTerrainSamples(bodyName, b, radius_m, fallN, null);
+        if (result) break;
+      }
+    }
+  }
+  if (!result) return null;
+
+  const _arcKey = result.arcCulled ? `a${(result.arcStart*10)|0}_${(result.arcEnd*10)|0}` : 'full';
+  const _cacheKey = `${bodyName}|${N}|${sp.x|0}|${sp.y|0}|${physR_px|0}|${_arcKey}`;
+  if (_terrainClipCache[_cacheKey]) return _terrainClipCache[_cacheKey];
+
+  const p = new Path2D();
+  _buildTerrainPath(p, result, sp, physR_px, radius_m);
+  _terrainClipCache[_cacheKey] = p;
+  return p;
+}
+
+// Apply a screen-space terrain clip path (already in screen coordinates).
+function _applyTerrainClip(ctx, path, sp) {
+  ctx.clip(path);
+}

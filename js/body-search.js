@@ -5,7 +5,7 @@ function openBodySearch(){
   modal.classList.add('open');
   const inp = document.getElementById('bsearch-input');
   if(inp){ inp.value = ''; inp.focus(); }
-  bsearchRebuild();
+  _bsearchRebuildNow();
 }
 
 function closeBodySearch(){
@@ -13,7 +13,15 @@ function closeBodySearch(){
   if(modal) modal.classList.remove('open');
 }
 
+let _bsearchTimer = null;
 function bsearchRebuild(){
+  // Debounce: wait 120ms after last keystroke before rebuilding the list DOM.
+  // On mobile, rapid input events would otherwise rebuild the entire list on every character.
+  clearTimeout(_bsearchTimer);
+  _bsearchTimer = setTimeout(_bsearchRebuildNow, 120);
+}
+
+function _bsearchRebuildNow(){
   const q = (document.getElementById('bsearch-input')?.value || '').toLowerCase().trim();
   const list = document.getElementById('bsearch-list');
   if(!list) return;
@@ -38,8 +46,19 @@ function bsearchRebuild(){
                : r + ' km';
     const typeLabel = b.preset ? b.preset.replace('like','') : '';
 
+    // Build a small map-color sphere SVG for the row icon
+    const _mc = b.data.BASE_DATA?.mapColor || {r:0.6,g:0.6,b:0.8,a:1};
+    const _hdr = Math.max(1, _mc.r, _mc.g, _mc.b);
+    const _r = Math.min(1,_mc.r/_hdr), _g = Math.min(1,_mc.g/_hdr), _b = Math.min(1,_mc.b/_hdr), _a = Math.min(1,_mc.a??1);
+    const _hex = v => Math.round(v*255).toString(16).padStart(2,'0');
+    const _base = `#${_hex(_r)}${_hex(_g)}${_hex(_b)}`;
+    const _hi   = `#${_hex(Math.min(1,_r+.42))}${_hex(Math.min(1,_g+.42))}${_hex(Math.min(1,_b+.42))}`;
+    const _sh   = `#${_hex(_r*.28)}${_hex(_g*.28)}${_hex(_b*.28)}`;
+    const _gid  = `sg_${Math.random().toString(36).slice(2,6)}`;
+    const _iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" style="display:block"><defs><radialGradient id="${_gid}" cx="35%" cy="30%" r="65%"><stop offset="0%" stop-color="${_hi}" stop-opacity="${_a}"/><stop offset="45%" stop-color="${_base}" stop-opacity="${_a}"/><stop offset="100%" stop-color="${_sh}" stop-opacity="${_a}"/></radialGradient></defs><circle cx="12" cy="12" r="10" fill="url(#${_gid})"/></svg>`;
+
     row.innerHTML =
-      `<span class="bsearch-icon">${b.icon||'🪐'}</span>` +
+      `<span class="bsearch-icon">${_iconSvg}</span>` +
       `<span class="bsearch-name">${name}</span>` +
       `<span class="bsearch-sub">${sub}</span>` +
       `<button class="bsearch-dl"   onclick="event.stopPropagation();downloadBodyTxt('${name}')">⬇ TXT</button>` +

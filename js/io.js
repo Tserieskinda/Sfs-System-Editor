@@ -54,36 +54,6 @@ function parseZip(buffer){
   return files;
 }
 
-async function decompressEntries(raw){
-  // Decompress any deflated entries using DecompressionStream (supported in all modern browsers)
-  const out = {};
-  for(const [name, val] of Object.entries(raw)){
-    if(val instanceof Uint8Array){
-      out[name] = val;
-    } else {
-      // Deflate entry — wrap in raw deflate stream
-      try {
-        const ds = new DecompressionStream('deflate-raw');
-        const writer = ds.writable.getWriter();
-        writer.write(val.compressed);
-        writer.close();
-        const chunks = [];
-        const reader = ds.readable.getReader();
-        while(true){
-          const {done, value} = await reader.read();
-          if(done) break;
-          chunks.push(value);
-        }
-        const full = new Uint8Array(val.uncompSize);
-        let off2 = 0;
-        for(const c of chunks){ full.set(c, off2); off2 += c.length; }
-        out[name] = full;
-      } catch(e){ console.warn('Decompress failed:', name, e); }
-    }
-  }
-  return out;
-}
-
 function setLoadingMsg(msg){ document.getElementById('loading-msg').textContent = msg; }
 function setLoadingTitle(t){ document.getElementById('loading-title').textContent = t; }
 function showLoading(){ document.getElementById('loading-overlay').classList.add('show'); }
@@ -111,6 +81,19 @@ function setBar2(pct, label){
 
 // Yield to the browser so it can repaint and stay responsive
 function _yield(){ return new Promise(r => setTimeout(r, 0)); }
+
+// Memory-safe Uint8Array → base64 string.
+// btoa(Array.from(data).map(…).join('')) builds a single giant string that OOMs
+// on weak mobile devices for large textures.  This version processes 32 KB at a
+// time and is safe even for multi-MB images.
+function bytesToBase64(bytes){
+  const CHUNK = 32768;
+  let s = '';
+  for(let i = 0; i < bytes.length; i += CHUNK){
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(s);
+}
 
 async function decompressEntries(raw, onProgress){
   const out = {};
@@ -160,11 +143,24 @@ function handleZipDrop(e){
 
 async function loadZipFile(file){
   if(!file) return;
+  // Reset the file input immediately so the same file can be picked again on mobile
+  const _fiZip = document.getElementById('fi-zip');
+  if(_fiZip) _fiZip.value = '';
   showLoading(); setLoadingMsg('Reading zip…');
 
   try{
     const buffer = await file.arrayBuffer();
     setLoadingMsg('Parsing entries…');
+
+    // Warn before clearing an active session
+    if(Object.keys(bodies).length > 0){
+      hideLoading(); hideLoadingBars();
+      if(!confirm('Clear current system and load "' + file.name + '"?')){
+        return; // user cancelled
+      }
+      showLoading(); setLoadingMsg('Parsing entries…');
+    }
+
     showLoadingBars();
     setBar1(0, 'DECOMPRESSING');
     setBar2(0, 'LOADING BODIES');
@@ -227,10 +223,13 @@ async function loadZipFile(file){
           if(name === 'Import_Settings'){ systemSettings.importSettings = JSON.parse(raw); continue; }
           if(name === 'Space_Center_Data'){ systemSettings.spaceCenterData = JSON.parse(raw); continue; }
           if(name === 'Version') continue;
-          // Lenient parse: strip trailing commas (common in hand-edited SFS files)
+          // Lenient parse: strip trailing commas, fix bare decimals, Unity Infinity/NaN
           const _fixedRaw = raw
             .replace(/,\s*([}\]])/g, '$1')           // trailing commas
-            .replace(/(\d)\.(?=[,\s}\]])/g, '$10'); // bare decimals: 0. → 0.0
+            .replace(/(\d)\.(?=[,\s}\]])/g, '$10')   // bare decimals: 0. → 0.0
+            .replace(/:\s*Infinity\b/g,  ': 1e38')   // Unity JsonUtility Infinity
+            .replace(/:\s*-Infinity\b/g, ': -1e38')  // Unity JsonUtility -Infinity
+            .replace(/:\s*NaN\b/g,       ': 0');      // Unity JsonUtility NaN
           const bodyData = normalizeDiffScaleKeys(JSON.parse(_fixedRaw));
           // isCenter determined later — first pass just stores data
           const lacksOrbit = !bodyData.ORBIT_DATA;
@@ -259,7 +258,7 @@ async function loadZipFile(file){
       } else if(folder === 'Heightmap Data' && /\.(png|jpe?g)$/i.test(filename)){
         const ext = filename.split('.').pop().toLowerCase();
         const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/png';
-        const b64 = btoa(Array.from(data).map(b => String.fromCharCode(b)).join(''));
+        const b64 = bytesToBase64(data);
         const url = `data:${mime};base64,${b64}`;
         const entry = { name: filename, url, size: data.length };
         assets.heightmaps.push(entry);
@@ -272,7 +271,7 @@ async function loadZipFile(file){
         console.log(`[SFS|LOAD] found texture in system zip: "${filename}"`);
         const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
                    : ext === 'webp' ? 'image/webp' : 'image/png';
-        const b64 = btoa(Array.from(data).map(b => String.fromCharCode(b)).join(''));
+        const b64 = bytesToBase64(data);
         const url = `data:${mime};base64,${b64}`;
         if(!assets.textures.find(a=>a.name===filename)){
           const entry = { name: filename, url, size: data.length };
@@ -326,14 +325,18 @@ async function loadZipFile(file){
 // ── Default texture zip loader ──
 // Maps folder names from the default texture ZIP to asset categories.
 
-// ── Remote assets URL ─────────────────────────────────────────────────────────
-// Set this to your hosted zip URL. Online users get assets automatically.
-// Set to null to disable remote loading (manual upload only).
-// Same-origin GitHub Pages URLs — no CORS proxy needed.
+// ── Remote assets URLs ────────────────────────────────────────────────────────
+// raw.githubusercontent.com blocks cross-origin binary fetches, so we proxy
+// through corsproxy.io which adds the required CORS headers.
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Remote assets URLs ────────────────────────────────────────────────────────
+// jsdelivr CDN mirrors GitHub repo files with proper CORS + Content-Length headers.
+// Format: https://cdn.jsdelivr.net/gh/{user}/{repo}@{branch}/{path}
+// ─────────────────────────────────────────────────────────────────────────────
 const REMOTE_ASSETS_URLS = [
-  'assets/Vanilla Presets.zip',
-  'assets/Vanilla Textures 2.zip',
-  'assets/Custom Presets and Files.zip',
+  { url: 'assets/Vanilla Presets + textures.zip',  name: 'Vanilla Presets + textures.zip' },
+  { url: 'assets/Vanilla Textures 2.zip',           name: 'Vanilla Textures 2.zip' },
+  { url: 'assets/Custom and Terrain Files.zip',     name: 'Custom and Terrain Files.zip' },
 ];
 
 // Auto-fetch remote asset zip on startup (online users only).
@@ -359,8 +362,7 @@ async function autoLoadRemoteAssets(){
 
   for(let i = 0; i < REMOTE_ASSETS_URLS.length; i++){
     if(signal.aborted){ cancelled = true; break; }
-    const url = REMOTE_ASSETS_URLS[i];
-    const fname = url.split('/').pop();
+    const { url, name: fname } = REMOTE_ASSETS_URLS[i];
     setLoadingMsg(`(${i+1}/${REMOTE_ASSETS_URLS.length}) ${fname}`);
     setBar1(0, 'DOWNLOADING');
     setBar2(null, 'LOADING TEXTURES');
@@ -456,20 +458,23 @@ function _presetCategory(pathLower){
 }
 
 // Parse a preset .txt file leniently (same approach as the zip importer)
-function _parsePresetTxt(raw){
+function _parsePresetTxt(raw, filename){
   try{
     let fixed = raw
-      .replace(/,(\s*[}\]])/g, '$1')           // trailing commas
-      .replace(/(\d)\.(?=[,\s}\]])/g, '$10');   // bare decimal: 0. → 0.0
+      .replace(/,(\s*[}\]])/g, '$1')            // trailing commas
+      .replace(/(\d)\.(?=[,\s}\]])/g, '$10')    // bare decimal: 0. → 0.0
+      .replace(/:\s*Infinity\b/g,  ': 1e38')    // Unity JsonUtility Infinity
+      .replace(/:\s*-Infinity\b/g, ': -1e38')   // Unity JsonUtility -Infinity
+      .replace(/:\s*NaN\b/g,       ': 0');       // Unity JsonUtility NaN
     return normalizeDiffScaleKeys(JSON.parse(fixed));
   } catch(e){
-    console.warn('Preset parse error:', e);
+    console.warn('[SFS|IO] Preset parse error' + (filename ? ` in "${filename}"` : '') + ':', e.message);
     return null;
   }
 }
 
 // ── Unified SFS asset zip loader ──────────────────────────────────────────────
-// Accepts one or more zips containing any combination of:\n//   */Planet Data/*.txt       → preset files (vanilla or custom)\n//   */Texture Data/*.(img)    → textures\n//   */Heightmap Data/*        → IGNORED (heightmaps not yet supported)\n//   (legacy) flat image files  → textures (backwards compat with old texture-only zips)
+// Accepts one or more zips containing any combination of:\n//   */Planet Data/*.txt       → preset files (vanilla or custom)\n//   */Texture Data/*.(img)    → textures\n//   */Heightmap Data/*.txt    → heightmaps (JSON points)\n//   */Heightmap Data/*.(img)  → heightmaps (PNG/JPG alpha-encoded)\n//   (legacy) flat image files  → textures (backwards compat with old texture-only zips)
 
 // Core single-zip processor — used by both manual upload and remote auto-load.
 async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgress){
@@ -494,7 +499,30 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
     const filename = parts[parts.length - 1];
     if(!filename) continue;
 
-    if(_isHeightmapPath(pathLower)) continue;
+    if(_isHeightmapPath(pathLower)){
+      // ── Heightmap Data files — load into assets.heightmaps ──
+      const ext = filename.split('.').pop().toLowerCase();
+      if(ext === 'txt'){
+        const content = new TextDecoder().decode(data);
+        const entry = { name: filename, content, size: data.length };
+        if(!assets.heightmaps.find(a => a.name === filename)){
+          assets.heightmaps.push(entry);
+          renderAssetRow(entry, 'heightmaps');
+          injectCustomHeightmap(filename);
+        }
+      } else if(['png','jpg','jpeg'].includes(ext)){
+        const mime = (ext==='jpg'||ext==='jpeg') ? 'image/jpeg' : 'image/png';
+        const b64 = bytesToBase64(data);
+        const url = `data:${mime};base64,${b64}`;
+        const entry = { name: filename, url, size: data.length };
+        if(!assets.heightmaps.find(a => a.name === filename)){
+          assets.heightmaps.push(entry);
+          renderAssetRow(entry, 'heightmaps');
+          injectCustomHeightmap(filename);
+        }
+      }
+      continue;
+    }
 
     const ext = filename.split('.').pop().toLowerCase();
 
@@ -516,7 +544,7 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
 
       const mime = (ext==='jpg'||ext==='jpeg') ? 'image/jpeg'
                  : ext==='webp' ? 'image/webp' : 'image/png';
-      const b64 = btoa(Array.from(data).map(b=>String.fromCharCode(b)).join(''));
+      const b64 = bytesToBase64(data);
       const url = `data:${mime};base64,${b64}`;
       const texName = filename.replace(/\.[^.]+$/, '');
       cacheTexture(texName, url);
@@ -601,6 +629,8 @@ async function loadSFSAssetZips(files){
 
 // Init — resize on first load
 setTimeout(resizeViewport, 50);
+// Attach unit parsers to distance input fields
+setTimeout(initUnitInputs, 100);
 // Auto-fetch remote assets if URL is configured (no-op when REMOTE_ASSETS_URL is null)
 autoLoadRemoteAssets();
 

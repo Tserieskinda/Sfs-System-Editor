@@ -31,5 +31,28 @@ function goNew(){
   setTimeout(resizeViewport, 100);
   syncAddBodyBtn();
 }
-function goOpen(){ show('s-open'); }
+function goOpen(){
+  show('s-open');
+  // Show/hide the warning banner based on whether bodies are loaded
+  const hasSession = Object.keys(bodies).length > 0;
+  const warn = document.getElementById('open-session-warn');
+  if(warn) warn.style.display = hasSession ? '' : 'none';
+}
+
+// "START WITH EMPTY SYSTEM" from the open screen — confirm if session exists
+function goNewFromOpen(){
+  if(Object.keys(bodies).length > 0){
+    if(!confirm('Clear current system and start empty?')) return;
+    bodies = {};
+    assets.textures = []; assets.heightmaps = []; assets.other = [];
+    undoStack = [];
+    Object.keys(textureCache).forEach(k => delete textureCache[k]);
+    Object.keys(texPixelCache).forEach(k => delete texPixelCache[k]);
+    document.getElementById('undo-btn').disabled = true;
+    document.getElementById('undo-btn').classList.remove('undo-active');
+    updateStatusBar(); syncAddBodyBtn();
+    document.getElementById('empty-state').classList.remove('gone');
+  }
+  goNew();
+}
 

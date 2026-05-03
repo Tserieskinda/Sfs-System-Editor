@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>SFS System Editor</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=5.8">
 </head>
 <body>
 
@@ -13,9 +13,8 @@
 <!-- ══════════════ START MENU ══════════════ -->
 <div class="screen" id="s-start">
   <div class="logo-wrap">
-    <p class="logo-eyebrow">SPACEFLIGHT SIMULATOR  ·  PLANET EDITOR  ·  v5.0</p>
     <h1 class="logo-main">SFS <em>SYSTEM</em><br>EDITOR</h1>
-    <p class="logo-sub">Create, edit and export custom star systems</p>
+    <p class="logo-eyebrow">v5.8</p>
   </div>
   <nav class="menu-list">
     <button class="menu-btn primary" id="btn-new-system" onclick="goNew()">
@@ -53,6 +52,14 @@
         <button class="tb-btn" id="btn-env" onclick="toggleEnvDropdown()" title="Environment render toggles"
           style="border-color:rgba(64,200,255,.3);color:var(--sky2);font-size:.88rem;padding:7px 11px">🌐</button>
       </div>
+      <div style="position:relative;display:inline-flex;align-items:stretch">
+        <button class="tb-btn env-off" id="env-btn-heightmaps" onclick="toggleEnvFlag('heightmaps')" title="Toggle terrain heightmap rendering"
+          style="border-color:rgba(180,140,255,.35);color:#b48cff;font-size:.78rem;letter-spacing:.06em;padding:7px 10px;border-right:none;border-radius:4px 0 0 4px">▲ TERRAIN</button>
+        <button id="btn-terrain-detail" onclick="toggleTerrainDetailDrop()" title="Terrain detail level"
+          style="border:1px solid rgba(180,140,255,.35);border-left:1px solid rgba(180,140,255,.15);color:#b48cff;background:rgba(180,140,255,.07);cursor:pointer;padding:0 7px;border-radius:0 4px 4px 0;font-family:'JetBrains Mono',monospace;font-size:.58rem;letter-spacing:.04em;display:flex;align-items:center;gap:4px;white-space:nowrap">
+          <span id="terrain-detail-label">30%</span><span style="font-size:.6rem;opacity:.6">&#9662;</span>
+        </button>
+      </div>
       <button class="tb-btn" onclick="openBodySearch()" title="Search bodies in system" style="border-color:rgba(64,200,255,.3);color:var(--sky2);font-size:.85rem;padding:7px 10px">🔍</button>
       <button class="tb-btn" id="btn-difficulty" onclick="cycleDifficulty()" title="Switch orbit display difficulty" style="border-color:rgba(255,200,64,.3);color:#ffd060;min-width:96px">⚖ NORMAL</button>
       <button class="tb-btn" id="btn-add-body" onclick="addBodyPrompt()" title="Add a body to the system (requires a system center first)" style="border-color:rgba(100,220,120,.6);color:#7defa0;font-weight:700;background:rgba(100,220,120,.12);letter-spacing:.08em">＋ ADD BODY</button>
@@ -63,7 +70,6 @@
       </div>
       <button class="tb-btn" onclick="openAssets()">📁 ASSETS</button>
       <button class="tb-btn" onclick="openSysSettings()">⚙ SYSTEM</button>
-      <button class="tb-btn" id="apply-btn" onclick="applyChanges()" style="border-color:rgba(48,224,144,.35);color:var(--jade)">✓ APPLY</button>
       <button class="tb-btn save" onclick="exportSystem()">⬇ EXPORT ZIP</button>
     </div>
   </div>
@@ -96,6 +102,14 @@
     <span class="tb-title">OPEN SYSTEM</span>
   </div>
   <div class="open-card">
+    <!-- Warning banner — shown only when a session is active -->
+    <div id="open-session-warn" style="display:none;margin-bottom:18px;padding:10px 14px;
+      background:rgba(255,140,40,.08);border:1px solid rgba(255,140,40,.35);border-radius:4px;
+      font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(255,175,70,.95);
+      letter-spacing:.04em;line-height:1.7">
+      ⚠ A session is already loaded.<br>
+      <span style="color:rgba(255,175,70,.6)">Loading a new system will clear all current bodies.</span>
+    </div>
     <h2>LOAD SYSTEM</h2>
     <p>Open a system <strong style="color:var(--sky2)">.zip</strong> exported from this editor or from SFS directly.</p>
     <div class="drop-zone" id="zip-drop-zone"
@@ -109,10 +123,10 @@
         Must contain Planet Data/, Heightmap Data/, Texture Data/ folders
       </small>
     </div>
-    <button class="mf-btn ok" style="width:100%;margin-top:12px" onclick="goNew()">START WITH EMPTY SYSTEM</button>
+    <button class="mf-btn ok" style="width:100%;margin-top:12px" onclick="goNewFromOpen()">START WITH EMPTY SYSTEM</button>
   </div>
 </div>
-<input type="file" id="fi-zip" accept=".zip" style="display:none" onchange="loadZipFile(this.files[0])">
+<input type="file" id="fi-zip" accept=".zip" style="display:none" onchange="loadZipFile(this.files[0]);this.value=''">
 
 <!-- ══════════════ PRESET MODAL ══════════════ -->
 
@@ -170,11 +184,15 @@
             type="text"
             value="Sun"
             spellcheck="false"
-            oninput="renameBody(this.value)"
+            oninput="renameBody(this.value); _schedFinaliseRename(this.value)"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
             onblur="finaliseRename(this.value)"
             title="">
         </div>
-        <div class="sb-type" id="sbb-type">Star · System Center</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
+          <div class="sb-type" id="sbb-type">Star · System Center</div>
+          <button class="namegen-dice" onclick="NameGen.roll()" title="Generate a random name">⚄</button>
+        </div>
       </div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
@@ -208,22 +226,29 @@
     <div class="tab-panel on" id="tab-base">
       <div class="fsec">
         <div class="fsec-title">BASE DATA</div>
-        <div class="frow"><span class="flabel">Radius (m)</span>
-          <input class="finput" id="b-radius" type="number" step="1000"></div>
+        <div class="frow"><span class="flabel">Radius</span>
+          <input class="finput" id="b-radius" type="number" step="1000" oninput="onDistInput('b-radius','b-radius-unit','b-radius-hint','radius')">
+          <select class="funit-sel" id="b-radius-unit" onchange="onUnitChange('b-radius','b-radius-unit','b-radius-hint','radius')">
+            <option value="m">m</option><option value="km" selected>km</option><option value="Mm">Mm</option>
+            <option value="Gm">Gm</option><option value="ly">ly</option><option value="R_earth">R Earth</option><option value="R_sun">R Sun</option><option value="R_jupiter">R Jupiter</option>
+          </select></div>
+        <div id="b-radius-hint" class="funit-hint"></div>
         <div class="fsec-title" style="font-size:.55rem;margin-top:6px">Radius Difficulty Scale</div>
         <div class="diff-grid">
           <div><div class="diff-label">Normal</div><input class="finput" id="b-radius-n" type="number" step="0.01" placeholder="1.0"></div>
           <div><div class="diff-label">Hard</div><input class="finput" id="b-radius-h" type="number" step="0.01" placeholder="1.0"></div>
           <div><div class="diff-label">Realistic</div><input class="finput" id="b-radius-r" type="number" step="0.01" placeholder="1.0"></div>
         </div>
-        <div class="frow"><span class="flabel">Gravity (m/s²)</span>
-          <input class="finput" id="b-gravity" type="number" step="0.01"></div>
+        <button type="button" class="default-scale-btn" onclick="setDefaultScale('b-radius-n','b-radius-h','b-radius-r')" style="margin-top:4px;width:100%;font-size:.55rem;padding:3px 0;background:var(--ac08);border:1px solid var(--ac18);color:var(--ink3);border-radius:3px;cursor:pointer;font-family:'JetBrains Mono',monospace;letter-spacing:.06em">Default Scale  1 · 2 · 20</button>
+        <div class="frow"><span class="flabel">Gravity</span>
+          <input class="finput" id="b-gravity" style="flex:1;min-width:60px" type="number" step="0.01" oninput="onGravUnitChange()"><select class="funit-sel" id="b-gravity-unit" style="width:62px" onchange="onGravUnitChange()"><option value="ms2">m/s²</option><option value="cms2">cm/s²</option><option value="kms2">km/s²</option></select></div>
         <div class="fsec-title" style="font-size:.55rem;margin-top:6px">Gravity Difficulty Scale</div>
         <div class="diff-grid">
           <div><div class="diff-label">Normal</div><input class="finput" id="b-grav-n" type="number" step="0.01" placeholder="1.0"></div>
           <div><div class="diff-label">Hard</div><input class="finput" id="b-grav-h" type="number" step="0.01" placeholder="1.0"></div>
           <div><div class="diff-label">Realistic</div><input class="finput" id="b-grav-r" type="number" step="0.01" placeholder="1.0"></div>
         </div>
+        <button type="button" class="default-scale-btn" onclick="setDefaultScale('b-grav-n','b-grav-h','b-grav-r')" style="margin-top:4px;width:100%;font-size:.55rem;padding:3px 0;background:var(--ac08);border:1px solid var(--ac18);color:var(--ink3);border-radius:3px;cursor:pointer;font-family:'JetBrains Mono',monospace;letter-spacing:.06em">Default Scale  1 · 2 · 20</button>
         <div class="frow"><span class="flabel">Timewarp Height</span>
           <input class="finput" id="b-twh" type="number" step="100"></div>
         <div class="frow"><span class="flabel">Vel. Arrows Ht.</span>
@@ -277,7 +302,7 @@
           <div class="tog" id="env-btn-physAtmo" onclick="toggleEnvFlag('physAtmo')" style="cursor:pointer"></div></div>
         <div id="atmos-fields">
           <div class="frow"><span class="flabel">Height (m)</span>
-            <input class="finput" id="ap-height" type="number" step="1000"></div>
+            <input class="finput" style="flex:1;min-width:60px" id="ap-height" type="number" step="1000"><select class="funit-sel" id="ap-height-unit" style="width:52px" onchange="onSimpleKmChange('ap-height')"><option value="m">m</option><option value="km" selected>km</option></select></div>
           <div class="frow"><span class="flabel">Density</span>
             <input class="finput" id="ap-density" type="number" step="0.0001"></div>
           <div class="frow"><span class="flabel">Curve</span>
@@ -300,7 +325,7 @@
           <div class="frow"><span class="flabel">Position Z</span>
             <input class="finput" id="av-pz" type="number" step="500"></div>
           <div class="frow"><span class="flabel">Height (m)</span>
-            <input class="finput" id="av-height" type="number" step="10000"></div>
+            <input class="finput" style="flex:1;min-width:60px" id="av-height" type="number" step="10000"><select class="funit-sel" id="av-height-unit" style="width:52px" onchange="onSimpleKmChange('av-height')"><option value="m">m</option><option value="km" selected>km</option></select></div>
           <div class="frow"><span class="flabel">Texture</span>
             <div class="tpick-wrap" id="tpw-av-tex"><input class="tpick-input" id="av-tex" placeholder="Search texture…" autocomplete="off"><button class="tpick-clear" id="tpc-av-tex">✕</button><div class="tpick-dropdown" id="tpd-av-tex"></div></div>
           </div>
@@ -314,11 +339,23 @@
           <div class="frow"><span class="flabel">Texture</span>
             <div class="tpick-wrap" id="tpw-cl-tex"><input class="tpick-input" id="cl-tex" placeholder="Search texture…" autocomplete="off"><button class="tpick-clear" id="tpc-cl-tex">✕</button><div class="tpick-dropdown" id="tpd-cl-tex"></div></div></div>
           <div class="frow"><span class="flabel">Start Height</span>
-            <input class="finput" id="cl-sh" type="number" step="100"></div>
+            <input class="finput" style="flex:1;min-width:60px" id="cl-sh" type="number" step="100" oninput="clWidthAutoSync();syncCloudVel()"><select class="funit-sel" id="cl-sh-unit" style="width:52px" onchange="onSimpleKmChange('cl-sh')"><option value="m">m</option><option value="km" selected>km</option></select></div>
           <div class="frow"><span class="flabel">Width</span>
-            <input class="finput" id="cl-w" type="number" step="1000"></div>
+            <input class="finput" style="flex:1;min-width:60px" id="cl-w" type="number" step="1000" oninput="clWidthAutoSync()"><select class="funit-sel" id="cl-w-unit" style="width:52px" onchange="onSimpleKmChange('cl-w')"><option value="m">m</option><option value="km" selected>km</option></select></div>
+          <!-- Auto-generate width from circumference -->
+          <div style="background:var(--bg2);border-radius:5px;padding:6px 8px;margin-bottom:4px;border:1px solid var(--ink5)">
+            <div style="font-size:.58rem;color:var(--ink4);font-family:'JetBrains Mono',monospace;margin-bottom:5px;letter-spacing:.05em">
+              AUTO WIDTH &nbsp;<span style="color:var(--ink5);font-weight:400">2π·(StartHeight+Radius) / N</span>
+            </div>
+            <div style="display:flex;gap:5px;align-items:center">
+              <span style="font-size:.6rem;color:var(--ink4);font-family:'JetBrains Mono',monospace;white-space:nowrap">N =</span>
+              <input id="cl-w-n" class="finput" type="number" value="100" min="1" step="1"
+                style="width:70px" oninput="clWidthAutoSync()" title="Number of cloud repetitions">
+            </div>
+            <div id="cl-w-preview" style="font-size:.6rem;color:var(--sky2);font-family:'JetBrains Mono',monospace;margin-top:4px;opacity:.85"></div>
+          </div>
           <div class="frow"><span class="flabel">Height</span>
-            <input class="finput" id="cl-h" type="number" step="1000"></div>
+            <input class="finput" style="flex:1;min-width:60px" id="cl-h" type="number" step="1000"><select class="funit-sel" id="cl-h-unit" style="width:52px" onchange="onSimpleKmChange('cl-h')"><option value="m">m</option><option value="km" selected>km</option></select></div>
           <div class="frow-s">
             <div class="frow-s-top"><span class="flabel">Cloud Alpha</span><span class="fval" id="cl-a-val">—</span><input class="finput" id="cl-a" type="number" step="0.01" min="0" max="1" style="flex:0 0 72px;width:72px" oninput="syncSlider('cl-a',0,1)"></div>
             <input class="fslider" id="cl-a-sl" type="range" min="0" max="1" step="0.01" oninput="syncFromSlider('cl-a',0,1,2)">
@@ -348,9 +385,9 @@
             <input class="fslider" id="fc-cut-sl" type="range" min="-1" max="1" step="0.01" oninput="syncFromSlider('fc-cut',-1,1,2)">
           </div>
           <div class="frow"><span class="flabel">Fade Zone Ht.</span>
-            <input class="finput" id="fc-fzh" type="number" step="1000"></div>
+            <input class="finput" style="flex:1;min-width:60px" id="fc-fzh" type="number" step="1000"><select class="funit-sel" id="fc-fzh-unit" style="width:52px" onchange="onSimpleKmChange('fc-fzh')"><option value="m">m</option><option value="km" selected>km</option></select></div>
           <div class="frow"><span class="flabel">Height</span>
-            <input class="finput" id="fc-h" type="number" step="1000"></div>
+            <input class="finput" style="flex:1;min-width:60px" id="fc-h" type="number" step="1000"><select class="funit-sel" id="fc-h-unit" style="width:52px" onchange="onSimpleKmChange('fc-h')"><option value="m">m</option><option value="km" selected>km</option></select></div>
           <div class="frow"><span class="flabel">Position Z</span>
             <input class="finput" id="fc-pz" type="number" step="500"></div>
           <div class="ftoggle-row"><span class="flabel">Sharpen Alpha</span>
@@ -379,14 +416,14 @@
         <div class="frow"><span class="flabel">Planet Texture</span>
           <div class="tpick-wrap" id="tpw-tt-pt"><input class="tpick-input" id="tt-pt" placeholder="Search texture…" autocomplete="off"><button class="tpick-clear" id="tpc-tt-pt">✕</button><div class="tpick-dropdown" id="tpd-tt-pt"></div></div></div>
         <div class="frow-s">
-          <div class="frow-s-top"><span class="flabel">Tex Cutout</span><span class="fval" id="tt-cut-val">—</span><input class="finput" id="tt-cut" type="number" step="0.001" min="0" max="1" style="flex:0 0 72px;width:72px" oninput="syncSlider('tt-cut',0,1)"></div>
-          <input class="fslider" id="tt-cut-sl" type="range" min="0" max="1" step="0.001" oninput="syncFromSlider('tt-cut',0,1,3)">
+          <div class="frow-s-top"><span class="flabel">Tex Cutout</span><span class="fval" id="tt-cut-val">—</span><input class="finput" id="tt-cut" type="number" step="0.001" min="-1" max="1" style="flex:0 0 72px;width:72px" oninput="syncSlider('tt-cut',-1,1)"></div>
+          <input class="fslider" id="tt-cut-sl" type="range" min="-1" max="1" step="0.001" oninput="syncFromSlider('tt-cut',-1,1,3)">
         </div>
         <div class="frow-s">
           <div class="frow-s-top"><span class="flabel">Tex Rotation</span><span style="font-size:.6rem;color:var(--ink4);margin-left:2px">°</span><span class="fval" id="tt-rot-val">—</span><input class="finput" id="tt-rot" type="number" step="0.1" min="-360" max="360" style="flex:0 0 72px;width:72px" oninput="syncSlider('tt-rot',-360,360)"></div>
           <input class="fslider" id="tt-rot-sl" type="range" min="-360" max="360" step="0.1" oninput="syncFromSlider('tt-rot',-360,360,1)">
         </div>
-        <div class="ftoggle-row"><span class="flabel">Don't Distort</span>
+        <div class="ftoggle-row"><span class="flabel">Lock Texture to Surface <span style="color:var(--ink4);font-size:.52rem">(DontDistort)</span></span>
           <div class="tog" id="tt-nd" onclick="this.classList.toggle('on')"></div></div>
         <div class="frow"><span class="flabel">Surface Tex A</span>
           <div class="tpick-wrap" id="tpw-tt-sa"><input class="tpick-input" id="tt-sa" placeholder="Search texture…" autocomplete="off"><button class="tpick-clear" id="tpc-tt-sa">✕</button><div class="tpick-dropdown" id="tpd-tt-sa"></div></div></div>
@@ -394,17 +431,26 @@
           <input class="finput" id="tt-sax" type="number" step="1" placeholder="x" style="flex:0 0 55px">
           <input class="finput" id="tt-say" type="number" step="1" placeholder="y" style="flex:0 0 55px">
         </div>
+        <div class="frow" title="Min screen radius (px) at which Tex A begins fading in. Leave blank for default (80px). Larger = appears only when closer."><span class="flabel">Tex A LOD dist</span>
+          <input class="finput" id="tt-lod-a" type="number" step="1" min="0" placeholder="px (def 80)">
+        </div>
         <div class="frow"><span class="flabel">Surface Tex B</span>
           <div class="tpick-wrap" id="tpw-tt-sb"><input class="tpick-input" id="tt-sb" placeholder="Search texture…" autocomplete="off"><button class="tpick-clear" id="tpc-tt-sb">✕</button><div class="tpick-dropdown" id="tpd-tt-sb"></div></div></div>
         <div class="frow"><span class="flabel">Surf Size B (x,y)</span>
           <input class="finput" id="tt-sbx" type="number" step="1" placeholder="x" style="flex:0 0 55px">
           <input class="finput" id="tt-sby" type="number" step="1" placeholder="y" style="flex:0 0 55px">
         </div>
+        <div class="frow" title="Min screen radius (px) at which Tex B begins fading in. Leave blank for default (80px)."><span class="flabel">Tex B LOD dist</span>
+          <input class="finput" id="tt-lod-b" type="number" step="1" min="0" placeholder="px (def 80)">
+        </div>
         <div class="frow"><span class="flabel">Terrain Tex C</span>
           <div class="tpick-wrap" id="tpw-tt-tc"><input class="tpick-input" id="tt-tc" placeholder="Search texture…" autocomplete="off"><button class="tpick-clear" id="tpc-tt-tc">✕</button><div class="tpick-dropdown" id="tpd-tt-tc"></div></div></div>
         <div class="frow"><span class="flabel">Terrain Size C</span>
           <input class="finput" id="tt-tcx" type="number" step="1" placeholder="x" style="flex:0 0 55px">
           <input class="finput" id="tt-tcy" type="number" step="1" placeholder="y" style="flex:0 0 55px">
+        </div>
+        <div class="frow" title="Min screen radius (px) at which Tex C begins fading in. Leave blank for default (80px)."><span class="flabel">Tex C LOD dist</span>
+          <input class="finput" id="tt-lod-c" type="number" step="1" min="0" placeholder="px (def 80)">
         </div>
         <div class="frow"><span class="flabel">Surface Layer Size</span>
           <input class="finput" id="tt-sls" type="number" step="1"></div>
@@ -430,48 +476,122 @@
         ⛔ This body has no Terrain Data.<br>Enable <strong style="color:var(--sky2)">Has Terrain Data</strong> in the TERRAIN tab first.
       </div>
       <div id="heightmap-fields">
-      <div class="fsec">
-        <div class="fsec-title">TERRAIN FORMULA <span class="badge">Normal</span></div>
-        <div class="frow-full">
-          <span class="flabel" style="font-size:.65rem;color:var(--ink4)">One formula per line:</span>
-          <textarea id="tf-normal" placeholder="OUTPUT = AddHeightMap(Perlin, 100000, 35)"></textarea>
+
+        <!-- ── HEIGHTMAPS ── -->
+        <div class="fsec">
+          <div class="fsec-title" style="display:flex;align-items:center;justify-content:space-between">
+            <span>MY HEIGHTMAPS</span>
+            <div style="display:flex;gap:4px;align-items:center">
+              <button onclick="hmToggleLibrary()" id="hm-collapse-btn" style="font-size:.6rem;padding:2px 8px;border-radius:4px;background:var(--bg3);color:var(--ink3);border:1px solid var(--ink5);cursor:pointer;font-family:'JetBrains Mono',monospace">▾ HIDE</button>
+              <button onclick="hmUploadClick()" style="font-size:.6rem;padding:2px 8px;border-radius:4px;background:var(--sky2);color:#000;border:none;cursor:pointer;font-family:'JetBrains Mono',monospace;font-weight:700;letter-spacing:.04em">+ ADD FILE</button>
+            </div>
+          </div>
+          <input type="file" id="hm-file-input" multiple accept=".png,.txt" style="display:none" onchange="hmFileAdded(this.files)">
+          <!-- loaded heightmap grid rendered here by JS -->
+          <div id="hm-library-wrap">
+            <div id="hm-loaded-list" style="margin-top:4px"></div>
+            <div id="hm-empty-hint" style="font-size:.62rem;color:var(--ink4);padding:10px 8px;line-height:1.8;background:var(--bg2);border-radius:6px;text-align:center">
+              <div style="font-size:1.4rem;margin-bottom:4px">🗺️</div>
+              <strong style="color:var(--ink2);font-size:.65rem">No heightmaps loaded yet</strong><br>
+              Heightmaps shape your planet's terrain.<br>
+              Click <strong style="color:var(--sky2)">+ ADD FILE</strong> to upload a<br>
+              <code style="color:var(--sky2)">.png</code> image or <code style="color:var(--sky2)">.txt</code> formula file.
+            </div>
+          </div>
         </div>
-        <div class="fsec-title"><span class="badge">Hard</span></div>
-        <div class="frow-full"><textarea id="tf-hard" placeholder="Same as Normal if empty"></textarea></div>
-        <div class="fsec-title"><span class="badge">Realistic</span></div>
-        <div class="frow-full"><textarea id="tf-realistic" placeholder="Same as Normal if empty"></textarea></div>
-      </div>
-      <div class="fsec">
-        <div class="fsec-title">TERRAIN SETTINGS</div>
-        <div class="frow"><span class="flabel">Vertice Size</span>
-          <input class="finput" id="ter-vs" type="number" step="0.5"></div>
-        <div class="ftoggle-row"><span class="flabel">Collider</span>
-          <div class="tog on" id="ter-col" onclick="this.classList.toggle('on')"></div></div>
-      </div>
-      <div class="fsec">
-        <div class="fsec-title">ROCKS</div>
-        <div class="frow"><span class="flabel">Rock Type</span>
-          <select class="fselect" id="rk-type">
-            <option>None</option><option selected>Rock Square</option><option>Rock Round</option>
-          </select></div>
-        <div class="frow"><span class="flabel">Density</span>
-          <input class="finput" id="rk-den" type="number" step="0.05" min="0" max="1"></div>
-        <div class="frow-s">
-          <div class="frow-s-top"><span class="flabel">Min Size</span><span class="fval" id="rk-min-val">—</span><input class="finput" id="rk-min" type="number" step="0.01" min="0" max="1" style="flex:0 0 72px;width:72px" oninput="syncSlider('rk-min',0,1)"></div>
-          <input class="fslider" id="rk-min-sl" type="range" min="0" max="1" step="0.01" oninput="syncFromSlider('rk-min',0,1,2)">
+
+        <!-- ── FORMULA BUILDER ── -->
+        <div class="fsec">
+          <div class="fsec-title" style="display:flex;align-items:center;justify-content:space-between">
+            <span>TERRAIN FORMULA <span class="badge" id="hm-diff-badge">Normal</span></span>
+            <div style="display:flex;gap:4px">
+              <button onclick="hmSetDiff('Normal')"   id="hm-btn-n" style="font-size:.55rem;padding:2px 6px;border-radius:3px;border:1px solid var(--sky2);background:var(--sky2);color:#000;cursor:pointer;font-family:'JetBrains Mono',monospace">NRM</button>
+              <button onclick="hmSetDiff('Hard')"     id="hm-btn-h" style="font-size:.55rem;padding:2px 6px;border-radius:3px;border:1px solid var(--ink3);background:transparent;color:var(--ink3);cursor:pointer;font-family:'JetBrains Mono',monospace">HRD</button>
+              <button onclick="hmSetDiff('Realistic')" id="hm-btn-r" style="font-size:.55rem;padding:2px 6px;border-radius:3px;border:1px solid var(--ink3);background:transparent;color:var(--ink3);cursor:pointer;font-family:'JetBrains Mono',monospace">RLS</button>
+            </div>
+          </div>
+
+          <!-- quick-insert row — hidden, kept for JS compat -->
+          <div id="hm-insert-row" style="display:none;flex-wrap:wrap;gap:4px;margin-bottom:6px"></div>
+
+          <!-- visual formula lines list -->
+          <div id="hm-formula-list" style="margin-bottom:6px"></div>
+
+          <!-- add-line controls -->
+          <div style="background:var(--bg2);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px">
+            <div style="font-size:.6rem;color:var(--ink4);font-family:'JetBrains Mono',monospace;margin-bottom:2px">ADD LAYER</div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap">
+              <select id="hm-op" class="fselect" style="flex:1;min-width:120px">
+                <option value="OUTPUT = SetHeightMap">SetHeightMap — replace</option>
+                <option value="OUTPUT = AddHeightMap">AddHeightMap — add on top</option>
+                <option value="OUTPUT = MultiplyHeightMap">MultiplyHeightMap — scale</option>
+                <option value="OUTPUT = ClampHeightMap">ClampHeightMap — limit</option>
+              </select>
+              <select id="hm-map" class="fselect" style="flex:1;min-width:100px">
+                <option value="Perlin">Perlin (built-in)</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:4px;align-items:center">
+              <span style="font-size:.6rem;color:var(--ink4);font-family:'JetBrains Mono',monospace;white-space:nowrap">Scale</span>
+              <input id="hm-scale" class="finput" type="number" value="100000" step="10000" style="width:90px">
+              <span style="font-size:.6rem;color:var(--ink4);font-family:'JetBrains Mono',monospace;white-space:nowrap">Height (m)</span>
+              <input id="hm-height" class="finput" type="number" value="35" step="5" style="width:70px">
+            </div>
+            <button onclick="hmAddLine()" style="font-size:.62rem;padding:4px 0;border-radius:4px;background:var(--sky2);color:#000;border:none;cursor:pointer;font-family:'JetBrains Mono',monospace;font-weight:700;width:100%">＋ ADD LAYER TO FORMULA</button>
+          </div>
+
+          <!-- raw formula — always live editable -->
+          <details open style="margin-top:8px;background:var(--bg2);border:1px solid var(--sky2);border-radius:6px;overflow:hidden">
+            <summary style="font-size:.65rem;font-weight:700;color:var(--sky2);font-family:'JetBrains Mono',monospace;cursor:pointer;user-select:none;padding:7px 10px;letter-spacing:.06em;list-style:none;display:flex;align-items:center;gap:6px">
+              <span id="hm-adv-arrow" style="font-size:.7rem">▾</span>
+              RAW DATA
+              <span style="font-size:.55rem;font-weight:400;background:var(--sky2);color:#000;border-radius:3px;padding:1px 5px;letter-spacing:.04em">LIVE</span>
+            </summary>
+            <div style="padding:8px 10px 10px;border-top:1px solid var(--sky2)">
+              <div style="font-size:.55rem;color:var(--ink4);font-family:'JetBrains Mono',monospace;margin-bottom:5px;line-height:1.5">Edit directly — changes apply instantly as you type.</div>
+              <textarea id="tf-normal"    placeholder="OUTPUT = AddHeightMap(Perlin, 100000, 35)" style="display:none"></textarea>
+              <textarea id="tf-hard"      placeholder="Same as Normal if empty"                   style="display:none"></textarea>
+              <textarea id="tf-realistic" placeholder="Same as Normal if empty"                   style="display:none"></textarea>
+              <textarea id="hm-raw-view" style="font-size:.6rem;height:90px;resize:vertical;background:var(--bg1);color:var(--sky2);border:1px solid var(--sky2);border-radius:4px;padding:6px;font-family:'JetBrains Mono',monospace;width:100%;box-sizing:border-box;outline:none;caret-color:var(--ink1)" placeholder="(formula appears here — type to edit live)"></textarea>
+            </div>
+          </details>
         </div>
-        <div class="frow-s">
-          <div class="frow-s-top"><span class="flabel">Max Size</span><span class="fval" id="rk-max-val">—</span><input class="finput" id="rk-max" type="number" step="0.01" min="0" max="1" style="flex:0 0 72px;width:72px" oninput="syncSlider('rk-max',0,1)"></div>
-          <input class="fslider" id="rk-max-sl" type="range" min="0" max="1" step="0.01" oninput="syncFromSlider('rk-max',0,1,2)">
+
+        <!-- ── TERRAIN SETTINGS ── -->
+        <div class="fsec">
+          <div class="fsec-title">TERRAIN SETTINGS</div>
+          <div class="frow"><span class="flabel">Vertice Size</span>
+            <input class="finput" id="ter-vs" type="number" step="0.5"></div>
+          <div class="ftoggle-row"><span class="flabel">Collider</span>
+            <div class="tog on" id="ter-col" onclick="this.classList.toggle('on')"></div></div>
         </div>
-        <div class="frow"><span class="flabel">Power Curve</span>
-          <input class="finput" id="rk-pc" type="number" step="0.1"></div>
-        <div class="frow-s">
-          <div class="frow-s-top"><span class="flabel">Max Angle</span><span style="font-size:.6rem;color:var(--ink4);margin-left:2px">°</span><span class="fval" id="rk-ma-val">—</span><input class="finput" id="rk-ma" type="number" step="1" min="0" max="90" style="flex:0 0 72px;width:72px" oninput="syncSlider('rk-ma',0,90)"></div>
-          <input class="fslider" id="rk-ma-sl" type="range" min="0" max="90" step="1" oninput="syncFromSlider('rk-ma',0,90,0)">
+
+        <!-- ── ROCKS ── -->
+        <div class="fsec">
+          <div class="fsec-title">ROCKS</div>
+          <div class="frow"><span class="flabel">Rock Type</span>
+            <select class="fselect" id="rk-type">
+              <option>None</option><option selected>Rock Square</option><option>Rock Round</option>
+            </select></div>
+          <div class="frow"><span class="flabel">Density</span>
+            <input class="finput" id="rk-den" type="number" step="0.05" min="0" max="1"></div>
+          <div class="frow-s">
+            <div class="frow-s-top"><span class="flabel">Min Size</span><span class="fval" id="rk-min-val">—</span><input class="finput" id="rk-min" type="number" step="0.1" min="0" max="10" style="flex:0 0 72px;width:72px" oninput="syncSlider('rk-min',0,10)"></div>
+            <input class="fslider" id="rk-min-sl" type="range" min="0" max="10" step="0.1" oninput="syncFromSlider('rk-min',0,10,2)">
+          </div>
+          <div class="frow-s">
+            <div class="frow-s-top"><span class="flabel">Max Size</span><span class="fval" id="rk-max-val">—</span><input class="finput" id="rk-max" type="number" step="0.1" min="0" max="10" style="flex:0 0 72px;width:72px" oninput="syncSlider('rk-max',0,10)"></div>
+            <input class="fslider" id="rk-max-sl" type="range" min="0" max="10" step="0.1" oninput="syncFromSlider('rk-max',0,10,2)">
+          </div>
+          <div class="frow"><span class="flabel">Power Curve</span>
+            <input class="finput" id="rk-pc" type="number" step="0.1"></div>
+          <div class="frow-s">
+            <div class="frow-s-top"><span class="flabel">Max Angle</span><span style="font-size:.6rem;color:var(--ink4);margin-left:2px">°</span><span class="fval" id="rk-ma-val">—</span><input class="finput" id="rk-ma" type="number" step="1" min="0" max="90" style="flex:0 0 72px;width:72px" oninput="syncSlider('rk-ma',0,90)"></div>
+            <input class="fslider" id="rk-ma-sl" type="range" min="0" max="90" step="1" oninput="syncFromSlider('rk-ma',0,90,0)">
+          </div>
         </div>
-      </div>
-    </div><!-- end heightmap-fields -->
+
+      </div><!-- end heightmap-fields -->
     </div>
 
     <!-- ── RINGS ── -->
@@ -484,9 +604,17 @@
           <div class="frow"><span class="flabel">Rings Texture</span>
             <div class="tpick-wrap" id="tpw-rng-tex"><input class="tpick-input" id="rng-tex" placeholder="Search texture…" autocomplete="off"><button class="tpick-clear" id="tpc-rng-tex">✕</button><div class="tpick-dropdown" id="tpd-rng-tex"></div></div></div>
           <div class="frow"><span class="flabel">Start Radius</span>
-            <input class="finput" id="rng-sr" type="number" step="50000"></div>
+            <input class="finput" id="rng-sr" type="number" step="50000" oninput="onDistInput('rng-sr','rng-sr-unit','rng-sr-hint','radius')">
+            <select class="funit-sel" id="rng-sr-unit" onchange="onUnitChange('rng-sr','rng-sr-unit','rng-sr-hint','radius')">
+              <option value="m">m</option><option value="km" selected>km</option><option value="Mm">Mm</option><option value="Gm">Gm</option><option value="ly">ly</option><option value="R_earth">R Earth</option><option value="R_sun">R Sun</option><option value="R_jupiter">R Jupiter</option>
+            </select></div>
+          <div id="rng-sr-hint" class="funit-hint"></div>
           <div class="frow"><span class="flabel">End Radius</span>
-            <input class="finput" id="rng-er" type="number" step="50000"></div>
+            <input class="finput" id="rng-er" type="number" step="50000" oninput="onDistInput('rng-er','rng-er-unit','rng-er-hint','radius')">
+            <select class="funit-sel" id="rng-er-unit" onchange="onUnitChange('rng-er','rng-er-unit','rng-er-hint','radius')">
+              <option value="m">m</option><option value="km" selected>km</option><option value="Mm">Mm</option><option value="Gm">Gm</option><option value="ly">ly</option><option value="R_earth">R Earth</option><option value="R_sun">R Sun</option><option value="R_jupiter">R Jupiter</option>
+            </select></div>
+          <div id="rng-er-hint" class="funit-hint"></div>
           <div class="frow"><span class="flabel">Position Z</span>
             <input class="finput" id="rng-pz" type="number" step="500"></div>
           <div class="fsec-title" style="font-size:.55rem;margin-top:8px">Map Color</div>
@@ -515,7 +643,7 @@
           <div class="ftoggle-row"><span class="flabel">Lower Terrain</span>
             <div class="tog on" id="wt-lt" onclick="this.classList.toggle('on')"></div></div>
           <div class="frow"><span class="flabel">Ocean Depth</span>
-            <input class="finput" id="wt-dep" type="number" step="100"></div>
+            <input class="finput" style="flex:1;min-width:60px" id="wt-dep" type="number" step="100"><select class="funit-sel" id="wt-dep-unit" style="width:52px" onchange="onSimpleKmChange('wt-dep')"><option value="m">m</option><option value="km" selected>km</option></select></div>
           <div class="frow-s">
             <div class="frow-s-top"><span class="flabel">Surface Opacity</span><span class="fval" id="wt-so-val">—</span><input class="finput" id="wt-so" type="number" step="0.01" min="0" max="1" style="flex:0 0 72px;width:72px" oninput="syncSlider('wt-so',0,1)"></div>
             <input class="fslider" id="wt-so-sl" type="range" min="0" max="1" step="0.01" oninput="syncFromSlider('wt-so',0,1,2)">
@@ -593,11 +721,11 @@
 
           <div class="fsec-title" style="font-size:.55rem;margin-top:8px">Visibility Distances</div>
           <div class="frow"><span class="flabel">Surface Vis. Dist.</span>
-            <input class="finput" id="wt-svd" type="number" step="10"></div>
+            <input class="finput" style="flex:1;min-width:60px" id="wt-svd" type="number" step="10"><select class="funit-sel" id="wt-svd-unit" style="width:52px" onchange="onSimpleKmChange('wt-svd')"><option value="m">m</option><option value="km" selected>km</option></select></div>
           <div class="frow"><span class="flabel">Full Dark. Depth</span>
-            <input class="finput" id="wt-fdd" type="number" step="10"></div>
+            <input class="finput" style="flex:1;min-width:60px" id="wt-fdd" type="number" step="10"><select class="funit-sel" id="wt-fdd-unit" style="width:52px" onchange="onSimpleKmChange('wt-fdd')"><option value="m">m</option><option value="km" selected>km</option></select></div>
           <div class="frow"><span class="flabel">Full Dark. Vis. Dist.</span>
-            <input class="finput" id="wt-fdvd" type="number" step="10"></div>
+            <input class="finput" style="flex:1;min-width:60px" id="wt-fdvd" type="number" step="10"><select class="funit-sel" id="wt-fdvd-unit" style="width:52px" onchange="onSimpleKmChange('wt-fdvd')"><option value="m">m</option><option value="km" selected>km</option></select></div>
 
           <div class="fsec-title" style="font-size:.55rem;margin-top:8px">Mask Gradient — Water</div>
           <div class="frow"><span class="flabel">Must</span>
@@ -651,13 +779,19 @@
           <div class="frow"><span class="flabel">Parent Body</span>
             <input class="finput" id="or-par" type="text" placeholder="Sun"></div>
           <div class="frow"><span class="flabel">Semi-major Axis</span>
-            <input class="finput" id="or-sma" type="number" step="100000"></div>
+            <input class="finput" id="or-sma" type="number" step="100000" oninput="onDistInput('or-sma','or-sma-unit','or-sma-hint','sma')">
+            <select class="funit-sel" id="or-sma-unit" onchange="onUnitChange('or-sma','or-sma-unit','or-sma-hint','sma')">
+              <option value="m">m</option><option value="km">km</option><option value="Mm">Mm</option>
+              <option value="Gm">Gm</option><option value="AU" selected>AU</option><option value="ly">ly</option>
+            </select></div>
+          <div id="or-sma-hint" class="funit-hint"></div>
           <div class="fsec-title" style="font-size:.55rem;margin-top:6px">SMA Difficulty Scale</div>
           <div class="diff-grid">
             <div><div class="diff-label">Normal</div><input class="finput" id="or-sn" type="number" step="0.01"></div>
             <div><div class="diff-label">Hard</div><input class="finput" id="or-sh" type="number" step="0.01"></div>
             <div><div class="diff-label">Realistic</div><input class="finput" id="or-sr" type="number" step="0.01"></div>
           </div>
+        <button type="button" class="default-scale-btn" onclick="setDefaultScale('or-sn','or-sh','or-sr')" style="margin-top:4px;width:100%;font-size:.55rem;padding:3px 0;background:var(--ac08);border:1px solid var(--ac18);color:var(--ink3);border-radius:3px;cursor:pointer;font-family:'JetBrains Mono',monospace;letter-spacing:.06em">Default Scale  1 · 2 · 20</button>
           <div class="frow-s">
             <div class="frow-s-top"><span class="flabel">Eccentricity</span><span class="fval" id="or-ecc-val">—</span><input class="finput" id="or-ecc" type="number" step="0.001" min="0" max="0.999" style="flex:0 0 72px;width:72px" oninput="syncSlider('or-ecc',0,0.999)"></div>
             <input class="fslider" id="or-ecc-sl" type="range" min="0" max="0.999" step="0.001" oninput="syncFromSlider('or-ecc',0,0.999,3)">
@@ -681,6 +815,7 @@
             <div><div class="diff-label">Hard</div><input class="finput" id="or-soih" type="number" step="0.01"></div>
             <div><div class="diff-label">Realistic</div><input class="finput" id="or-soir" type="number" step="0.01"></div>
           </div>
+        <button type="button" class="default-scale-btn" onclick="setDefaultScale('or-soin','or-soih','or-soir')" style="margin-top:4px;width:100%;font-size:.55rem;padding:3px 0;background:var(--ac08);border:1px solid var(--ac18);color:var(--ink3);border-radius:3px;cursor:pointer;font-family:'JetBrains Mono',monospace;letter-spacing:.06em">Default Scale  1 · 2 · 20</button>
         </div>
       </div>
     </div>
@@ -733,7 +868,6 @@
         <div class="fsec-title" style="display:flex;align-items:center;justify-content:space-between">
           RAW JSON
           <div style="display:flex;gap:6px">
-            <button class="add-btn" style="margin:0;padding:5px 10px;font-size:.58rem;width:auto" onclick="applyJsonEdit()">▶ APPLY</button>
             <button class="add-btn" style="margin:0;padding:5px 10px;font-size:.58rem;width:auto;border-color:rgba(255,64,96,.3);color:var(--rose)" onclick="refreshJsonView()">↺ REFRESH</button>
           </div>
         </div>
@@ -749,10 +883,10 @@
             line-height:1.55; padding:10px; outline:none;
             border-radius:2px; tab-size:2;
           "
-          oninput="validateJsonEdit(this.value)"
+          oninput="validateJsonEdit(this.value);_jsonAutoApply(this.value)"
         ></textarea>
         <div style="font-size:.62rem;color:var(--ink4);margin-top:6px;font-family:'JetBrains Mono',monospace;line-height:1.5">
-          Edit raw JSON directly. Click <strong style="color:var(--sky2)">▶ APPLY</strong> to parse and sync all tabs.<br>
+          Edit raw JSON directly — changes apply automatically when valid.<br>
           Changes in other tabs are reflected here on refresh.
         </div>
       </div>
@@ -796,7 +930,13 @@
         <small>Terrain heightmap data files used in terrain formula expressions</small>
       </div>
       <input type="file" id="fi-heightmaps" multiple accept=".txt,.png,.jpg,.jpeg" style="display:none" onchange="handleFiles(this.files,'heightmaps')">
-      <div class="asset-list" id="alist-heightmaps"></div>
+      <div style="margin:8px 0 4px;position:relative">
+        <input type="text" id="asset-hm-search" placeholder="Filter heightmaps…"
+          style="width:100%;background:var(--dp3);border:1px solid var(--ac20);color:var(--ink2);font-family:'JetBrains Mono',monospace;font-size:.68rem;padding:6px 10px;outline:none;box-sizing:border-box"
+          oninput="filterAssetHmList()">
+      </div>
+      <div class="asset-list" id="alist-heightmaps" style="max-height:320px;overflow-y:auto"></div>
+      <p id="asset-hm-empty" style="display:none;font-size:.65rem;color:var(--ink4);font-family:'JetBrains Mono',monospace;text-align:center;padding:16px">No heightmaps loaded yet</p>
     </div>
 
     <!-- OTHER -->
@@ -881,12 +1021,11 @@
         <div style="margin-bottom:14px">
           <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">ASSETS · ZIP PRESETS</div>
           <div>Astray Galaxy</div>
-          <div>Neverger <span style="color:var(--ink4);font-size:.58rem">(creator of TTs)</span></div>
-          <div>Celestia community</div>
+          <div>Neverger</div>
         </div>
 
         <div style="margin-bottom:14px">
-          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">BETA TESTERS · FEATURE SUGGESTIONS</div>
+          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">INITIAL BETA TESTERS · FEATURE SUGGESTIONS</div>
           <div>Krameter.Jr</div>
           <div>Astray Galaxy</div>
           <div>Cyn</div>
@@ -894,17 +1033,7 @@
           <div>Reoreyboi</div>
           <div>Cresign</div>
           <div>Akselajin</div>
-          <div>Razan T3</div>
-        </div>
-
-        <div style="margin-bottom:14px">
-          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">PROMOTER</div>
-          <div>JJC <span style="color:var(--ink4);font-size:.58rem">on Youtube</span></div>
-        </div>
-
-        <div style="margin-bottom:14px">
-          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">HEIGHTMAPS · CODE INFORMATION</div>
-          <div>Floating Fuel</div>
+          <div>and everyone on SFS forums!</div>
         </div>
 
         <div style="margin-bottom:18px">
@@ -1024,21 +1153,11 @@
         <div style="margin-bottom:14px">
           <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">ASSETS · ZIP PRESETS</div>
           <div>Astray Galaxy</div>
-          <div>Neverger <span style="color:var(--ink4);font-size:.58rem">(creator of TTs)</span></div>
-          <div>Celestia community</div>
+          <div>Neverger</div>
         </div>
         <div style="margin-bottom:14px">
-          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">BETA TESTERS · FEATURE SUGGESTIONS</div>
-          <div>Krameter.Jr</div><div>Astray Galaxy</div><div>Cyn</div><div>Mistiy</div><div>Reoreyboi</div><div>Cresign</div><div>Akselajin</div><div>Razan T3</div>
-        </div>
-        <div style="margin-bottom:14px">
-          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">PROMOTER</div>
-          <div>JJC <span style="color:var(--ink4);font-size:.58rem">on Youtube</span></div>
-        </div>
-        <div style="margin-bottom:14px">
-          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">HEIGHTMAPS · CODE INFORMATION</div>
-          <div>Floating Fuel</div>
-          <div>SFS Forums, Discord community</div>
+          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">INITIAL BETA TESTERS · FEATURE SUGGESTIONS</div>
+          <div>Krameter.Jr</div><div>Astray Galaxy</div><div>Cyn</div><div>Mistiy</div><div>Reoreyboi</div><div>Cresign</div><div>Akselajin</div><div>and everyone on SFS forums!</div>
         </div>
         <div style="margin-bottom:18px">
           <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">BROUGHT TOGETHER BY</div>
@@ -1131,20 +1250,47 @@
   </div>
 </div>
 
-<script src="js/background.js"></script>
-<script src="js/ui-hue.js"></script>
-<script src="js/nav-state.js"></script>
-<script src="js/presets.js"></script>
-<script src="js/state.js"></script>
-<script src="js/settings.js"></script>
-<script src="js/preset-modal.js"></script>
-<script src="js/viewport.js"></script>
-<script src="js/tools.js"></script>
-<script src="js/sidebar.js"></script>
-<script src="js/export.js"></script>
-<script src="js/assets.js"></script>
-<script src="js/io.js"></script>
-<script src="js/body-search.js"></script>
+<script src="js/background.js?v=5.8"></script>
+<script src="js/ui-hue.js?v=5.8"></script>
+<script src="js/nav-state.js?v=5.8"></script>
+<script src="js/presets.js?v=5.8"></script>
+<script src="js/state.js?v=5.8"></script>
+<script src="js/settings.js?v=5.8"></script>
+<script src="js/preset-modal.js?v=5.8"></script>
+<script src="js/viewport.js?v=5.8"></script>
+<script src="js/tools.js?v=5.8"></script>
+<script src="js/units.js?v=5.8"></script>
+<script src="js/sidebar.js?v=5.8"></script>
+<script src="js/export.js?v=5.8"></script>
+<script src="js/assets.js?v=5.8"></script>
+<script src="js/io.js?v=5.8"></script>
+<script src="js/body-search.js?v=5.8"></script>
+<script src="js/namegen.js?v=5.8"></script>
+<!-- ══ TERRAIN DETAIL DROPDOWN (body-level to escape topbar stacking context) ══ -->
+<div id="terrain-detail-dropdown" style="display:none;position:fixed;
+  min-width:200px;background:rgba(6,10,22,.97);border:1px solid rgba(180,140,255,.25);
+  border-radius:4px;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:99999;overflow:hidden">
+  <div style="padding:5px 10px 4px;font-family:'Orbitron',sans-serif;font-size:.5rem;
+    color:rgba(180,140,255,.5);letter-spacing:.12em;border-bottom:1px solid rgba(180,140,255,.1)">TERRAIN DETAIL</div>
+  <div style="padding:10px 14px 12px;display:flex;flex-direction:column;gap:6px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:rgba(180,140,255,.85);letter-spacing:.05em">VERTEX DENSITY</span>
+      <span id="terrain-detail-val" style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:rgba(150,200,255,.9);min-width:36px;text-align:right">30%</span>
+    </div>
+    <input type="range" id="terrain-detail-slider" min="0" max="100" step="5" value="30"
+      style="width:100%;accent-color:rgba(180,140,255,.85);cursor:pointer"
+      oninput="setTerrainDetail(parseInt(this.value))">
+    <div style="display:flex;justify-content:space-between">
+      <span style="font-size:.5rem;color:rgba(150,150,180,.5);letter-spacing:.04em">Low (fast)</span>
+      <span style="font-size:.5rem;color:rgba(150,150,180,.5);letter-spacing:.04em">Full (slow)</span>
+    </div>
+    <div id="terrain-detail-warn" style="display:none;padding:5px 8px;background:rgba(255,160,40,.1);border:1px solid rgba(255,160,40,.35);border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(255,180,60,.9);letter-spacing:.03em;line-height:1.5">
+      ⚠ High detail may lag<br><span style="color:rgba(255,180,60,.6)">Recommended: keep below 70%</span>
+    </div>
+    <span style="font-size:.5rem;color:rgba(150,150,180,.45);letter-spacing:.03em;line-height:1.4">Scales vertices per frame.<br>Lower = smoother performance.</span>
+  </div>
+</div>
+
 <!-- ══ ENV DROPDOWN (body-level to escape topbar stacking context) ══ -->
 <div id="env-dropdown" style="display:none;position:fixed;
   min-width:210px;background:rgba(6,10,22,.97);border:1px solid rgba(64,200,255,.22);
@@ -1213,7 +1359,131 @@
       background:rgba(255,180,80,.12);color:rgba(255,180,80,.4);border:1px solid rgba(255,180,80,.2);
       letter-spacing:.08em;flex-shrink:0">OFF</span>
   </button>
+  <div style="height:1px;background:rgba(255,180,80,.1);margin:0 10px"></div>
+  <button onclick="openPlanetComparison()" style="display:flex;align-items:center;gap:10px;
+    width:100%;padding:9px 14px;background:none;border:none;cursor:pointer;
+    font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
+    letter-spacing:.05em;transition:background .12s;text-align:left"
+    onmouseover="this.style.background='rgba(255,180,80,.1)'" onmouseout="this.style.background='none'">
+    <span style="font-size:1rem">⚖️</span>
+    <span>
+      <span style="display:block;color:rgba(255,180,80,.9)">SIZE COMPARISON</span>
+      <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Compare planet sizes visually</span>
+    </span>
+  </button>
 </div>
+
+<!-- ══════════════ PLANET SIZE COMPARISON MODAL ══════════════ -->
+<div id="psc-modal" style="display:none;position:fixed;inset:0;z-index:200000;
+  background:rgba(2,5,14,.88);backdrop-filter:blur(4px);
+  flex-direction:column;align-items:center;justify-content:flex-start;
+  overflow-y:auto;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,8px);
+  box-sizing:border-box">
+
+  <!-- Header bar -->
+  <div style="width:min(96vw,960px);display:flex;align-items:center;gap:8px;
+    padding:10px 12px;background:rgba(6,10,22,.97);border:1px solid rgba(255,180,80,.22);
+    border-bottom:none;border-radius:6px 6px 0 0;flex-shrink:0;margin-top:auto;flex-wrap:wrap;min-width:0">
+    <span style="font-family:'Orbitron',sans-serif;font-size:.65rem;color:rgba(255,180,80,.9);
+      letter-spacing:.14em;flex:1">⚖️ PLANET SIZE COMPARISON</span>
+
+    <!-- Mode toggle -->
+    <div style="display:flex;gap:4px">
+      <button id="psc-btn-all" onclick="_pscSetMode('all')"
+        style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:4px 10px;
+        border-radius:3px;cursor:pointer;letter-spacing:.06em;
+        border:1px solid rgba(255,180,80,.5);background:rgba(255,180,80,.18);color:#ffb850">
+        ALL BODIES
+      </button>
+      <button id="psc-btn-two" onclick="_pscSetMode('two')"
+        style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:4px 10px;
+        border-radius:3px;cursor:pointer;letter-spacing:.06em;
+        border:1px solid rgba(255,180,80,.2);background:none;color:rgba(255,180,80,.45)">
+        COMPARE TWO
+      </button>
+    </div>
+
+    <button onclick="closePlanetComparison()"
+      style="background:none;border:1px solid rgba(255,80,80,.3);border-radius:3px;
+      color:rgba(255,100,100,.7);font-size:.75rem;padding:3px 8px;cursor:pointer">✕</button>
+  </div>
+
+  <!-- Two-body selectors (hidden in 'all' mode) -->
+  <div id="psc-two-row" style="display:none;width:min(96vw,960px);gap:8px;
+    padding:8px 12px;background:rgba(6,10,22,.97);border-left:1px solid rgba(255,180,80,.22);
+    border-right:1px solid rgba(255,180,80,.22);align-items:center;flex-shrink:0;flex-wrap:wrap">
+    <span style="font-family:'JetBrains Mono',monospace;font-size:.58rem;color:rgba(255,180,80,.6);letter-spacing:.07em">BODY A</span>
+    <select id="psc-sel-a" onchange="_pscOnSelChange()"
+      style="flex:1;min-width:120px;font-family:'JetBrains Mono',monospace;font-size:.6rem;
+      background:rgba(10,18,38,.95);color:rgba(180,210,255,.9);border:1px solid rgba(80,140,255,.3);
+      border-radius:3px;padding:4px 8px;cursor:pointer"></select>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:.58rem;color:rgba(255,180,80,.6);letter-spacing:.07em">BODY B</span>
+    <select id="psc-sel-b" onchange="_pscOnSelChange()"
+      style="flex:1;min-width:120px;font-family:'JetBrains Mono',monospace;font-size:.6rem;
+      background:rgba(10,18,38,.95);color:rgba(180,210,255,.9);border:1px solid rgba(80,140,255,.3);
+      border-radius:3px;padding:4px 8px;cursor:pointer"></select>
+  </div>
+
+  <!-- Canvas area -->
+  <div style="width:min(96vw,960px);height:min(52vh,520px);
+    background:rgba(4,8,18,.98);border:1px solid rgba(255,180,80,.22);
+    border-top:none;border-radius:0 0 6px 6px;overflow:hidden;position:relative;cursor:grab;touch-action:none"
+    id="psc-canvas-wrap">
+    <canvas id="psc-canvas" style="display:block;width:100%;height:100%"></canvas>
+  </div>
+
+  <!-- Legend / hints -->
+  <div style="width:min(96vw,960px);padding:6px 12px;display:flex;gap:12px;flex-wrap:wrap;
+    font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(150,160,200,.5);letter-spacing:.05em;margin-bottom:auto">
+    <span>🌍 Terrain renders if radius &lt; 15 000 m</span>
+    <span>🌫 Atmosphere &amp; clouds shown</span>
+    <span>💨 Fog tint shown</span>
+    <span>💍 Rings not shown</span>
+    <span style="margin-left:auto">Pinch/scroll to zoom · Drag to scroll</span>
+  </div>
+</div>
+
+<script>
+// ── Bootstrap the comparison modal once DOM is ready ───────────────────────
+(function waitPSC(){
+  if(typeof _pscInitCanvasEvents === 'function'){
+    const cv = document.getElementById('psc-canvas');
+    const wrap = document.getElementById('psc-canvas-wrap');
+    cv.width  = wrap.offsetWidth  || 860;
+    cv.height = wrap.offsetHeight || 500;
+    _pscInitCanvasEvents();
+  } else {
+    setTimeout(waitPSC, 80);
+  }
+})();
+
+function _pscSetMode(m){
+  _PSC.mode = m;
+  document.getElementById('psc-two-row').style.display = m === 'two' ? 'flex' : 'none';
+  // Toggle button styles
+  const bAll = document.getElementById('psc-btn-all');
+  const bTwo = document.getElementById('psc-btn-two');
+  if(m === 'all'){
+    bAll.style.background='rgba(255,180,80,.18)'; bAll.style.color='#ffb850'; bAll.style.borderColor='rgba(255,180,80,.5)';
+    bTwo.style.background='none'; bTwo.style.color='rgba(255,180,80,.45)'; bTwo.style.borderColor='rgba(255,180,80,.2)';
+  } else {
+    bTwo.style.background='rgba(255,180,80,.18)'; bTwo.style.color='#ffb850'; bTwo.style.borderColor='rgba(255,180,80,.5)';
+    bAll.style.background='none'; bAll.style.color='rgba(255,180,80,.45)'; bAll.style.borderColor='rgba(255,180,80,.2)';
+  }
+  _PSC.zoom=1; _PSC.panX=0; _PSC.panY=0;
+  if(m === 'two') _pscPopulateSelects();
+  _pscScheduleDraw();
+}
+
+// Close on backdrop click
+document.getElementById('psc-modal').addEventListener('mousedown', function(e){
+  if(e.target === this) closePlanetComparison();
+});
+// Close on Escape
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape' && _PSC.open) closePlanetComparison();
+});
+</script>
 
 </body>
 </html>

@@ -29,13 +29,18 @@ function buildZip(files){
     const crc  = crc32(data);
     const size = data.length;
 
+    // Set UTF-8 flag (bit 11 = 0x0800) when the path contains non-ASCII characters
+    // so that extractors (7-Zip, Android, iOS) decode the filename correctly.
+    const needsUtf8 = /[^\x00-\x7F]/.test(path);
+    const flags = needsUtf8 ? 0x0800 : 0;
+
     // Local file header
     const isDir = path.endsWith('/');
     const extAttr = isDir ? u32le(0x10) : u32le(0x20); // MS-DOS: dir bit or archive bit
     const local = concat(
       new Uint8Array([0x50,0x4B,0x03,0x04]), // signature
       u16le(20),           // version needed
-      u16le(0),            // flags: 0 — no UTF-8 flag (all names are ASCII; flag trips Windows AV)
+      u16le(flags),        // flags: 0x0800 if non-ASCII, else 0
       u16le(0),            // compression: stored
       u16le(0), u16le(0x0021),  // mod time=0, mod date=Jan 1 1980 (MS-DOS epoch, not zero)
       u32le(crc),
@@ -49,7 +54,7 @@ function buildZip(files){
     centralDir.push(concat(
       new Uint8Array([0x50,0x4B,0x01,0x02]), // signature
       u16le(20), u16le(20),  // version made by, version needed
-      u16le(0), u16le(0),    // flags: 0, compression: stored
+      u16le(flags), u16le(0), // flags: UTF-8 if needed, compression: stored
       u16le(0), u16le(0x0021),  // mod time=0, mod date=Jan 1 1980
       u32le(crc),
       u32le(size), u32le(size),
@@ -213,8 +218,16 @@ function exportSystem(){
     zipFiles[`${sysName}/${e.name}`] = enc(e.content);
   });
 
-  // System meta
-  zipFiles[`${sysName}/Import_Settings.txt`]   = enc(JSON.stringify(systemSettings.importSettings, null, 2));
+  // System meta — append editor credit to description if not already present
+  const CREDIT_TAG = 'Edited with SFS System Editor Site';
+  const importSettingsOut = JSON.parse(JSON.stringify(systemSettings.importSettings));
+  const rawDesc = (importSettingsOut.description || '').trim();
+  if(rawDesc === '' || rawDesc === 'n/a'){
+    importSettingsOut.description = CREDIT_TAG;
+  } else if(!rawDesc.includes(CREDIT_TAG)){
+    importSettingsOut.description = rawDesc + ' | ' + CREDIT_TAG;
+  }
+  zipFiles[`${sysName}/Import_Settings.txt`]   = enc(JSON.stringify(importSettingsOut, null, 2));
   zipFiles[`${sysName}/Space_Center_Data.txt`] = enc(JSON.stringify(systemSettings.spaceCenterData, null, 2));
   zipFiles[`${sysName}/Version.txt`]           = enc('1.6.00.14');
 
