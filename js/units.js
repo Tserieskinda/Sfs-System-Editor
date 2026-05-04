@@ -17,7 +17,7 @@ const UNIT_TO_M = {
 };
 
 // Maximum allowed planet/body radius in metres (750 km)
-const MAX_RADIUS_M = 750000000;
+const MAX_RADIUS_M = 750000;
 
 // SMA difficulty: raw stored value × mult = in-game distance at that difficulty
 // Normal=1:20, Hard=1:10, Realistic=1:1
@@ -267,7 +267,7 @@ function _updateHint(metres, unitSelId, hintId, mode) {
     if (unit !== 'R_jupiter' && metres > 1e7) alts.push(_fmtHint(metres, 'R_jupiter') + ' R♃');
     if (alts.length) lines.push(alts.join('  ·  '));
     // Show cap warning if at limit
-    if (metres >= MAX_RADIUS_M) lines.push('⚠ capped at 750 Mm max radius');
+    if (metres >= MAX_RADIUS_M) lines.push('⚠ capped at 750 km max radius');
   }
 
   if (lines.length) {
