@@ -90,6 +90,8 @@ Used to edit an already made system (1.5+)
 ## How to reduce lag
 1) Use a different browser
 2) Turn off some things in the environments icon (Globe Icon) like Disable post processing and Fog if your device is weak.
+3) If you encounter lag while editing hieghtmaps, you can Turn down the Percentage next to the terrain button.
+4) If youre lagging while viewing hieghtmaps and exploring, Just lock the Planet Sidebar (Bottombarbar on mobile) in tools icon at the top
 
 ## How to make your own presets-
 1) Get your custom body, and all the textures it uses.
