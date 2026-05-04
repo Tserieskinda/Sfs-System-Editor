@@ -182,6 +182,9 @@ async function loadZipFile(file){
     assets.heightmaps = []; assets.other = [];
     undoStack = [];
     _sfsDbgLogged = {}; // reset per-body draw warnings
+    // Clear heightmap + terrain caches so entries from this system are re-parsed fresh.
+    if(typeof _hmCache !== 'undefined') Object.keys(_hmCache).forEach(k => delete _hmCache[k]);
+    if(typeof invalidateTerrainCache === 'function') invalidateTerrainCache('*');
     // Clear textureCache so stale textures from a previous load don't linger,
     // then immediately restore the asset-zip textures.
     Object.keys(textureCache).forEach(k => delete textureCache[k]);
@@ -447,7 +450,9 @@ const dynamicPresets = { vanilla: {}, custom: {} };
 
 // Returns true if a zip path belongs to a heightmap folder (skip everything there)
 function _isHeightmapPath(pathLower){
-  return pathLower.includes('heightmap') || pathLower.includes('height map') || pathLower.includes('height_map');
+  return pathLower.includes('heightmap') || pathLower.includes('height map') || pathLower.includes('height_map')
+      || pathLower.includes('/terrain/') || pathLower.includes('/terrain custom/')
+      || pathLower.endsWith('/terrain') || pathLower.endsWith('/terrain custom');
 }
 
 // Detect category from folder name in the zip path

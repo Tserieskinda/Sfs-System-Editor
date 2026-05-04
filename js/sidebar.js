@@ -30,7 +30,8 @@ function selectBody(name){
   if (typeof NameGen !== 'undefined') NameGen.clearSession(name);
   document.getElementById('sb-sel').textContent = name;
   fillSidebar(name);
-  openSidebar();
+  // Respect sidebar lock — select the body but don't open the panel
+  if(!window._lockSidebar) openSidebar();
   drawViewport();
 }
 

@@ -14,9 +14,11 @@
 <div class="screen" id="s-start">
   <div class="logo-wrap">
     <h1 class="logo-main">SFS <em>SYSTEM</em><br>EDITOR</h1>
-    <p class="logo-eyebrow">v5.8</p>
+    <p class="logo-eyebrow">v5.5</p>
   </div>
-  <nav class="menu-list">
+
+  <!-- ── Main navigation ── -->
+  <nav class="menu-list" id="s-start-main-nav">
     <button class="menu-btn primary" id="btn-new-system" onclick="goNew()">
       <span class="mico" id="btn-new-mico">✦</span><span id="btn-new-label">CREATE NEW SYSTEM</span>
       <span class="arr">›</span>
@@ -29,11 +31,44 @@
       <span class="mico">🗂️</span>LOAD SFS ASSETS
       <span class="arr">›</span>
     </button>
+    <button class="menu-btn menu-btn-create-tex" onclick="goCreateTextures()">
+      <span class="mico">🎨</span>CREATE TEXTURES
+      <span class="arr">›</span>
+    </button>
     <button class="menu-btn" onclick="openAppSettings()" title="Settings">
       <span class="mico">⚙</span>SETTINGS
       <span class="arr">›</span>
     </button>
   </nav>
+
+  <!-- ── Create Textures sub-menu ── -->
+  <nav class="menu-list" id="s-start-create-nav" style="display:none">
+    <div class="menu-create-header">
+      <button class="menu-back-mini" onclick="goCreateTexturesBack()">‹ BACK</button>
+      <span class="menu-create-title">CREATE TEXTURES</span>
+    </div>
+    <button class="menu-btn primary" onclick="TC.open()">
+      <span class="mico">🌫️</span>CREATE ATMOSPHERE TEXTURE
+      <span class="arr">›</span>
+    </button>
+    <button class="menu-btn menu-btn-soon" disabled title="Coming soon">
+      <span class="mico">🌊</span>CREATE OCEAN TEXTURE
+      <span class="coming-soon-badge">COMING SOON™</span>
+    </button>
+    <button class="menu-btn menu-btn-soon" disabled title="Coming soon">
+      <span class="mico">☁️</span>CREATE CLOUD TEXTURE
+      <span class="coming-soon-badge">COMING SOON™</span>
+    </button>
+    <button class="menu-btn menu-btn-soon" disabled title="Coming soon">
+      <span class="mico">💫</span>CREATE RING TEXTURE
+      <span class="coming-soon-badge">COMING SOON™</span>
+    </button>
+    <button class="menu-btn menu-btn-soon" disabled title="Coming soon">
+      <span class="mico">🌋</span>CREATE TERRAIN TEXTURE
+      <span class="coming-soon-badge">COMING SOON™</span>
+    </button>
+  </nav>
+
   <input type="file" id="fi-sfs-assets" accept=".zip" multiple style="display:none" onchange="loadSFSAssetZips(this.files);this.value=''">
   <p id="default-tex-status" style="font-size:.65rem;color:var(--jade);font-family:'JetBrains Mono',monospace;text-align:center;margin-top:8px;min-height:1.2em;opacity:.8"></p>
 </div>
@@ -1266,6 +1301,7 @@
 <script src="js/io.js?v=5.8"></script>
 <script src="js/body-search.js?v=5.8"></script>
 <script src="js/namegen.js?v=5.8"></script>
+<script src="js/tex-creator.js?v=5.8"></script>
 <!-- ══ TERRAIN DETAIL DROPDOWN (body-level to escape topbar stacking context) ══ -->
 <div id="terrain-detail-dropdown" style="display:none;position:fixed;
   min-width:200px;background:rgba(6,10,22,.97);border:1px solid rgba(180,140,255,.25);
@@ -1370,10 +1406,22 @@
       <span style="display:block;color:rgba(255,180,80,.9)">SIZE COMPARISON</span>
       <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Compare planet sizes visually</span>
     </span>
+  <div style="height:1px;background:rgba(255,180,80,.1);margin:0 10px"></div>
+  <button onclick="toggleLockSidebar()" style="display:flex;align-items:center;gap:10px;
+    width:100%;padding:9px 14px;background:none;border:none;cursor:pointer;
+    font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
+    letter-spacing:.05em;transition:background .12s;text-align:left"
+    onmouseover="this.style.background='rgba(255,180,80,.1)'" onmouseout="this.style.background='none'">
+    <span style="font-size:1rem">🔒</span>
+    <span>
+      <span style="display:block;color:rgba(255,180,80,.9)">LOCK SIDEBAR</span>
+      <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Prevent sidebar opening on click</span>
+    </span>
+    <span id="lock-sidebar-badge" style="margin-left:auto;font-size:.48rem;padding:2px 5px;border-radius:3px;
+      background:rgba(255,180,80,.12);color:rgba(255,180,80,.4);border:1px solid rgba(255,180,80,.2);
+      letter-spacing:.08em;flex-shrink:0">OFF</span>
   </button>
 </div>
-
-<!-- ══════════════ PLANET SIZE COMPARISON MODAL ══════════════ -->
 <div id="psc-modal" style="display:none;position:fixed;inset:0;z-index:200000;
   background:rgba(2,5,14,.88);backdrop-filter:blur(4px);
   flex-direction:column;align-items:center;justify-content:flex-start;

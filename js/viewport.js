@@ -1915,21 +1915,36 @@ function _drawViewportNow(){
       }
     }
 
-    // ── Selection ring ──
-    if(selectedBody === name){
-      // When terrain is on, expand ring to cover the tallest peak
-      let ringR = r + 6;
-      if(envFlags.heightmaps && b.data.TERRAIN_DATA && physR_px > terrainDrawThreshold){
-        const _tSampRing = _getTerrainSamples(name, b, bodyRadius_m * radiusMult, 360, null);
-        if(_tSampRing && _tSampRing.heights){
-          let maxH = 0;
-          for(let _i = 0; _i < _tSampRing.heights.length; _i++)
-            if(_tSampRing.heights[_i] > maxH) maxH = _tSampRing.heights[_i];
-          const maxR_px = maxH * (physR_px / (bodyRadius_m * radiusMult));
-          ringR = Math.max(ringR, maxR_px + 6);
-        }
+    // ── Terrain surface helper (mirrors _lmSurfaceXY from landmarks) ──
+    // Returns screen-space radius at a given trig angle (radians, CCW).
+    // Uses the exact same formula as landmark placement: physR_px * (1 + h / radius_m)
+    const _terrRes360 = (envFlags.heightmaps && b.data.TERRAIN_DATA && physR_px > terrainDrawThreshold)
+      ? _getTerrainSamples(name, b, bodyRadius_m * radiusMult, 360, null)
+      : null;
+    const _terrRadius_m = bodyRadius_m * radiusMult;
+    function _surfaceRpx(rad) {
+      if(_terrRes360 && _terrRes360.heights){
+        const normAng = ((rad % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
+        const idx = Math.round(normAng / (Math.PI*2) * _terrRes360.N) % _terrRes360.N;
+        const h = _terrRes360.heights[idx] || 0;
+        return Math.max(r, physR_px * (1 + h / _terrRadius_m));
       }
-      ctx2.beginPath(); polygonCircle(ctx2, sp.x, sp.y, ringR, 128); ctx2.closePath();
+      return r;
+    }
+
+    // ── Selection ring — traces the actual terrain surface ──
+    if(selectedBody === name){
+      const RING_GAP = 6;
+      const ringSteps = 128;
+      ctx2.beginPath();
+      for(let _si = 0; _si <= ringSteps; _si++){
+        const rad = (_si / ringSteps) * Math.PI * 2;
+        const rPx = _surfaceRpx(rad) + RING_GAP;
+        const px = sp.x + rPx * Math.cos(rad);
+        const py = sp.y - rPx * Math.sin(rad);
+        _si === 0 ? ctx2.moveTo(px, py) : ctx2.lineTo(px, py);
+      }
+      ctx2.closePath();
       ctx2.strokeStyle='rgba(80,180,255,0.75)'; ctx2.lineWidth=1.5;
       ctx2.setLineDash([4,4]); ctx2.stroke(); ctx2.setLineDash([]);
     }
@@ -1943,11 +1958,15 @@ function _drawViewportNow(){
       ctx2.font = `${fontSize}px "JetBrains Mono",monospace`;
       ctx2.textAlign = 'center';
       const displayName = (selectedBody===name && drawViewport._pendingName) ? drawViewport._pendingName : name;
+      // Sample terrain at bottom of planet (trig 3π/2 = canvas straight-down)
+      // so the label always sits below the actual surface, not buried in terrain.
+      const bottomRpx = _surfaceRpx(Math.PI * 1.5);
+      const labelY = sp.y + bottomRpx + fontSize + 2;
       // Dark shadow for readability against any background
       ctx2.fillStyle = 'rgba(0,0,0,0.65)';
-      ctx2.fillText(displayName, sp.x+1, sp.y + r + fontSize + 3);
+      ctx2.fillText(displayName, sp.x+1, labelY + 1);
       ctx2.fillStyle = selectedBody===name ? 'rgba(180,230,255,0.98)' : 'rgba(160,210,255,0.85)';
-      ctx2.fillText(displayName, sp.x, sp.y + r + fontSize + 2);
+      ctx2.fillText(displayName, sp.x, labelY);
       ctx2.globalAlpha = 1;
     }
 

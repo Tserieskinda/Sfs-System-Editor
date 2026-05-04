@@ -13,6 +13,11 @@ function goStart(){
   document.getElementById('viewport').classList.remove('active');
   _syncThemeBtns();
   closeSidebar();
+  // Always reset to main nav when returning to start
+  const mainNav = document.getElementById('s-start-main-nav');
+  const createNav = document.getElementById('s-start-create-nav');
+  if(mainNav)   mainNav.style.display   = '';
+  if(createNav) createNav.style.display = 'none';
   // Swap label based on whether a session exists
   const hasSession = Object.keys(bodies).length > 0;
   const lbl  = document.getElementById('btn-new-label');

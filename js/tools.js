@@ -91,6 +91,23 @@ function toggleHighResSurface(){
   drawViewport();
 }
 
+// ════════════════════════════════ TOOLS: LOCK SIDEBAR ════════════════════════════════
+
+window._lockSidebar = false;
+function toggleLockSidebar(){
+  window._lockSidebar = !window._lockSidebar;
+  // Close sidebar immediately when locking
+  if(window._lockSidebar && typeof closeSidebar === 'function') closeSidebar();
+  // Update badge
+  const badge = document.getElementById('lock-sidebar-badge');
+  if(badge){
+    badge.textContent = window._lockSidebar ? 'ON' : 'OFF';
+    badge.style.color        = window._lockSidebar ? 'rgba(48,224,144,.9)'  : 'rgba(255,180,80,.4)';
+    badge.style.borderColor  = window._lockSidebar ? 'rgba(48,224,144,.35)' : 'rgba(255,180,80,.2)';
+    badge.style.background   = window._lockSidebar ? 'rgba(48,224,144,.12)' : 'rgba(255,180,80,.12)';
+  }
+}
+
 // ════════════════════════════════ TOOLS: DRAG ORBIT ════════════════════════════════
 
 let _toolsDropOpen = false;
