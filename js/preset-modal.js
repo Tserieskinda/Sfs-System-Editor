@@ -2,6 +2,7 @@
 // Preset modal state
 let _prsTab = 'all';       // 'all' | 'vanilla' | 'custom' | 'system'
 let _prsSearch = '';
+let _prsMode = 'add';      // 'add' | 'save-preset'  — controls confirm behaviour
 
 // SMA / parent state for the modal controls
 let _prsSmaMetres = 0;        // current SMA in metres (raw, Normal-scale)
@@ -512,6 +513,7 @@ function makePrsCard(p){
 
 function openPreset(forCenter){
   isForCenter = forCenter;
+  _prsMode = 'add';
   // Default selection: Sun for center, Earth for body
   selectedPresetKey = forCenter ? 'Sun' : 'Earth';
   _prsTab = 'all';
@@ -527,8 +529,12 @@ function openPreset(forCenter){
   // Show/hide orbit controls and NEXT button
   const orbitCtrl = document.getElementById('prs-orbit-controls');
   const nextBtn   = document.getElementById('prs-next-btn');
-  if(orbitCtrl) orbitCtrl.style.display = forCenter ? 'none' : '';
-  if(nextBtn)   nextBtn.style.display   = forCenter ? 'none' : '';
+  const saveFields = document.getElementById('prs-save-preset-fields');
+  const uploadBtn  = document.getElementById('prs-upload-btn');
+  if(orbitCtrl)  orbitCtrl.style.display  = forCenter ? 'none' : '';
+  if(nextBtn)    nextBtn.style.display    = forCenter ? 'none' : '';
+  if(saveFields) saveFields.style.display = 'none';
+  if(uploadBtn)  uploadBtn.style.display  = '';
 
   let desc;
   if(forCenter){
@@ -550,8 +556,58 @@ function openPreset(forCenter){
   }
   document.getElementById('mp-desc').innerHTML = desc;
   document.getElementById('prs-confirm-btn').textContent = forCenter ? 'ADD CENTER →' : 'ADD BODY →';
+  document.getElementById('prs-confirm-btn').style.borderColor = '';
+  document.getElementById('prs-confirm-btn').style.color = '';
+  document.getElementById('prs-confirm-btn').style.background = '';
 
   // Open the modal first so it's visible even if prsRebuild is slow
+  document.getElementById('modal-preset').classList.add('open');
+  try { prsRebuild(); } catch(e){
+    console.error('[SFS] prsRebuild:', e);
+    const grid = document.getElementById('prs-grid');
+    if(grid) grid.innerHTML = '<div class="prs-empty">Error loading presets — check console.</div>';
+  }
+}
+
+// ── Open modal in "save as procgen preset" mode ────────────────────────────────
+function openPresetForSave(){
+  _prsMode = 'save-preset';
+  isForCenter = false;   // must be false so prsRebuild doesn't restrict to stars/BHs
+  selectedPresetKey = 'Earth';
+  _prsTab = 'all';
+  _prsSearch = '';
+  _prsSmaUserPicked = false;
+
+  try { prsRefreshNamedTabs(); } catch(_){}
+  document.querySelectorAll('.prs-tab').forEach((t,i)=>t.classList.toggle('on', i===0));
+  const searchEl = document.getElementById('prs-search');
+  if(searchEl) searchEl.value = '';
+
+  // Hide orbit controls and NEXT (not relevant for saving)
+  const orbitCtrl  = document.getElementById('prs-orbit-controls');
+  const nextBtn    = document.getElementById('prs-next-btn');
+  const saveFields = document.getElementById('prs-save-preset-fields');
+  const uploadBtn  = document.getElementById('prs-upload-btn');
+  if(orbitCtrl)  orbitCtrl.style.display  = 'none';
+  if(nextBtn)    nextBtn.style.display    = 'none';
+  if(saveFields){ saveFields.style.display = ''; }
+  if(uploadBtn)  uploadBtn.style.display  = 'none';
+
+  // Reset save fields
+  const nameEl = document.getElementById('prs-save-name');
+  const catEl  = document.getElementById('prs-save-cat');
+  if(nameEl) nameEl.value = '';
+  if(catEl)  catEl.value  = 'custom';
+
+  document.getElementById('mp-desc').innerHTML =
+    'Pick any preset to save into the <strong style="color:var(--sky2)">procgen preset pool</strong> — choose a name and category below';
+
+  const confirmBtn = document.getElementById('prs-confirm-btn');
+  confirmBtn.textContent = 'SAVE AS PRESET →';
+  confirmBtn.style.borderColor = 'rgba(100,220,180,.55)';
+  confirmBtn.style.color       = 'rgba(100,220,180,.95)';
+  confirmBtn.style.background  = 'rgba(100,220,180,.10)';
+
   document.getElementById('modal-preset').classList.add('open');
   try { prsRebuild(); } catch(e){
     console.error('[SFS] prsRebuild:', e);
@@ -563,9 +619,22 @@ function openPreset(forCenter){
 function closePreset(){
   document.getElementById('modal-preset').classList.remove('open');
   if(window._prsCloseHook){ window._prsCloseHook(); window._prsCloseHook = null; }
-  // Restore confirm button text
+  // Reset mode
+  _prsMode = 'add';
+  // Restore confirm button text/style
   const btn = document.getElementById('prs-confirm-btn');
-  if(btn) btn.textContent = isForCenter ? 'ADD CENTER →' : 'ADD BODY →';
+  if(btn){
+    btn.textContent = isForCenter ? 'ADD CENTER →' : 'ADD BODY →';
+    btn.style.borderColor = '';
+    btn.style.color       = '';
+    btn.style.background  = '';
+  }
+  // Hide save-preset fields
+  const sf = document.getElementById('prs-save-preset-fields');
+  if(sf) sf.style.display = 'none';
+  // Restore upload button
+  const ub = document.getElementById('prs-upload-btn');
+  if(ub) ub.style.display = '';
 }
 function syncAddBodyBtn(){
   const btn = document.getElementById('btn-add-body');
@@ -585,6 +654,31 @@ function syncAddBodyBtn(){
 function addBodyPrompt(){ openPreset(false); }
 
 function confirmPreset(){
+  // ── Save-as-preset mode: register into procgen pool instead of adding to scene ──
+  if(_prsMode === 'save-preset'){
+    const all    = buildAllPresets();
+    const preset = all.find(p => p.key === selectedPresetKey);
+    if(!preset){ alert('No preset selected.'); return; }
+
+    const nameEl = document.getElementById('prs-save-name');
+    const catEl  = document.getElementById('prs-save-cat');
+    const name   = (nameEl?.value || '').trim() || preset.name;
+    const cat    = catEl?.value || 'custom';
+
+    const bd = JSON.parse(JSON.stringify(preset.data || {}));
+    delete bd.ORBIT_DATA;
+
+    if(typeof _pgRegisterUserPreset === 'function'){
+      _pgRegisterUserPreset(name, bd, cat, preset.id || '');
+    }
+    if(typeof pgPresetsRender === 'function') pgPresetsRender();
+    try { SFX.select(); } catch(_){}
+    if(typeof pgShowStatus === 'function') pgShowStatus(`✓ Preset "${name}" saved to ${cat} pool`, 'ok');
+
+    closePreset();
+    return;
+  }
+
   closePreset();
 
   // Clipboard entry selected

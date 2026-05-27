@@ -171,6 +171,8 @@ function _metaForId(id, name){
 // Fast path: known preset names hit _PRESET_ID_TABLE directly, no heuristics.
 // Fallback: structural heuristics for user-created or unknown-named presets.
 function inferPresetMeta(name, data){
+  // Respect explicit type hint injected by the preset manager
+  if(data && data._pgTypeHint) return _metaForId(data._pgTypeHint, name);
   const tableId = _PRESET_ID_TABLE[name];
   if(tableId) return _metaForId(tableId, name);
 

@@ -342,9 +342,29 @@
     </div>
     <!-- Grid -->
     <div class="prs-grid" id="prs-grid"></div>
+
+    <!-- Save-as-preset fields (hidden unless in preset-save mode) -->
+    <div id="prs-save-preset-fields" style="display:none;margin-top:14px;padding:12px 14px;border-radius:6px;background:rgba(100,220,180,.05);border:1px solid rgba(100,220,180,.2);display:none">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:rgba(100,220,180,.7);letter-spacing:.1em;margin-bottom:10px">SAVE AS PRESET</div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--ink4);letter-spacing:.06em;margin-bottom:4px">Preset name</div>
+          <input id="prs-save-name" type="text" autocomplete="off" placeholder="Defaults to selected preset name"
+            style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.04);border:1px solid var(--rim2);border-radius:4px;color:var(--ink2);font-family:'JetBrains Mono',monospace;font-size:.65rem;padding:6px 8px;outline:none">
+        </div>
+        <div style="min-width:110px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--ink4);letter-spacing:.06em;margin-bottom:4px">Category</div>
+          <select id="prs-save-cat" style="width:100%;background:#0a0e1e;border:1px solid var(--rim2);border-radius:4px;color:var(--ink3);font-family:'JetBrains Mono',monospace;font-size:.62rem;padding:6px 5px;cursor:pointer;outline:none">
+            <option value="custom">Custom</option>
+            <option value="vanilla">Vanilla</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
     <div class="modal-footer" style="margin-top:14px">
       <button class="mf-btn" onclick="closePreset()">CANCEL</button>
-      <label class="mf-btn" style="cursor:pointer;border-color:rgba(48,224,144,.45);color:rgba(48,224,144,.9);background:rgba(48,224,144,.07)" title="Import a body directly from a .txt file">
+      <label class="mf-btn" id="prs-upload-btn" style="cursor:pointer;border-color:rgba(48,224,144,.45);color:rgba(48,224,144,.9);background:rgba(48,224,144,.07)" title="Import a body directly from a .txt file">
         ⬆ UPLOAD TXT
         <input type="file" accept=".txt" style="display:none" onchange="importBodyFromTxt(this)">
       </label>
@@ -4157,6 +4177,7 @@ document.addEventListener('keydown', function(e){
       <button class="pg-tab"    onclick="pgSwitchTab('tune',this)">TUNE</button>
       <button class="pg-tab"    onclick="pgSwitchTab('soi',this)">SOI</button>
       <button class="pg-tab"    onclick="pgSwitchTab('options',this)">OPTIONS</button>
+      <button class="pg-tab"    onclick="pgSwitchTab('presets',this)">PRESETS</button>
     </div>
 
     <!-- Tab: Body Types -->
@@ -4266,12 +4287,46 @@ document.addEventListener('keydown', function(e){
     <!-- Tab: Options -->
     <div class="pg-tab-panel" id="pg-tabp-options">
       <div class="pg-section-title">OPTIONS</div>
-      <div class="pg-hint">Moons, rings, atmospheres</div>
+      <div class="pg-hint">Moons, rings, atmospheres, textures</div>
       <div id="pg-misc-options" style="display:flex;flex-direction:column;gap:10px;margin-top:12px"></div>
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(100,150,255,.1)">
         <div class="pg-section-title" style="margin-bottom:8px">COMING SOON</div>
         <div class="pg-hint">Heightmap · Watermask · Cloud textures · Texture select</div>
       </div>
+    </div>
+
+    <!-- Tab: Presets -->
+    <div class="pg-tab-panel" id="pg-tabp-presets">
+      <div class="pg-section-title">MANAGE PRESETS</div>
+      <div class="pg-hint">Add planets from your system or paste JSON to create presets the generator can use</div>
+
+      <!-- Action buttons -->
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        <button class="pg-preset-add-btn" onclick="pgShowAddPresetDialog()" title="Paste JSON to add a custom preset">
+          <span>＋</span> Add from JSON
+        </button>
+        <button class="pg-preset-add-btn pg-preset-add-btn--from-body" onclick="pgShowAddFromBodyDialog()" title="Promote a body from your current system into the preset pool">
+          <span>🌍</span> Add from System
+        </button>
+      </div>
+
+      <!-- Search + category filters -->
+      <div style="margin-top:16px">
+        <input id="pg-presets-search" class="pg-presets-search" placeholder="🔍  Search presets…"
+          oninput="pgPresetsRender()" autocomplete="off">
+      </div>
+      <div class="pg-preset-filters" style="margin-top:8px">
+        <button class="pg-preset-filter-btn pg-preset-filter-btn--on" onclick="pgPresetsFilter('all',this)">ALL</button>
+        <button class="pg-preset-filter-btn" onclick="pgPresetsFilter('star',this)">STARS</button>
+        <button class="pg-preset-filter-btn" onclick="pgPresetsFilter('planet',this)">PLANETS</button>
+        <button class="pg-preset-filter-btn" onclick="pgPresetsFilter('moon',this)">MOONS</button>
+        <button class="pg-preset-filter-btn" onclick="pgPresetsFilter('gasgiant',this)">GAS</button>
+        <button class="pg-preset-filter-btn" onclick="pgPresetsFilter('asteroid',this)">ROCK</button>
+        <button class="pg-preset-filter-btn pg-preset-filter-btn--user" onclick="pgPresetsFilter('_user',this)">MY PRESETS</button>
+      </div>
+
+      <!-- Preset list -->
+      <div id="pg-presets-list" style="margin-top:12px;display:flex;flex-direction:column;gap:5px"></div>
     </div>
 
   </div><!-- /pg-panel -->
@@ -4366,6 +4421,9 @@ document.addEventListener('keydown', function(e){
   scrollbar-width: none;
   -ms-overflow-style: none;
   scroll-behavior: smooth;
+  white-space: nowrap;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 .pg-panel-tabs::-webkit-scrollbar { display: none; }
 .pg-tab {
@@ -4553,7 +4611,179 @@ document.addEventListener('keydown', function(e){
   #pg-header { padding: 8px 10px; }
   .pg-btn { padding: 8px 10px; font-size: .68rem; }
 }
+
+/* ── Presets tab ── */
+.pg-presets-search {
+  width: 100%; box-sizing: border-box;
+  padding: 8px 12px; border-radius: 5px;
+  border: 1px solid rgba(100,150,255,.25);
+  background: rgba(4,8,22,.8); color: rgba(190,210,255,.9);
+  font-family: 'JetBrains Mono', monospace; font-size: .7rem;
+  outline: none; transition: border-color .15s;
+}
+.pg-presets-search:focus { border-color: rgba(100,220,180,.5); }
+.pg-presets-search::placeholder { color: rgba(100,130,190,.45); }
+.pg-preset-filters {
+  display: flex; flex-wrap: wrap; gap: 5px;
+}
+.pg-preset-filter-btn {
+  padding: 4px 9px; border-radius: 3px; cursor: pointer;
+  border: 1px solid rgba(100,150,255,.28);
+  background: rgba(30,40,80,.5);
+  color: rgba(140,165,220,.7);
+  font-family: 'JetBrains Mono', monospace; font-size: .58rem;
+  letter-spacing: .06em; transition: all .12s;
+}
+.pg-preset-filter-btn:hover { border-color: rgba(100,150,255,.55); color: rgba(180,200,255,.9); }
+.pg-preset-filter-btn--on  { background: rgba(100,150,255,.18)!important; border-color: rgba(100,150,255,.6)!important; color: rgba(180,205,255,.98)!important; }
+.pg-preset-filter-btn--user { border-color: rgba(100,220,180,.28); color: rgba(100,220,180,.7); }
+.pg-preset-filter-btn--user.pg-preset-filter-btn--on { background: rgba(100,220,180,.15)!important; border-color: rgba(100,220,180,.65)!important; color: rgba(100,220,180,.98)!important; }
+
+.pg-preset-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; border-radius: 5px;
+  border: 1px solid rgba(60,80,140,.3);
+  background: rgba(8,14,36,.5);
+  transition: all .12s; cursor: default;
+}
+.pg-preset-row:hover { border-color: rgba(100,150,255,.4); background: rgba(20,30,70,.6); }
+.pg-preset-row--user { border-color: rgba(100,220,180,.28); background: rgba(100,220,180,.05); }
+.pg-preset-row--user:hover { border-color: rgba(100,220,180,.5); background: rgba(100,220,180,.1); }
+.pg-preset-row-icon { font-size: 1rem; min-width: 20px; }
+.pg-preset-row-name { flex: 1; font-size: .7rem; color: rgba(185,205,255,.88); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-preset-row-tag {
+  font-size: .55rem; padding: 2px 6px; border-radius: 2px;
+  background: rgba(60,80,160,.3); border: 1px solid rgba(80,110,200,.3);
+  color: rgba(120,155,230,.75); letter-spacing: .05em; white-space: nowrap;
+}
+.pg-preset-row-tag--user { background: rgba(100,220,180,.12); border-color: rgba(100,220,180,.3); color: rgba(100,220,180,.85); }
+.pg-preset-del-btn {
+  background: none; border: none; cursor: pointer;
+  color: rgba(255,100,100,.45); font-size: .8rem; padding: 2px 5px;
+  border-radius: 3px; transition: all .12s; line-height: 1;
+}
+.pg-preset-del-btn:hover { color: rgba(255,120,120,.9); background: rgba(255,80,80,.12); }
+.pg-preset-empty {
+  font-size: .68rem; color: rgba(100,130,190,.45);
+  text-align: center; padding: 24px 0; letter-spacing: .06em;
+}
+.pg-preset-add-btn {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 14px; border-radius: 5px; cursor: pointer;
+  border: 1px solid rgba(100,150,255,.4);
+  background: rgba(80,120,255,.1);
+  color: rgba(150,185,255,.9);
+  font-family: 'JetBrains Mono', monospace; font-size: .68rem;
+  letter-spacing: .05em; transition: all .14s;
+}
+.pg-preset-add-btn:hover { background: rgba(80,120,255,.2); border-color: rgba(100,150,255,.7); color: rgba(180,210,255,.98); }
+.pg-preset-add-btn--from-body { border-color: rgba(100,220,180,.35); background: rgba(100,220,180,.08); color: rgba(100,220,180,.85); }
+.pg-preset-add-btn--from-body:hover { background: rgba(100,220,180,.18); border-color: rgba(100,220,180,.65); }
+
+/* ── Preset dialog overlay ── */
+.pg-dialog-overlay {
+  display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,.75); z-index: 299999;
+  align-items: center; justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+}
+.pg-dialog-overlay.open { display: flex; }
+.pg-dialog-box {
+  background: rgba(5,9,24,.98); border: 1px solid rgba(100,150,255,.35);
+  border-radius: 8px; padding: 24px 26px; width: 90%; max-width: 440px;
+  box-shadow: 0 24px 70px rgba(0,0,0,.85); max-height: 90vh; overflow-y: auto;
+}
+.pg-dialog-title {
+  font-family: 'Orbitron', sans-serif; font-size: .8rem;
+  letter-spacing: .15em; color: rgba(100,220,180,.9); margin-bottom: 4px;
+}
+.pg-dialog-sub { font-size: .62rem; color: rgba(120,150,200,.55); margin-bottom: 18px; }
+.pg-dialog-label { font-size: .68rem; color: rgba(140,165,215,.75); margin-bottom: 6px; letter-spacing: .03em; }
+.pg-dialog-input, .pg-dialog-select, .pg-dialog-textarea {
+  width: 100%; box-sizing: border-box;
+  padding: 8px 11px; border-radius: 5px;
+  border: 1px solid rgba(100,150,255,.28);
+  background: rgba(4,8,22,.9); color: rgba(190,210,255,.9);
+  font-family: 'JetBrains Mono', monospace; font-size: .7rem;
+  outline: none; transition: border-color .15s;
+}
+.pg-dialog-input:focus, .pg-dialog-select:focus, .pg-dialog-textarea:focus { border-color: rgba(100,220,180,.5); }
+.pg-dialog-textarea { resize: vertical; min-height: 110px; max-height: 260px; }
+.pg-dialog-err { font-size: .63rem; color: rgba(255,140,100,.85); margin-top: 6px; display: none; }
+.pg-dialog-body-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; margin-top: 10px; }
+.pg-dialog-body-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px; border-radius: 5px; cursor: pointer;
+  border: 1px solid rgba(60,80,140,.35); background: rgba(8,14,36,.5);
+  transition: all .12s;
+}
+.pg-dialog-body-item:hover { border-color: rgba(100,220,180,.45); background: rgba(100,220,180,.07); }
+.pg-dialog-body-item.selected { border-color: rgba(100,220,180,.7); background: rgba(100,220,180,.14); }
+.pg-dialog-body-name { flex: 1; font-size: .7rem; color: rgba(185,205,255,.88); }
+.pg-dialog-body-type { font-size: .58rem; color: rgba(100,220,180,.65); }
+.pg-dialog-actions { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
+.pg-dialog-btn {
+  padding: 8px 18px; border-radius: 5px; cursor: pointer;
+  font-family: 'JetBrains Mono', monospace; font-size: .68rem;
+  letter-spacing: .05em; border: 1px solid; transition: all .14s;
+}
+.pg-dialog-btn--cancel { border-color: rgba(100,130,200,.3); background: none; color: rgba(140,165,220,.65); }
+.pg-dialog-btn--cancel:hover { border-color: rgba(100,130,200,.55); color: rgba(175,200,255,.9); }
+.pg-dialog-btn--ok { border-color: rgba(100,220,180,.5); background: rgba(100,220,180,.12); color: rgba(100,220,180,.95); }
+.pg-dialog-btn--ok:hover { background: rgba(100,220,180,.22); border-color: rgba(100,220,180,.8); }
 </style>
 </style>
+
+<!-- ══ Add Preset from JSON dialog ══ -->
+<div id="pg-add-json-dialog" class="pg-dialog-overlay">
+  <div class="pg-dialog-box">
+    <div class="pg-dialog-title">ADD PRESET FROM JSON</div>
+    <div class="pg-dialog-sub">Paste the body's JSON data from an SFS preset file</div>
+
+    <div style="margin-bottom:12px">
+      <div class="pg-dialog-label">Preset Name</div>
+      <input id="pg-add-json-name" class="pg-dialog-input" placeholder="e.g. Lava World" autocomplete="off">
+    </div>
+
+    <div style="margin-bottom:12px">
+      <div class="pg-dialog-label">Category</div>
+      <select id="pg-add-json-cat" class="pg-dialog-select">
+        <option value="custom">Custom</option>
+        <option value="vanilla">Vanilla</option>
+      </select>
+    </div>
+
+    <div style="margin-bottom:4px">
+      <div class="pg-dialog-label">Override type mapping</div>
+      <select id="pg-add-json-type" class="pg-dialog-select">
+        <option value="">Auto-detect</option>
+        <option value="star">Star</option>
+        <option value="planet">Planet</option>
+        <option value="moon">Moon</option>
+        <option value="gasgiant">Gas Giant</option>
+        <option value="ringedgiant">Ringed Giant</option>
+        <option value="asteroid">Asteroid</option>
+        <option value="blackhole">Black Hole</option>
+        <option value="mercurylike">Rocky / Mercury-like</option>
+        <option value="marslike">Mars-like</option>
+      </select>
+    </div>
+    <div style="font-size:.6rem;color:rgba(100,130,190,.45);margin-bottom:14px;line-height:1.5">
+      Auto-detect uses <code style="color:rgba(100,220,180,.6)">inferPresetMeta()</code> to guess the type from body data.
+    </div>
+
+    <div>
+      <div class="pg-dialog-label">Body JSON</div>
+      <textarea id="pg-add-json-data" class="pg-dialog-textarea" placeholder='{ "BASE_DATA": { ... }, "ATMOSPHERE_VISUALS_DATA": { ... } }'></textarea>
+      <div id="pg-add-json-err" class="pg-dialog-err"></div>
+    </div>
+
+    <div class="pg-dialog-actions">
+      <button class="pg-dialog-btn pg-dialog-btn--cancel" onclick="pgCloseAddJsonDialog()">Cancel</button>
+      <button class="pg-dialog-btn pg-dialog-btn--ok" onclick="pgPresetsAdd()">Add Preset</button>
+    </div>
+  </div>
+</div>
+
 
 </body>

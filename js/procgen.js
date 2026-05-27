@@ -35,9 +35,11 @@ const PG = {
     eccentricity: { min:0,    max:0.99, val:0.9,  step:0.01, label:'Ecc Ceiling (all types)' },
   },
   misc: {
-    addMoons:       true,
-    addRings:       true,
-    addAtmospheres: true,
+    addMoons:              true,
+    addRings:              true,
+    addAtmospheres:        true,
+    randomizeTextures:     false,
+    randomizeAtmoTextures: false,
   },
   preview: { bodies:[], center:null },
   canvas:  { pan:{x:0,y:0}, zoom:1, drag:false, lastP:null, hovered:null, selected:null },
@@ -152,6 +154,8 @@ function pgSwitchTab(name, el) {
   if (el) el.classList.add('on');
   const panel = document.getElementById('pg-tabp-' + name);
   if (panel) panel.classList.add('on');
+  if (name === 'presets') { if (typeof pgPresetsRender === 'function') pgPresetsRender(); }
+  if (name === 'options')  pgRenderMiscOptions();
 }
 
 document.addEventListener('DOMContentLoaded', () => {});
@@ -384,16 +388,21 @@ function pgRenderMiscOptions() {
   const container = document.getElementById('pg-misc-options');
   if (!container) return;
   const opts = [
-    { key:'addMoons',       label:'Allow moon generation' },
-    { key:'addRings',       label:'Allow ring systems' },
-    { key:'addAtmospheres', label:'Allow atmospheres' },
+    { key:'addMoons',              label:'Allow moon generation' },
+    { key:'addRings',              label:'Allow ring systems' },
+    { key:'addAtmospheres',        label:'Allow atmospheres' },
+    { key:'randomizeTextures',     label:'Randomize surface textures' },
+    { key:'randomizeAtmoTextures', label:'Randomize atmosphere textures' },
   ];
   container.innerHTML = opts.map(o => `
     <label class="pg-misc-row">
       <input type="checkbox" ${PG.misc[o.key]?'checked':''}
         onchange="PG.misc['${o.key}']=this.checked" style="accent-color:#64dcb4;width:18px;height:18px">
       <span>${o.label}</span>
-    </label>`).join('');
+    </label>`).join('')
+    + `<div style="margin-top:6px;padding:7px 10px;border-radius:4px;background:rgba(100,220,180,.05);border:1px solid rgba(100,220,180,.12);font-family:'JetBrains Mono',monospace;font-size:.58rem;color:rgba(100,220,180,.55);letter-spacing:.04em">
+        🔒 Lock texture to surface is always enabled
+      </div>`;
 }
 
 // ── Loading overlay ───────────────────────────────────────────
@@ -644,28 +653,27 @@ async function pgGenerate() {
       };
 
       if (PG.misc.addMoons && (type === 'planet' || type === 'gasgiant') && _pgRand() > 0.5) {
-        const moonPreset = pgPickPreset('moon');
-        if (moonPreset) {
-          const moonCount  = Math.floor(_pgRand() * 3) + 1;
-          const moonEccMax = PG.types['moon']?.eccMax ?? 0.05;
-          for (let m = 0; m < moonCount; m++) {
-            const moon = {
-              name:     NameGen.generate(),
-              type:     'moon',
-              parent:   name,
-              preset:   moonPreset,
-              orbitSMA: radius * (8 + m * 6 + _pgRand() * 3),
-              orbitEcc: _pgRand() * moonEccMax,
-              orbitAoP: _pgRand() * 360,
-              orbitDir: 1,
-              radius:   (moonPreset.data?.BASE_DATA?.radius || 300000) * 0.3,
-              color:    '#999999',
-              icon:     '🌙',
-              _angle:   _pgRand() * Math.PI * 2,
-              children: [],
-            };
-            body.children.push(moon);
-          }
+        const moonCount  = Math.floor(_pgRand() * 3) + 1;
+        const moonEccMax = PG.types['moon']?.eccMax ?? 0.05;
+        for (let m = 0; m < moonCount; m++) {
+          const moonPreset = pgPickPreset('moon');   // fresh pick per moon
+          if (!moonPreset) continue;
+          const moon = {
+            name:     NameGen.generate(),
+            type:     'moon',
+            parent:   name,
+            preset:   moonPreset,
+            orbitSMA: radius * (8 + m * 6 + _pgRand() * 3),
+            orbitEcc: _pgRand() * moonEccMax,
+            orbitAoP: _pgRand() * 360,
+            orbitDir: 1,
+            radius:   (moonPreset.data?.BASE_DATA?.radius || 300000) * 0.3,
+            color:    '#999999',
+            icon:     '🌙',
+            _angle:   _pgRand() * Math.PI * 2,
+            children: [],
+          };
+          body.children.push(moon);
         }
       }
 
@@ -947,12 +955,385 @@ function _pgAddOrbiters(parentName, onDone) {
   setTimeout(_applyChunk, 0);
 }
 
+// ════════════════════════════════════════════════════════════
+//  SURFACE TEXTURE CATEGORIES
+//
+//  Categorized by visual appearance, confirmed against actual
+//  texture images and planet file usage.
+//
+//  Three kinds of slot:
+//    planetTexture   — full-sphere base texture (equirectangular)
+//    surfaceTexture_A/B — tiling close-up detail layer
+//    terrainTexture_C   — tiling mid-distance blend layer
+//
+//  Each named pool is an array the randomizer draws from.
+// ════════════════════════════════════════════════════════════
+const PG_TEX = {
+
+  // ── surfaceTexture_A / B / terrainTexture_C detail tile pools ─────────────
+  // Confirmed from Terrain/ folder PNGs and actual planet file usage.
+  surface: {
+
+    // Rough bare rock — used on Mars, Mercury, moons, asteroids
+    rocky: [
+      'Hard_Rocks', 'HardRocks02', 'Soft_Rocks', 'DryGround', 'Limestone',
+    ],
+
+    // Ice crystal / snow surface — used on Europa, Enceladus, icy moons
+    icy: [
+      'Ice', 'Ice02', 'Snow',
+    ],
+
+    // Fine dark dust particles — used on Io, asteroid presets, small moons
+    dusty: [
+      'Dark_Dust', 'DarkDust02',
+    ],
+
+    // Sandy / granular loose surface — used on Deimos, desert worlds
+    sandy: [
+      'Sand',
+    ],
+
+    // Craters / pockmarks pattern — used on Phobos, Ganymede, Callisto, Miranda
+    cratered: [
+      'Dots02', 'Circles', 'Circles02',
+    ],
+
+    // Smooth / blurred — used on water worlds, gas-covered surfaces
+    smooth: [
+      'Neutral', 'Blured02',
+    ],
+
+    // Black / void fill — used on asteroid presets as secondary
+    dark: [
+      'Black_Dust',
+    ],
+  },
+
+  // ── planetTexture full-sphere base texture pools ──────────────────────────
+  // Grouped by visual biome / body class, derived from screenshots + usage map.
+  planet: {
+
+    // Blue-green Earth-type worlds with continents and oceans
+    earthlike: [
+      'Earth_WithOceans',   // vanilla Earth with ocean mask
+      'SuperEarth',         // larger version, green continents
+      'RPBD_c',             // red/purple banded — exotic earthlike
+    ],
+
+    // Arid, rocky, heavily cratered terrestrial worlds (Venus/Mars-like)
+    rocky_terrestrial: [
+      'Mars',           // red-orange barren
+      'Mercury',        // grey heavily-cratered
+      'Venus',          // pale yellow/tan cloud bands
+      'DesertWorld',    // tan/ochre desert surface
+      'Caryhuang',      // orange rocky textured (custom)
+    ],
+
+    // Icy / frost-covered worlds — bright whites and pale blues
+    icy_world: [
+      'Europa',     // white cracked ice
+      'Enceladus',  // bright white smooth ice
+      'Frozen',     // custom — stark black/white ice fractures
+      'Charon',     // grey-white cracked ice
+      'Triton',     // pale grey-blue icy
+      'Pluto',      // tan-grey icy dwarf
+    ],
+
+    // Dwarf planets and large trans-Neptunian objects
+    dwarf_planet: [
+      'Makemake',   // reddish-tan dwarf planet
+      'Gonggong',   // red-tinted dwarf (custom — used as Small Moon planetTex)
+      'Sedna',      // deep red-pink (custom)
+      'Orcus',      // grey icy dwarf
+      'Salacia',    // grey-white icy dwarf (custom)
+      'Ceres',      // grey cratered dwarf
+    ],
+
+    // Rocky cratered moons — grey/brown tones
+    moon_rocky: [
+      'Moon',       // grey cratered
+      'Callisto',   // dark cratered
+      'Ganymede',   // grey-brown grooved
+      'Iapetus',    // two-tone dark/light
+      'Mimas',      // grey cratered (Death Star)
+      'Miranda',    // heavily fractured grey
+      'Oberon',     // dark grey cratered
+      'Rhea',       // light grey cratered
+      'Tethys',     // pale grey smooth+cratered
+      'Titania',    // mid-grey cratered
+      'Umbriel',    // dark grey cratered
+      'Ariel',      // grey with bright streaks
+      'Dione',      // pale grey wispy streaks
+      'Phobos',     // dark brown grooved
+      'Deimos',     // dark grey dusty
+      'Hydra',      // grey irregular
+      'Nix',        // pale grey
+      'Pan',        // grey smooth disc-shape
+      'Naiad',      // dark grey irregular
+      'Puck',       // dark grey spherical
+      'Proteus',    // dark grey cratered
+      'Thebe',      // dark irregular (vanilla + custom versions)
+      'Amalthea',   // dark reddish irregular (custom)
+      'Apougu',     // dark brown rugged (custom)
+    ],
+
+    // Icy moons with distinct bright-ice appearance
+    moon_icy: [
+      'Europa',     // white cracked ice
+      'Enceladus',  // bright white
+      'Charon',     // grey-white
+      'Triton',     // pale icy
+    ],
+
+    // Volcanic / lava surface worlds
+    volcanic: [
+      'Io',   // yellow-orange volcanic patches
+    ],
+
+    // Gas and ice giants — banded swirling atmospheres
+    gas_giant: [
+      'Jupiter',         // orange-tan cloud bands
+      'Saturn',          // golden tan banded
+      'Neptune',         // deep blue banded
+      'Uranus',          // pale cyan smooth
+      'Titan',           // orange haze
+      'Blue_Gas_Giant',  // vivid blue swirling (custom)
+      'Ringed_Giant',    // pale yellow-green banded (custom)
+    ],
+
+    // Comets and asteroids — dark, irregular, rocky
+    asteroid: [
+      'Asteroid',    // vanilla grey cratered
+      'Basteroid',   // dark grey-brown
+      'Casteroid',   // brown cratered
+      'Dasteroid',   // dark grey-brown
+      'Easteroid',   // grey cratered
+      'Fasteroid',   // orange-brown comet
+      'Gasteroid',   // dark grey irregular
+      'Kasteroid',   // dark brown
+      'Lasteroid',   // dark grey
+      'Masteroid',   // medium grey
+      'Rasteroid',   // reddish-brown
+      'Sasteroid',   // grey-brown (used for Long/Round asteroid presets)
+      'Tasteroid',   // tan-brown
+      'Vasteroid',   // grey cratered
+      '95P',         // comet 95P — elongated dark (custom)
+    ],
+
+    // Black holes — photon ring / accretion disc
+    exotic: [
+      'PhotonSphere',  // black + bright photon ring (used for all BH presets)
+    ],
+  },
+
+  // ── Atmosphere gradient texture pools ────────────────────────────────────
+  // Used in ATMOSPHERE_VISUALS_DATA.GRADIENT.texture
+  // Sorted by visual appearance of the gradient (tall vertical strip):
+  atmo: {
+
+    // Very thin / barely-there haze — faint edge glow only
+    thin_haze: [
+      'Atmo_Europa',     // thin icy blue fringe
+      'Atmo_Enceladus',  // thin white fringe
+      'Atmo_Pluto',      // faint blue-grey wisp
+      'Atmo_Triton',     // thin blue-grey edge
+    ],
+
+    // Cool blue / cyan skies — clear terrestrial or icy worlds
+    blue_sky: [
+      'Atmo_Earth',    // vivid blue sky gradient
+      'Atmo_Neptune',  // deep blue column
+      'Atmo_Uranus',   // pale cyan column
+      'Atmo_B_Type',   // blue-white stellar glow
+      'Atmo_O_Type',   // vivid blue stellar
+    ],
+
+    // Warm orange / tan / brown hazes — dusty or hot worlds
+    warm_haze: [
+      'Atmo_Mars',     // reddish-tan sky gradient
+      'Atmo_Venus',    // thick yellow-tan haze
+      'Atmo_Titan',    // thick orange haze (dense column)
+      'Atmo_Jupiter',  // orange-tan banded
+      'Atmo_Saturn',   // golden tan column
+      'Atmo_K_Type',   // orange stellar glow
+      'Atmo_M_Type',   // deep orange-red glow
+      'Atmo_Tstar',    // T-type brown dwarf orange
+    ],
+
+    // White / neutral / pale gradients — bright stars or neutral hazes
+    pale_neutral: [
+      'Atmo_Sun',        // yellow-white solar corona
+      'Atmo_F_Type',     // pale yellow stellar
+      'Atmo_G_Type',     // warm yellow (sun-like)
+      'Atmo_A_Type',     // bright white stellar
+      'Atmo_White_Dwarf',// faint white-blue
+      'Atmo_P9',         // cold grey-white haze
+    ],
+
+    // Exotic / vivid — red, purple, unusual colours
+    exotic: [
+      'Atmo_RPBD',    // red/purple exotic gradient
+      'Atmo_Saggi',   // Sagittarius deep-field glow
+      'Atmo_Proxima', // red dwarf glow
+    ],
+  },
+};
+
+// ── Per-body-type texture randomization rules ─────────────────────────────────
+// Maps procgen body type → which PG_TEX pools to sample per slot.
+// null = leave the preset's existing texture value unchanged for that slot.
+// Arrays of pool names are flattened and picked from uniformly.
+const _PG_TEX_RULES = {
+
+  // Temperate/terrestrial planets — broad variety
+  planet: {
+    planetTexture:    ['earthlike', 'rocky_terrestrial', 'icy_world', 'volcanic'],
+    surfaceTexture_A: ['rocky', 'icy', 'dusty', 'smooth'],
+    surfaceTexture_B: ['rocky', 'dusty', 'sandy', 'smooth'],
+    terrainTexture_C: ['rocky', 'cratered', 'smooth'],
+    atmoTexture:      ['blue_sky', 'warm_haze', 'thin_haze'],
+  },
+
+  // Moons — rocky or icy, cratered
+  moon: {
+    planetTexture:    ['moon_rocky', 'moon_icy'],
+    surfaceTexture_A: ['rocky', 'dusty', 'icy', 'cratered'],
+    surfaceTexture_B: ['rocky', 'dusty', 'smooth'],
+    terrainTexture_C: ['rocky', 'cratered', 'smooth'],
+    atmoTexture:      ['thin_haze'],
+  },
+
+  // Gas giants — only swap the base sphere texture; detail tiles not applicable
+  gasgiant: {
+    planetTexture:    ['gas_giant'],
+    surfaceTexture_A: null,
+    surfaceTexture_B: null,
+    terrainTexture_C: null,
+    atmoTexture:      ['warm_haze', 'blue_sky', 'pale_neutral'],
+  },
+
+  // Ringed gas giants — same as gas giant
+  ringedgiant: {
+    planetTexture:    ['gas_giant'],
+    surfaceTexture_A: null,
+    surfaceTexture_B: null,
+    terrainTexture_C: null,
+    atmoTexture:      ['warm_haze', 'blue_sky', 'pale_neutral'],
+  },
+
+  // Asteroids — dark/rocky/dusty
+  asteroid: {
+    planetTexture:    ['asteroid'],
+    surfaceTexture_A: ['rocky', 'dusty', 'dark'],
+    surfaceTexture_B: ['rocky', 'dusty', 'smooth'],
+    terrainTexture_C: ['rocky', 'cratered'],
+    atmoTexture:      null,   // asteroids rarely have atmosphere
+  },
+
+  // Mercury-like airless rocky bodies
+  mercurylike: {
+    planetTexture:    ['moon_rocky', 'rocky_terrestrial'],
+    surfaceTexture_A: ['rocky', 'dusty', 'cratered'],
+    surfaceTexture_B: ['rocky', 'dusty', 'smooth'],
+    terrainTexture_C: ['rocky', 'cratered'],
+    atmoTexture:      ['thin_haze'],
+  },
+
+  // Mars-like — thin-atmo reddish worlds
+  marslike: {
+    planetTexture:    ['rocky_terrestrial'],
+    surfaceTexture_A: ['rocky', 'dusty', 'sandy'],
+    surfaceTexture_B: ['dusty', 'sandy', 'smooth'],
+    terrainTexture_C: ['rocky', 'smooth'],
+    atmoTexture:      ['warm_haze', 'thin_haze'],
+  },
+
+  // Dwarf planets — icy/rocky mixed
+  dwarf_planet: {
+    planetTexture:    ['dwarf_planet', 'moon_rocky', 'icy_world'],
+    surfaceTexture_A: ['rocky', 'icy', 'dusty'],
+    surfaceTexture_B: ['rocky', 'icy', 'smooth'],
+    terrainTexture_C: ['rocky', 'smooth'],
+    atmoTexture:      ['thin_haze', 'pale_neutral'],
+  },
+
+  // Black holes — no surface detail
+  blackhole: {
+    planetTexture:    ['exotic'],
+    surfaceTexture_A: null,
+    surfaceTexture_B: null,
+    terrainTexture_C: null,
+    atmoTexture:      ['exotic', 'pale_neutral'],
+  },
+};
+
+// Pick a random texture from the given category array using the seeded RNG.
+function _pgPickTex(pools, poolNames) {
+  if (!poolNames) return null;
+  // Flatten all nominated pools into one list
+  const merged = poolNames.flatMap(pn => pools[pn] || []);
+  if (!merged.length) return null;
+  return merged[Math.floor(_pgRand() * merged.length)];
+}
+
+// Apply randomized textures to a body data object in-place.
+function _pgRandomizeTextures(bd, bodyType) {
+  const rules = _PG_TEX_RULES[bodyType];
+  if (!rules) return;   // no rules for this type — leave untouched
+
+  const td = bd?.TERRAIN_DATA?.TERRAIN_TEXTURE_DATA;
+  if (td) {
+    // planetTexture
+    const pt = _pgPickTex(PG_TEX.planet, rules.planetTexture);
+    if (pt) td.planetTexture = pt;
+
+    // surfaceTexture_A
+    if (rules.surfaceTexture_A !== null) {
+      const sa = _pgPickTex(PG_TEX.surface, rules.surfaceTexture_A);
+      if (sa) td.surfaceTexture_A = sa;
+    }
+
+    // surfaceTexture_B
+    if (rules.surfaceTexture_B !== null) {
+      const sb = _pgPickTex(PG_TEX.surface, rules.surfaceTexture_B);
+      if (sb) td.surfaceTexture_B = sb;
+    }
+
+    // terrainTexture_C
+    if (rules.terrainTexture_C !== null) {
+      const tc = _pgPickTex(PG_TEX.surface, rules.terrainTexture_C);
+      if (tc) td.terrainTexture_C = tc;
+    }
+  }
+}
+
+// Randomize only the atmosphere gradient texture.
+function _pgRandomizeAtmoTexture(bd, bodyType) {
+  const rules = _PG_TEX_RULES[bodyType];
+  if (!rules || rules.atmoTexture === null) return;
+  if (!bd?.ATMOSPHERE_VISUALS_DATA?.GRADIENT) return;
+  const at = _pgPickTex(PG_TEX.atmo, rules.atmoTexture);
+  if (at) bd.ATMOSPHERE_VISUALS_DATA.GRADIENT.texture = at;
+}
+
 function _pgAddBody(body, parentName) {
   let name = body.name, suffix = 2;
   while (bodies[name]) name = body.name + '_' + (suffix++);
 
   const bd = JSON.parse(JSON.stringify(body.preset?.data || {}));
   if (bd.BASE_DATA) bd.BASE_DATA.radius = body.radius;
+
+  // Randomize surface textures if the option is enabled
+  if (PG.misc.randomizeTextures) _pgRandomizeTextures(bd, body.type);
+
+  // Randomize atmosphere texture separately if enabled
+  if (PG.misc.randomizeAtmoTextures) _pgRandomizeAtmoTexture(bd, body.type);
+
+  // Always lock texture to surface (planetTextureDontDistort)
+  if (bd?.TERRAIN_DATA?.TERRAIN_TEXTURE_DATA) {
+    bd.TERRAIN_DATA.TERRAIN_TEXTURE_DATA.planetTextureDontDistort = true;
+  }
 
   bd.ORBIT_DATA = {
     parent:              parentName,
@@ -1233,4 +1614,196 @@ function _pgFmt(n) {
   if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
   if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
   return Math.round(n) + '';
+}
+
+
+// ════════════════════════════════════════════════════════════
+//  MANAGE PRESETS TAB  (pg-tabp-presets)
+// ════════════════════════════════════════════════════════════
+
+// User-added presets — keyed by name, value = {data, category, typeOverride}
+const _pgUserPresets = {};
+let _pgPresetsFilter = 'all';
+let _pgAddBodySelected = null;   // selected body name in "Add from System" dialog
+
+// ── Category filter ───────────────────────────────────────────
+function pgPresetsFilter(filter, btn) {
+  _pgPresetsFilter = filter;
+  document.querySelectorAll('.pg-preset-filter-btn').forEach(b => b.classList.remove('pg-preset-filter-btn--on'));
+  if (btn) btn.classList.add('pg-preset-filter-btn--on');
+  pgPresetsRender();
+}
+
+// ── Render preset list ────────────────────────────────────────
+function pgPresetsRender() {
+  const list = document.getElementById('pg-presets-list');
+  if (!list) return;
+
+  const search    = (document.getElementById('pg-presets-search')?.value || '').toLowerCase().trim();
+  const all       = typeof buildAllPresets === 'function' ? buildAllPresets() : [];
+  const userNames = new Set(Object.keys(_pgUserPresets));
+
+  // Expanded filter buckets: asteroid filter also matches rocky sub-types
+  const filterMap = {
+    asteroid: ['asteroid', 'mercurylike', 'marslike'],
+    planet:   ['planet'],
+    moon:     ['moon'],
+    gasgiant: ['gasgiant', 'ringedgiant'],
+    star:     ['star'],
+  };
+
+  let items = all.filter(p => {
+    if (_pgPresetsFilter === '_user') return userNames.has(p.name);
+    if (_pgPresetsFilter !== 'all') {
+      const ids = filterMap[_pgPresetsFilter] || [_pgPresetsFilter];
+      if (!ids.includes(p.id)) return false;
+    }
+    if (search && !p.name.toLowerCase().includes(search) && !(p.id || '').toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  if (!items.length) {
+    list.innerHTML = '<div class="pg-preset-empty">No presets match</div>';
+    return;
+  }
+
+  items = items.slice().sort((a, b) => a.name.localeCompare(b.name));
+
+  list.innerHTML = items.map(p => {
+    const isUser   = userNames.has(p.name);
+    const tagLabel = _idToLabel(p.id);
+    const delBtn   = isUser
+      ? `<button class="pg-preset-del-btn" onclick="pgPresetsRemove(${JSON.stringify(p.name)})" title="Remove preset">✕</button>`
+      : '';
+    return `<div class="pg-preset-row${isUser ? ' pg-preset-row--user' : ''}">
+      <span class="pg-preset-row-icon">${p.icon || '🌑'}</span>
+      <span class="pg-preset-row-name" title="${p.name}">${p.name}</span>
+      <span class="pg-preset-row-tag${isUser ? ' pg-preset-row-tag--user' : ''}">${tagLabel}</span>
+      ${delBtn}
+    </div>`;
+  }).join('');
+}
+
+function _idToLabel(id) {
+  const map = {
+    star:'STAR', planet:'PLANET', moon:'MOON', gasgiant:'GAS GIANT',
+    ringedgiant:'RINGED', blackhole:'BLACK HOLE', asteroid:'ASTEROID',
+    mercurylike:'ROCKY', marslike:'MARS-LIKE', barycentre:'BARYCENTRE',
+  };
+  return map[id] || (id || 'BODY').toUpperCase();
+}
+
+// ── Open / close Add-from-JSON dialog ────────────────────────
+function pgShowAddPresetDialog() {
+  const dlg = document.getElementById('pg-add-json-dialog');
+  if (!dlg) return;
+  const nameEl = document.getElementById('pg-add-json-name');
+  const dataEl = document.getElementById('pg-add-json-data');
+  const errEl  = document.getElementById('pg-add-json-err');
+  if (nameEl) nameEl.value = '';
+  if (dataEl) dataEl.value = '';
+  if (errEl)  { errEl.textContent = ''; errEl.style.display = 'none'; }
+  dlg.classList.add('open');
+  if (nameEl) nameEl.focus();
+}
+function pgCloseAddJsonDialog() {
+  const dlg = document.getElementById('pg-add-json-dialog');
+  if (dlg) dlg.classList.remove('open');
+}
+
+// ── Add a user preset from JSON ───────────────────────────────
+function pgPresetsAdd() {
+  const nameEl   = document.getElementById('pg-add-json-name');
+  const catEl    = document.getElementById('pg-add-json-cat');
+  const typeEl   = document.getElementById('pg-add-json-type');
+  const jsonEl   = document.getElementById('pg-add-json-data');
+  const errEl    = document.getElementById('pg-add-json-err');
+
+  const name     = (nameEl?.value || '').trim();
+  const cat      = catEl?.value  || 'custom';
+  const typeOver = typeEl?.value || '';
+  const jsonTxt  = (jsonEl?.value || '').trim();
+
+  const showErr = msg => { if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } };
+  if (errEl) errEl.style.display = 'none';
+
+  if (!name)    { showErr('Please enter a preset name.'); return; }
+  if (!jsonTxt) { showErr('Please paste the preset JSON.'); return; }
+
+  let parsed = null;
+  try {
+    let fixed = jsonTxt
+      .replace(/,(\s*[}\]])/g, '$1')
+      .replace(/(\d)\.(?=[,\s}\]])/g, '$10')
+      .replace(/:\s*Infinity\b/g,  ': 1e38')
+      .replace(/:\s*-Infinity\b/g, ': -1e38')
+      .replace(/:\s*NaN\b/g,       ': 0');
+    parsed = JSON.parse(fixed);
+  } catch(e) {
+    showErr('Invalid JSON: ' + e.message);
+    return;
+  }
+
+  if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+    showErr('JSON must be an object with SFS body data.');
+    return;
+  }
+
+  _pgRegisterUserPreset(name, parsed, cat, typeOver);
+  pgCloseAddJsonDialog();
+  pgPresetsRender();
+  try { SFX.select(); } catch(_) {}
+  pgShowStatus(`✓ Preset "${name}" added to ${cat} pool`, 'ok');
+}
+
+// ── Open / close Add-from-System dialog ──────────────────────
+// Merged into the main preset modal (openPresetForSave) — no separate dialog needed.
+function pgShowAddFromBodyDialog() {
+  if(typeof openPresetForSave === 'function'){
+    openPresetForSave();
+  } else {
+    console.warn('[SFS] openPresetForSave not available');
+  }
+}
+
+// Stubs kept for backwards compatibility (old HTML buttons / external calls)
+function pgAddBodySelectItem()   {}
+function pgCloseAddBodyDialog()  {}
+function pgPresetsAddFromBody()  {}
+
+// ── Internal: register into dynamicPresets + tracking map ─────
+function _pgRegisterUserPreset(name, data, category, typeOverride) {
+  if (typeof dynamicPresets === 'undefined') return;
+  if (typeOverride && data) data._pgTypeHint = typeOverride;
+  if (category === 'vanilla') dynamicPresets.vanilla[name] = data;
+  else                        dynamicPresets.custom[name]  = data;
+  _pgUserPresets[name] = { data, category, typeOverride };
+}
+
+// ── Remove a user preset ──────────────────────────────────────
+function pgPresetsRemove(name) {
+  if (!_pgUserPresets[name]) return;
+  const { category } = _pgUserPresets[name];
+  if (typeof dynamicPresets !== 'undefined') {
+    if (category === 'vanilla') delete dynamicPresets.vanilla[name];
+    else                        delete dynamicPresets.custom[name];
+  }
+  delete _pgUserPresets[name];
+  pgPresetsRender();
+  try { SFX.click(); } catch(_) {}
+  pgShowStatus(`Preset "${name}" removed`, 'info');
+}
+
+// ── Close dialogs on backdrop click ───────────────────────────
+document.addEventListener('click', e => {
+  if (e.target.id === 'pg-add-json-dialog') pgCloseAddJsonDialog();
+});
+
+// ── Hook into pgSwitchTab to refresh when Presets tab opens ───
+const _pgSwitchTabOrig = pgSwitchTab;
+if (typeof pgSwitchTab === 'function') {
+  window.pgSwitchTab = function(name, btn) {
+    _pgSwitchTabOrig(name, btn);
+    if (name === 'presets') pgPresetsRender();
+  };
 }
