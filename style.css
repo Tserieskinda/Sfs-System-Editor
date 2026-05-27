@@ -1380,6 +1380,13 @@ body {
 .lm-del { background: none; border: none; color: var(--ink4); cursor: pointer; font-size: .8rem; transition: color .18s; }
 .lm-del:hover { color: var(--rose); }
 
+/* Suffix list scrollbar */
+#suffix-list::-webkit-scrollbar { width: 4px; }
+#suffix-list::-webkit-scrollbar-track { background: transparent; }
+#suffix-list::-webkit-scrollbar-thumb { background: var(--rim2); border-radius: 2px; }
+#suffix-list { scrollbar-width: thin; scrollbar-color: var(--rim2) transparent; }
+
+
 /* Landmark sliders */
 .lm-slider {
   width: 100%; height: 6px; cursor: pointer;

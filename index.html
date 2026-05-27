@@ -1057,7 +1057,10 @@
           </label>
         </div>
         <div id="lm-list"></div>
-        <button class="add-btn" onclick="addLandmark()">+ ADD LANDMARK</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="add-btn" onclick="addLandmark()" style="flex:1">+ ADD LANDMARK</button>
+          <button class="add-btn" onclick="openProceduralLandmarks()" style="flex:1;color:var(--jade);border-color:rgba(68,170,119,.35)" title="Scan heightmap & texture to auto-generate scientific landmarks">⬡ PROCEDURAL</button>
+        </div>
       </div>
       <div class="fsec">
         <div class="fsec-title">TEXTURE FORMULA <span class="badge">textureFormula</span></div>
@@ -1649,6 +1652,7 @@
 <script src="js/utils.js?v=5.12"></script>
 <script src="js/images.js?v=5.12"></script>
 <script src="js/procgen.js?v=1.0"></script>
+<script src="js/landmark-features.js?v=1.0"></script>
 <!-- ══ TERRAIN DETAIL DROPDOWN (body-level to escape topbar stacking context) ══ -->
 <div id="terrain-detail-dropdown" style="display:none;position:fixed;
   min-width:200px;background:rgba(6,10,22,.97);border:1px solid rgba(180,140,255,.25);
@@ -4784,6 +4788,143 @@ document.addEventListener('keydown', function(e){
     </div>
   </div>
 </div>
+<!-- ══════════════════════════════════════════════════════════════════
+     PROCEDURAL LANDMARKS MODAL
+══════════════════════════════════════════════════════════════════ -->
+<div id="proc-lm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;overflow-y:auto;padding:24px 12px">
+  <div style="max-width:640px;margin:0 auto;background:var(--panel2);border:1px solid var(--rim2);border-radius:10px;overflow:hidden">
+    <!-- Header -->
+    <div style="padding:12px 16px;background:var(--panel3);border-bottom:1px solid var(--rim);display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--sky2);font-weight:700;letter-spacing:.08em">⬡ PROCEDURAL LANDMARK GENERATOR</div>
+        <div style="font-size:.6rem;color:var(--ink4);margin-top:2px;font-family:'JetBrains Mono',monospace;letter-spacing:.04em">Scans texture &amp; heightmap · USGS scientific descriptors</div>
+      </div>
+      <button onclick="closeProceduralLandmarks()" style="background:none;border:none;color:var(--ink4);cursor:pointer;font-size:1.1rem;padding:4px 8px;transition:color .18s" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--ink4)'">✕</button>
+    </div>
+    <div style="padding:14px;display:flex;flex-direction:column;gap:12px">
 
+      <!-- Config row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div>
+          <div class="flabel" style="font-size:.6rem;margin-bottom:4px">COUNT (1–4)</div>
+          <input type="number" id="plm-count" min="1" max="4" value="2" class="finput" style="text-align:center">
+        </div>
+        <div>
+          <div class="flabel" style="font-size:.6rem;margin-bottom:4px">NAME STYLE</div>
+          <select id="plm-style" class="finput" style="cursor:pointer">
+            <option value="phoneme">Phonemic (auto)</option>
+            <option value="latin">Latin/Classical</option>
+            <option value="greek">Greek/Mythic</option>
+            <option value="arabic">Arabic/Celestial</option>
+            <option value="nordic">Nordic/Runic</option>
+          </select>
+        </div>
+        <div>
+          <div class="flabel" style="font-size:.6rem;margin-bottom:4px">MIN. SEP (°)</div>
+          <input type="number" id="plm-sep" min="10" max="120" value="40" class="finput" style="text-align:center">
+        </div>
+      </div>
+
+      <!-- Options row -->
+      <div style="display:flex;gap:16px;align-items:center;padding:8px 10px;background:rgba(10,14,30,.5);border:1px solid var(--rim);border-radius:6px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--ink3)">
+          <input type="checkbox" id="plm-use-suffix" checked style="accent-color:var(--jade);width:12px;height:12px">
+          SCIENTIFIC SUFFIX
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--ink3)">
+          <input type="checkbox" id="plm-avoid-existing" checked style="accent-color:var(--sky);width:12px;height:12px">
+          AVOID EXISTING
+        </label>
+        <div style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:.55rem;color:var(--ink4)" id="plm-planet-label"></div>
+      </div>
+
+      <!-- Scan progress -->
+      <div id="plm-progress-wrap" style="display:none;background:rgba(10,14,30,.6);border:1px solid var(--rim);border-radius:6px;padding:10px 12px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--ink4);margin-bottom:6px" id="plm-progress-label">Analysing heightmap…</div>
+        <div style="background:var(--panel);border-radius:3px;height:4px;overflow:hidden">
+          <div id="plm-progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--sky),var(--jade));transition:width .06s linear;border-radius:3px"></div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div id="plm-results" style="display:none;flex-direction:column;gap:6px"></div>
+
+      <!-- Action buttons -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="runProceduralScan()" style="flex:1;padding:9px 14px;background:rgba(68,170,119,.15);border:1px solid rgba(68,170,119,.4);border-radius:6px;color:var(--jade);font-family:'JetBrains Mono',monospace;font-size:.65rem;font-weight:700;letter-spacing:.06em;cursor:pointer;transition:all .18s" onmouseover="this.style.background='rgba(68,170,119,.25)'" onmouseout="this.style.background='rgba(68,170,119,.15)'">⬡ SCAN &amp; GENERATE</button>
+        <button id="plm-add-btn" onclick="applyProceduralLandmarks()" style="display:none;flex:1;padding:9px 14px;background:rgba(64,128,255,.15);border:1px solid rgba(64,128,255,.4);border-radius:6px;color:var(--sky2);font-family:'JetBrains Mono',monospace;font-size:.65rem;font-weight:700;letter-spacing:.06em;cursor:pointer;transition:all .18s" onmouseover="this.style.background='rgba(64,128,255,.25)'" onmouseout="this.style.background='rgba(64,128,255,.15)'">✓ ADD TO LANDMARKS</button>
+        <button onclick="closeProceduralLandmarks()" style="padding:9px 14px;background:none;border:1px solid var(--rim);border-radius:6px;color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.65rem;cursor:pointer;transition:all .18s" onmouseover="this.style.borderColor='var(--rim3)';this.style.color='var(--ink2)'" onmouseout="this.style.borderColor='var(--rim)';this.style.color='var(--ink4)'">CANCEL</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     ADD SUFFIX MODAL
+══════════════════════════════════════════════════════════════════ -->
+<div id="suffix-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9100;overflow-y:auto;padding:24px 12px">
+  <div style="max-width:600px;margin:0 auto;background:var(--panel2);border:1px solid var(--rim2);border-radius:10px;overflow:hidden">
+    <div style="padding:12px 16px;background:var(--panel3);border-bottom:1px solid var(--rim);display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--amber);font-weight:700;letter-spacing:.08em">✦ ADD SCIENTIFIC SUFFIX</div>
+        <div style="font-size:.6rem;color:var(--ink4);margin-top:2px;font-family:'JetBrains Mono',monospace;letter-spacing:.04em">USGS Planetary Descriptor Terms · planetarynames.wr.usgs.gov</div>
+      </div>
+      <button onclick="closeSuffixModal()" style="background:none;border:none;color:var(--ink4);cursor:pointer;font-size:1.1rem;padding:4px 8px;transition:color .18s" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--ink4)'">✕</button>
+    </div>
+    <div style="padding:14px;display:flex;flex-direction:column;gap:10px">
+
+      <!-- Base name display -->
+      <div style="padding:8px 12px;background:rgba(10,14,30,.6);border:1px solid var(--rim);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--ink4)">
+        EDITING: <span id="suffix-base-display" style="color:var(--sky2);font-weight:700"></span>
+      </div>
+
+      <!-- Position toggle -->
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="flabel" style="font-size:.6rem;flex-shrink:0">POSITION</span>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--ink3)">
+          <input type="radio" name="suffix-pos" id="suffix-pos-after" value="after" checked onchange="updateSuffixPreview()" style="accent-color:var(--amber)">
+          AFTER NAME
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--ink3)">
+          <input type="radio" name="suffix-pos" id="suffix-pos-before" value="before" onchange="updateSuffixPreview()" style="accent-color:var(--amber)">
+          BEFORE NAME
+        </label>
+      </div>
+
+      <!-- Search + filter -->
+      <div style="display:flex;gap:6px">
+        <input type="text" id="suffix-search" class="finput" placeholder="Filter descriptors…" oninput="filterSuffixList()" style="flex:1">
+        <select id="suffix-cat" class="finput" onchange="filterSuffixList()" style="width:130px;cursor:pointer">
+          <option value="">All</option>
+          <option value="depression">Depressions</option>
+          <option value="elevation">Elevations</option>
+          <option value="plain">Plains</option>
+          <option value="flow">Flows</option>
+          <option value="crater">Craters</option>
+          <option value="ridge">Ridges</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <!-- Descriptor list -->
+      <div id="suffix-list" style="display:flex;flex-direction:column;gap:4px;max-height:260px;overflow-y:auto;padding-right:3px"></div>
+
+      <!-- Live preview -->
+      <div style="padding:10px 14px;background:rgba(10,14,30,.7);border:1px solid rgba(204,153,68,.2);border-radius:7px">
+        <div style="font-size:.55rem;color:var(--ink4);font-family:'JetBrains Mono',monospace;letter-spacing:.06em;margin-bottom:5px">PREVIEW</div>
+        <div id="suffix-preview-name" style="font-family:'JetBrains Mono',monospace;font-size:.95rem;color:var(--ink3)">—</div>
+        <div id="suffix-preview-desc" style="font-size:.6rem;color:var(--ink4);margin-top:3px;font-style:italic"></div>
+      </div>
+
+      <!-- Action buttons -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="applySuffix()" style="flex:1;padding:9px 14px;background:rgba(204,153,68,.15);border:1px solid rgba(204,153,68,.4);border-radius:6px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:.65rem;font-weight:700;letter-spacing:.06em;cursor:pointer;transition:all .18s" onmouseover="this.style.background='rgba(204,153,68,.25)'" onmouseout="this.style.background='rgba(204,153,68,.15)'">✓ APPLY SUFFIX</button>
+        <button onclick="closeSuffixModal()" style="padding:9px 14px;background:none;border:1px solid var(--rim);border-radius:6px;color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.65rem;cursor:pointer;transition:all .18s" onmouseover="this.style.borderColor='var(--rim3)';this.style.color='var(--ink2)'" onmouseout="this.style.borderColor='var(--rim)';this.style.color='var(--ink4)'">CANCEL</button>
+      </div>
+
+    </div>
+  </div>
+</div>
 
 </body>

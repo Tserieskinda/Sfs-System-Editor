@@ -1058,10 +1058,14 @@ function makeLandmark(l, i){
       <button class="lm-del" onclick="delLandmark(${i})">✕</button>
     </div>
 
-    <div class="frow">
-      <span class="flabel">Name</span>
+    <div class="frow" style="gap:5px">
+      <span class="flabel" style="flex-shrink:0">Name</span>
       <input class="finput" id="lm-${i}-n" type="text" value="${(l.name||'').replace(/"/g,'&quot;')}"
-        oninput="liveSync()">
+        oninput="liveSync()" style="flex:1;min-width:0">
+      <button title="Add scientific descriptor suffix (USGS)" onclick="openSuffixModal(${i})"
+        style="flex-shrink:0;padding:3px 8px;background:rgba(204,153,68,.1);border:1px solid rgba(204,153,68,.3);border-radius:4px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:.58rem;font-weight:700;cursor:pointer;transition:all .18s;white-space:nowrap;letter-spacing:.03em"
+        onmouseover="this.style.background='rgba(204,153,68,.22)';this.style.borderColor='rgba(204,153,68,.6)'"
+        onmouseout="this.style.background='rgba(204,153,68,.1)';this.style.borderColor='rgba(204,153,68,.3)'">+ SUFFIX</button>
     </div>
 
     <!-- Arc visualiser + computed start/end readout -->
