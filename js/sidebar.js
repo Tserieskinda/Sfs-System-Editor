@@ -994,7 +994,19 @@ function delPPKey(i){ document.getElementById('ppk-'+i)?.remove(); }
 // ── LANDMARKS ──
 function buildLandmarks(lms){
   const el=document.getElementById('lm-list'); el.innerHTML='';
-  lms.forEach((l,i)=>el.appendChild(makeLandmark(l,i)));
+  lms.forEach((l,i)=>{
+    let name = l.name || '';
+    let prefix = l.prefix || '';
+    if(!prefix && name){
+      const words = name.split(' ');
+      const lastWord = words[words.length - 1];
+      if(words.length > 1 && USGS_TERMS.some(t => t.term === lastWord)){
+        prefix = lastWord;
+        name = words.slice(0, -1).join(' ');
+      }
+    }
+    el.appendChild(makeLandmark({...l, name, prefix}, i));
+  });
 }
 
 // Draws a mini arc SVG showing where on a 360° circle the landmark sits.
@@ -1052,20 +1064,37 @@ function makeLandmark(l, i){
   const centre = (sa + ea) / 2;
   const width  = Math.abs(ea - sa) || 10;
 
+  const prefixVal = (l.prefix || '').trim();
+
+  // Build sorted prefix options list
+  const _pfxOpts = USGS_TERMS.slice().sort((a,b)=>a.term.localeCompare(b.term))
+    .map(t=>`<option value="${t.term}" ${prefixVal===t.term?'selected':''}>${t.term}</option>`).join('');
+
   d.innerHTML = `
     <div class="pp-key-header">
       <span class="pp-key-title">LANDMARK ${i+1}</span>
       <button class="lm-del" onclick="delLandmark(${i})">✕</button>
     </div>
 
-    <div class="frow" style="gap:5px">
+    <div class="frow" style="gap:5px;align-items:center">
       <span class="flabel" style="flex-shrink:0">Name</span>
       <input class="finput" id="lm-${i}-n" type="text" value="${(l.name||'').replace(/"/g,'&quot;')}"
         oninput="liveSync()" style="flex:1;min-width:0">
-      <button title="Add scientific descriptor suffix (USGS)" onclick="openSuffixModal(${i})"
-        style="flex-shrink:0;padding:3px 8px;background:rgba(204,153,68,.1);border:1px solid rgba(204,153,68,.3);border-radius:4px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:.58rem;font-weight:700;cursor:pointer;transition:all .18s;white-space:nowrap;letter-spacing:.03em"
-        onmouseover="this.style.background='rgba(204,153,68,.22)';this.style.borderColor='rgba(204,153,68,.6)'"
-        onmouseout="this.style.background='rgba(204,153,68,.1)';this.style.borderColor='rgba(204,153,68,.3)'">+ SUFFIX</button>
+      <div style="position:relative;flex-shrink:0">
+        <select id="lm-${i}-pfx" onchange="liveSync()"
+          title="Planetary descriptor (USGS)"
+          style="appearance:none;-webkit-appearance:none;padding:4px 22px 4px 7px;
+            font-family:'JetBrains Mono',monospace;font-size:.6rem;font-weight:700;
+            color:var(--amber);background:rgba(204,153,68,.1);
+            border:1px solid rgba(204,153,68,.3);border-radius:4px;cursor:pointer;
+            max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+            transition:all .18s;outline:none">
+          <option value="">— none —</option>
+          ${_pfxOpts}
+        </select>
+        <span style="pointer-events:none;position:absolute;right:5px;top:50%;transform:translateY(-50%);
+          font-size:.55rem;color:var(--amber);opacity:.7">▾</span>
+      </div>
     </div>
 
     <!-- Arc visualiser + computed start/end readout -->
@@ -1741,6 +1770,7 @@ function collectLandmarks(){
   const lms=[]; let i=0;
   while(document.getElementById('lm-'+i)){
     const name = document.getElementById(`lm-${i}-n`)?.value?.trim() || '';
+    const prefix = document.getElementById(`lm-${i}-pfx`)?.value?.trim() || '';
     // Read centre and width from number inputs (precise), fall back to range slider
     const centre = parseFloat(document.getElementById(`lm-${i}-c-num`)?.value
                 ?? document.getElementById(`lm-${i}-c`)?.value) || 0;
@@ -1748,7 +1778,8 @@ function collectLandmarks(){
                 ?? document.getElementById(`lm-${i}-w`)?.value) || 10;
     const startAngle = parseFloat((centre - width/2).toFixed(4));
     const endAngle   = parseFloat((centre + width/2).toFixed(4));
-    if(name) lms.push({ name, startAngle, endAngle });
+    const fullName = name && prefix ? `${name} ${prefix}` : (name || prefix);
+    if(fullName) lms.push({ name: fullName, startAngle, endAngle });
     i++;
   }
   return lms;
