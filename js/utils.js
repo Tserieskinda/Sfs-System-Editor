@@ -939,6 +939,12 @@ function _htxBuildCanvas() {
     //   angle = atan2(dy,dx)          → longitude
     //   map r through fisheye curve   → v in vMin..vMax
     //   map angle                     → u in 0..1
+    //
+    // Pole is always at centre (r=0):
+    //   top hemisphere    → pole is at vMin (top of image),  so r=0 → vMin, r=1 → vMax
+    //   bottom hemisphere → pole is at vMax (bottom of image), so r=0 → vMax, r=1 → vMin
+    const poleV  = (hemi === 'bottom') ? vMax : vMin;
+    const edgeV  = (hemi === 'bottom') ? vMin : vMax;
     for(let py = 0; py < size; py++) {
       for(let px2 = 0; px2 < size; px2++) {
         const dx = (px2 - cx) / R;
@@ -952,8 +958,8 @@ function _htxBuildCanvas() {
         }
         // Apply fisheye: remap r with power
         const rWarp = Math.pow(r, 1.0 / fishStr);
-        // Map rWarp [0..1] to v [vMin..vMax]
-        const v = vMin + rWarp * (vMax - vMin);
+        // Map rWarp [0..1]: centre (r=0) → pole, edge (r=1) → equator cut
+        const v = poleV + rWarp * (edgeV - poleV);
         // Angle → u [0..1], shifted by lonRot
         const angle = Math.atan2(dy, dx); // -π..π
         let u = angle / (2 * Math.PI) + 0.5 + lonRot; // 0..1 + offset
