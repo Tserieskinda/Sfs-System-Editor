@@ -367,7 +367,23 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function hmtSetTab(tab) {
-  document.getElementById('hmt-bumpmap').style.display = 'flex';
+  // Bumpmap tab
+  const bmpPanel = document.getElementById('hmt-bumpmap');
+  const texPanel = document.getElementById('hmt-texmap');
+  const bmpBtn   = document.getElementById('hmt-tab-bmp');
+  const texBtn   = document.getElementById('hmt-tab-texmap');
+
+  if(tab === 'bumpmap') {
+    bmpPanel.style.display = 'flex';
+    if(texPanel) texPanel.style.display = 'none';
+    if(bmpBtn) { bmpBtn.style.background='rgba(100,220,180,.12)'; bmpBtn.style.color='rgba(100,220,180,.9)'; }
+    if(texBtn) { texBtn.style.background='none'; texBtn.style.color='rgba(180,200,255,.6)'; }
+  } else if(tab === 'texmap') {
+    bmpPanel.style.display = 'none';
+    if(texPanel) texPanel.style.display = 'flex';
+    if(bmpBtn) { bmpBtn.style.background='none'; bmpBtn.style.color='rgba(180,200,255,.6)'; }
+    if(texBtn) { texBtn.style.background='rgba(120,160,255,.12)'; texBtn.style.color='rgba(180,210,255,.9)'; }
+  }
 }
 
 // ── Breakpoint management ─────────────────────────────────────
@@ -799,6 +815,305 @@ function hmtDownloadPNG() {
   const rawName    = (document.getElementById('hmt-out-name').value || 'bumpmap_hm').trim().replace(/\.png$/i, '');
   const uniqueName = _hmtUniqueName(rawName);
   const outC = _hmtBuildCanvas();
+  if(!outC) return;
+  const link = document.createElement('a');
+  link.href     = outC.toDataURL('image/png');
+  link.download = uniqueName + '.png';
+  link.click();
+}
+
+// ════════════════════════════════════════════════════════════
+//  TEXTURE MAP → SFS TEXTURE CONVERTER
+// ════════════════════════════════════════════════════════════
+
+let _htxSrcImg  = null;   // source Image
+let _htxSrcPx   = null;   // Uint8ClampedArray pixels
+let _htxSrcW    = 0;
+let _htxSrcH    = 0;
+let _htxOutC    = null;   // output canvas
+
+// ── Load file ────────────────────────────────────────────────
+function htxLoadFile(file) {
+  if(!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      _htxSrcImg = img;
+      _htxSrcW = img.width;
+      _htxSrcH = img.height;
+      // Rasterise to pixel buffer
+      const oc = document.createElement('canvas');
+      oc.width = _htxSrcW; oc.height = _htxSrcH;
+      oc.getContext('2d').drawImage(img, 0, 0);
+      _htxSrcPx = oc.getContext('2d').getImageData(0, 0, _htxSrcW, _htxSrcH).data;
+      // Draw source preview
+      const pv = document.getElementById('htx-src-preview');
+      pv.width = _htxSrcW; pv.height = _htxSrcH;
+      pv.getContext('2d').drawImage(img, 0, 0);
+      // Show loaded state
+      document.getElementById('htx-dropzone').style.display = 'none';
+      document.getElementById('htx-loaded').style.display   = 'flex';
+      htxUpdate();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function htxReload() {
+  _htxSrcImg = null; _htxSrcPx = null;
+  document.getElementById('htx-dropzone').style.display = '';
+  document.getElementById('htx-loaded').style.display   = 'none';
+  document.getElementById('htx-file-input').value = '';
+}
+
+// ── Bilinear sample from equirectangular source ──────────────
+// u,v in [0,1) — wraps horizontally, clamps vertically
+function _htxSample(u, v) {
+  // Wrap u
+  u = u - Math.floor(u);
+  // Clamp v
+  v = Math.max(0, Math.min(0.9999, v));
+  const fx = u * _htxSrcW;
+  const fy = v * _htxSrcH;
+  const x0 = Math.floor(fx) % _htxSrcW;
+  const y0 = Math.floor(fy);
+  const x1 = (x0 + 1) % _htxSrcW;
+  const y1 = Math.min(y0 + 1, _htxSrcH - 1);
+  const dx = fx - Math.floor(fx);
+  const dy = fy - Math.floor(fy);
+  const i00 = (y0 * _htxSrcW + x0) * 4;
+  const i10 = (y0 * _htxSrcW + x1) * 4;
+  const i01 = (y1 * _htxSrcW + x0) * 4;
+  const i11 = (y1 * _htxSrcW + x1) * 4;
+  const p = _htxSrcPx;
+  const r = (p[i00]*(1-dx)*(1-dy) + p[i10]*dx*(1-dy) + p[i01]*(1-dx)*dy + p[i11]*dx*dy);
+  const g = (p[i00+1]*(1-dx)*(1-dy) + p[i10+1]*dx*(1-dy) + p[i01+1]*(1-dx)*dy + p[i11+1]*dx*dy);
+  const b = (p[i00+2]*(1-dx)*(1-dy) + p[i10+2]*dx*(1-dy) + p[i01+2]*(1-dx)*dy + p[i11+2]*dx*dy);
+  const a = (p[i00+3]*(1-dx)*(1-dy) + p[i10+3]*dx*(1-dy) + p[i01+3]*(1-dx)*dy + p[i11+3]*dx*dy);
+  return [r, g, b, a];
+}
+
+// ── Build output canvas ──────────────────────────────────────
+function _htxBuildCanvas() {
+  if(!_htxSrcPx) return null;
+
+  const size    = Math.max(64, Math.min(4096, parseInt(document.getElementById('htx-size').value) || 512));
+  const hemi    = document.querySelector('input[name="htx-hemi"]:checked')?.value || 'bottom';
+  const mode    = document.querySelector('input[name="htx-mode"]:checked')?.value || 'polar';
+  const latCut  = (parseInt(document.getElementById('htx-lat').value) || 50) / 100;  // 0..1
+  const lonRot  = (parseInt(document.getElementById('htx-lon').value) || 0) / 360;   // 0..1
+  const fishStr = parseFloat(document.getElementById('htx-fish').value) || 1.0;
+
+  const out = document.createElement('canvas');
+  out.width = size; out.height = size;
+  const ctx = out.getContext('2d');
+  const imgData = ctx.createImageData(size, size);
+  const px = imgData.data;
+
+  // Determine source vertical range in [0..1] (top=0, bottom=1 in equirect)
+  // Top hemisphere: 0..0.5, Bottom hemisphere: 0.5..1.0
+  // latCut shrinks/expands how much we include
+  let vMin, vMax;
+  if(hemi === 'top') {
+    vMin = 0;
+    vMax = 0.5 * latCut;
+  } else if(hemi === 'bottom') {
+    vMax = 1.0;
+    vMin = 1.0 - 0.5 * latCut;
+  } else {
+    // full — use latCut as fraction of full height centred at equator
+    const halfH = 0.5 * latCut;
+    vMin = 0.5 - halfH;
+    vMax = 0.5 + halfH;
+  }
+
+  const cx = size / 2;
+  const cy = size / 2;
+  const R  = size / 2;
+
+  if(mode === 'polar') {
+    // Polar fisheye: for each output pixel (px,py):
+    //   r = distance from centre / R  → 0 at centre (pole), 1 at edge (equator cut)
+    //   angle = atan2(dy,dx)          → longitude
+    //   map r through fisheye curve   → v in vMin..vMax
+    //   map angle                     → u in 0..1
+    for(let py = 0; py < size; py++) {
+      for(let px2 = 0; px2 < size; px2++) {
+        const dx = (px2 - cx) / R;
+        const dy = (py - cy) / R;
+        const r  = Math.sqrt(dx*dx + dy*dy);
+        if(r > 1.0) {
+          // Outside circle — transparent
+          const idx = (py * size + px2) * 4;
+          px[idx+3] = 0;
+          continue;
+        }
+        // Apply fisheye: remap r with power
+        const rWarp = Math.pow(r, 1.0 / fishStr);
+        // Map rWarp [0..1] to v [vMin..vMax]
+        const v = vMin + rWarp * (vMax - vMin);
+        // Angle → u [0..1], shifted by lonRot
+        const angle = Math.atan2(dy, dx); // -π..π
+        let u = angle / (2 * Math.PI) + 0.5 + lonRot; // 0..1 + offset
+        // Flip horizontal to match SFS orientation
+        u = 1.0 - u;
+        const [sr, sg, sb, sa] = _htxSample(u, v);
+        const idx = (py * size + px2) * 4;
+        px[idx]   = sr;
+        px[idx+1] = sg;
+        px[idx+2] = sb;
+        px[idx+3] = 255;
+      }
+    }
+  } else {
+    // Front-face: equatorial projection — just remap the strip onto a square
+    // This gives the Mercury/Io/Triton look: equator band projected flat
+    for(let py = 0; py < size; py++) {
+      const v = vMin + (py / size) * (vMax - vMin);
+      for(let px2 = 0; px2 < size; px2++) {
+        let u = (px2 / size) + lonRot;
+        const [sr, sg, sb] = _htxSample(u, v);
+        const idx = (py * size + px2) * 4;
+        px[idx]   = sr;
+        px[idx+1] = sg;
+        px[idx+2] = sb;
+        px[idx+3] = 255;
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+
+  // For polar mode — clip to circle so transparent corners match SFS polar textures
+  if(mode === 'polar') {
+    const tmp = document.createElement('canvas');
+    tmp.width = size; tmp.height = size;
+    const tc = tmp.getContext('2d');
+    tc.beginPath();
+    tc.arc(cx, cy, R, 0, Math.PI*2);
+    tc.clip();
+    tc.drawImage(out, 0, 0);
+    return tmp;
+  }
+
+  return out;
+}
+
+// ── Update preview ───────────────────────────────────────────
+function htxUpdate() {
+  if(!_htxSrcPx) return;
+
+  // Toggle fisheye row visibility
+  const mode = document.querySelector('input[name="htx-mode"]:checked')?.value || 'polar';
+  const fishRow = document.getElementById('htx-fisheye-row');
+  if(fishRow) fishRow.style.opacity = mode === 'polar' ? '1' : '0.35';
+
+  // Build at preview size (256px for speed)
+  const sizeSaved = document.getElementById('htx-size').value;
+  document.getElementById('htx-size').value = '256';
+  const previewC = _htxBuildCanvas();
+  document.getElementById('htx-size').value = sizeSaved;
+  if(!previewC) return;
+
+  // Draw to output preview canvas
+  const outEl = document.getElementById('htx-out-canvas');
+  outEl.width = 256; outEl.height = 256;
+  outEl.getContext('2d').drawImage(previewC, 0, 0);
+
+  // Update the source cut-line overlay
+  _htxDrawCutLine();
+}
+
+// Draw the hemisphere cut line on source preview
+function _htxDrawCutLine() {
+  const ov  = document.getElementById('htx-cut-overlay');
+  const pv  = document.getElementById('htx-src-preview');
+  if(!ov || !pv) return;
+  ov.width  = _htxSrcW;
+  ov.height = _htxSrcH;
+  const ctx = ov.getContext('2d');
+  ctx.clearRect(0, 0, _htxSrcW, _htxSrcH);
+
+  const hemi   = document.querySelector('input[name="htx-hemi"]:checked')?.value || 'bottom';
+  const latCut = (parseInt(document.getElementById('htx-lat').value) || 50) / 100;
+
+  let vMin, vMax;
+  if(hemi === 'top') {
+    vMin = 0; vMax = 0.5 * latCut;
+  } else if(hemi === 'bottom') {
+    vMax = 1.0; vMin = 1.0 - 0.5 * latCut;
+  } else {
+    const halfH = 0.5 * latCut;
+    vMin = 0.5 - halfH; vMax = 0.5 + halfH;
+  }
+
+  const yMin = vMin * _htxSrcH;
+  const yMax = vMax * _htxSrcH;
+
+  // Shade excluded areas
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  if(yMin > 0)           ctx.fillRect(0, 0, _htxSrcW, yMin);
+  if(yMax < _htxSrcH)    ctx.fillRect(0, yMax, _htxSrcW, _htxSrcH - yMax);
+
+  // Draw cut lines
+  ctx.strokeStyle = 'rgba(120,180,255,0.9)';
+  ctx.lineWidth   = Math.max(1, _htxSrcH / 120);
+  ctx.setLineDash([8, 6]);
+  if(yMin > 0) {
+    ctx.beginPath(); ctx.moveTo(0, yMin); ctx.lineTo(_htxSrcW, yMin); ctx.stroke();
+  }
+  if(yMax < _htxSrcH) {
+    ctx.beginPath(); ctx.moveTo(0, yMax); ctx.lineTo(_htxSrcW, yMax); ctx.stroke();
+  }
+}
+
+// ── Unique name helper ───────────────────────────────────────
+function _htxUniqueName(base) {
+  const existing = (typeof assets !== 'undefined' && assets.textures) ? assets.textures : [];
+  if(!existing.some(e => e.name === base + '.png')) return base;
+  let serial = 2;
+  while(existing.some(e => e.name === base + '_' + serial + '.png')) serial++;
+  return base + '_' + serial;
+}
+
+// ── Save to texture assets ───────────────────────────────────
+function htxSaveToAssets() {
+  if(!_htxSrcPx) { alert('Load a texture map first.'); return; }
+  const rawName    = (document.getElementById('htx-out-name').value || 'planet_texture').trim().replace(/\.png$/i, '');
+  const uniqueName = _htxUniqueName(rawName);
+  const pngName    = uniqueName + '.png';
+
+  const outC = _htxBuildCanvas();
+  if(!outC) { alert('Failed to build texture.'); return; }
+  const dataUrl = outC.toDataURL('image/png');
+
+  const b64     = dataUrl.split(',')[1];
+  const byteStr = atob(b64);
+  const bytes   = new Uint8Array(byteStr.length);
+  for(let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i);
+
+  const entry = { name: pngName, url: dataUrl, type: 'image/png', bytes, size: bytes.length };
+
+  if(typeof assets !== 'undefined' && assets.textures) assets.textures.push(entry);
+  if(typeof renderAssetRow === 'function') renderAssetRow(entry, 'textures');
+
+  document.getElementById('htx-out-name').value = uniqueName;
+
+  const status = document.getElementById('htx-save-status');
+  status.textContent = '✓ Saved as ' + pngName + ' → ASSETS › TEXTURES';
+  status.style.display = 'block';
+  clearTimeout(status._t);
+  status._t = setTimeout(() => { status.style.display = 'none'; }, 4000);
+}
+
+// ── Download PNG directly ────────────────────────────────────
+function htxDownloadPNG() {
+  if(!_htxSrcPx) { alert('Load a texture map first.'); return; }
+  const rawName    = (document.getElementById('htx-out-name').value || 'planet_texture').trim().replace(/\.png$/i, '');
+  const uniqueName = _htxUniqueName(rawName);
+  const outC = _htxBuildCanvas();
   if(!outC) return;
   const link = document.createElement('a');
   link.href     = outC.toDataURL('image/png');

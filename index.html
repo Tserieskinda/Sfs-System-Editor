@@ -1649,7 +1649,7 @@
 <script src="js/namegen.js?v=5.12"></script>
 <script src="js/tex-creator.js?v=5.12"></script>
 <script src="js/sfx.js?v=5.12"></script>
-<script src="js/utils.js?v=5.12"></script>
+<script src="js/utils.js?v=5.14"></script>
 <script src="js/images.js?v=5.12"></script>
 <script src="js/procgen.js?v=1.0"></script>
 <script src="js/landmark-features.js?v=1.1"></script>
@@ -3945,7 +3945,12 @@ document.addEventListener('keydown', function(e){
       border:none;border-right:1px solid rgba(100,220,180,.15);cursor:pointer;letter-spacing:.06em">
       🌄 BUMP MAP → HEIGHTMAP
     </button>
-    <!-- Future tools will be added here as more tabs -->
+    <button id="hmt-tab-texmap" onclick="hmtSetTab('texmap')"
+      style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:8px 16px;
+      background:none;color:rgba(180,200,255,.6);
+      border:none;border-right:1px solid rgba(100,220,180,.15);cursor:pointer;letter-spacing:.06em">
+      🌍 TEXTURE MAP → SFS TEXTURE
+    </button>
   </div>
 
   <!-- Tool content area -->
@@ -4126,6 +4131,165 @@ document.addEventListener('keydown', function(e){
 
       </div><!-- #hmt-loaded -->
     </div><!-- #hmt-bumpmap -->
+
+    <!-- ─── TEXTURE MAP TOOL ─── -->
+    <div id="hmt-texmap" style="display:none;flex-direction:column;gap:0">
+
+      <!-- Upload zone -->
+      <div id="htx-dropzone" style="margin:16px;border:2px dashed rgba(120,160,255,.25);
+        border-radius:6px;padding:22px;text-align:center;cursor:pointer;
+        transition:border-color .15s,background .15s;background:rgba(8,14,36,.6)"
+        onclick="document.getElementById('htx-file-input').click()"
+        ondragover="event.preventDefault();this.style.borderColor='rgba(120,160,255,.6)'"
+        ondragleave="this.style.borderColor='rgba(120,160,255,.25)'"
+        ondrop="event.preventDefault();this.style.borderColor='rgba(120,160,255,.25)';htxLoadFile(event.dataTransfer.files[0])">
+        <div style="font-size:1.5rem;margin-bottom:6px">🌐</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(120,160,255,.8);letter-spacing:.08em">DROP EQUIRECTANGULAR TEXTURE MAP</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(150,150,180,.5);margin-top:4px">PNG · JPG · WEBP — any equirectangular projection (360° × 180°)</div>
+        <input type="file" id="htx-file-input" accept="image/*" style="display:none" onchange="htxLoadFile(this.files[0])">
+      </div>
+
+      <!-- Loaded state -->
+      <div id="htx-loaded" style="display:none;flex-direction:column;gap:0">
+
+        <!-- Source preview -->
+        <div style="padding:0 16px 10px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(120,160,255,.5);margin-bottom:4px">SOURCE MAP</div>
+          <div style="position:relative;border-radius:4px;overflow:hidden;border:1px solid rgba(120,160,255,.15)">
+            <canvas id="htx-src-preview" style="width:100%;height:auto;display:block"></canvas>
+            <!-- Hemisphere cut line overlay -->
+            <canvas id="htx-cut-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></canvas>
+          </div>
+          <button onclick="htxReload()" style="margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:.5rem;
+            background:none;border:1px solid rgba(120,160,255,.25);border-radius:3px;
+            color:rgba(120,160,255,.6);padding:3px 10px;cursor:pointer">⟳ LOAD DIFFERENT IMAGE</button>
+        </div>
+
+        <!-- Controls grid -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;padding:10px 16px;
+          border-top:1px solid rgba(100,220,180,.08)">
+
+          <!-- Hemisphere -->
+          <div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(180,200,255,.5);margin-bottom:6px">HEMISPHERE / REGION</div>
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <label style="display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:.55rem;color:rgba(220,220,255,.8);cursor:pointer">
+                <input type="radio" name="htx-hemi" value="top" onchange="htxUpdate()" style="accent-color:#7cb0ff"> TOP HEMISPHERE (poles up)
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:.55rem;color:rgba(220,220,255,.8);cursor:pointer">
+                <input type="radio" name="htx-hemi" value="bottom" checked onchange="htxUpdate()" style="accent-color:#7cb0ff"> BOTTOM HEMISPHERE (equator face)
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:.55rem;color:rgba(220,220,255,.8);cursor:pointer">
+                <input type="radio" name="htx-hemi" value="full" onchange="htxUpdate()" style="accent-color:#7cb0ff"> FULL MAP (equirectangular strip)
+              </label>
+            </div>
+          </div>
+
+          <!-- Output mode -->
+          <div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(180,200,255,.5);margin-bottom:6px">OUTPUT MODE</div>
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <label style="display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:.55rem;color:rgba(220,220,255,.8);cursor:pointer">
+                <input type="radio" name="htx-mode" value="polar" checked onchange="htxUpdate()" style="accent-color:#7cb0ff"> POLAR (top-down fisheye) — Earth/Mars style
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:.55rem;color:rgba(220,220,255,.8);cursor:pointer">
+                <input type="radio" name="htx-mode" value="front" onchange="htxUpdate()" style="accent-color:#7cb0ff"> FRONT-FACE (equatorial) — Mercury/Io style
+              </label>
+            </div>
+          </div>
+
+          <!-- Latitude cut -->
+          <div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(180,200,255,.5)">
+              LATITUDE CUT <span id="htx-lat-val" style="color:rgba(180,210,255,.8)">50%</span>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.44rem;color:rgba(130,130,160,.5);margin-bottom:4px">How far from pole to include (0% = pole only, 100% = equator)</div>
+            <input type="range" id="htx-lat" min="10" max="100" value="50" step="1"
+              oninput="document.getElementById('htx-lat-val').textContent=this.value+'%';htxUpdate()"
+              style="width:100%;accent-color:#7cb0ff">
+          </div>
+
+          <!-- Longitude rotation -->
+          <div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(180,200,255,.5)">
+              LONGITUDE ROTATION <span id="htx-lon-val" style="color:rgba(180,210,255,.8)">0°</span>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.44rem;color:rgba(130,130,160,.5);margin-bottom:4px">Rotate map horizontally before converting</div>
+            <input type="range" id="htx-lon" min="0" max="360" value="0" step="1"
+              oninput="document.getElementById('htx-lon-val').textContent=this.value+'°';htxUpdate()"
+              style="width:100%;accent-color:#7cb0ff">
+          </div>
+
+          <!-- Fisheye strength (polar mode only) -->
+          <div id="htx-fisheye-row">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(180,200,255,.5)">
+              FISHEYE STRENGTH <span id="htx-fish-val" style="color:rgba(180,210,255,.8)">1.0</span>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.44rem;color:rgba(130,130,160,.5);margin-bottom:4px">Radial distortion (1.0 = standard polar, lower = flatter)</div>
+            <input type="range" id="htx-fish" min="0.3" max="2.0" value="1.0" step="0.05"
+              oninput="document.getElementById('htx-fish-val').textContent=parseFloat(this.value).toFixed(2);htxUpdate()"
+              style="width:100%;accent-color:#7cb0ff">
+          </div>
+
+          <!-- Output size -->
+          <div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(180,200,255,.5);margin-bottom:4px">OUTPUT SIZE (px)</div>
+            <input type="number" id="htx-size" min="64" max="4096" value="512" step="1"
+              oninput="htxUpdate()"
+              style="width:100%;background:rgba(8,14,36,.8);border:1px solid rgba(120,160,255,.25);
+              border-radius:3px;color:rgba(220,220,255,.9);font-family:'JetBrains Mono',monospace;
+              font-size:.6rem;padding:5px 8px;box-sizing:border-box">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.44rem;color:rgba(130,130,160,.45);margin-top:3px">Square output. Recommended: 512 for polar, 256×256 for front-face</div>
+          </div>
+
+        </div>
+
+        <!-- Output preview -->
+        <div style="padding:0 16px 14px;border-top:1px solid rgba(100,220,180,.08)">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(120,160,255,.5);margin-bottom:6px;margin-top:10px">OUTPUT PREVIEW</div>
+          <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">
+            <div style="flex-shrink:0">
+              <canvas id="htx-out-canvas" width="256" height="256"
+                style="width:200px;height:200px;border-radius:50%;border:2px solid rgba(120,160,255,.3);
+                background:rgba(0,0,0,.5);display:block"></canvas>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:.44rem;color:rgba(130,130,160,.5);text-align:center;margin-top:4px">SFS planet preview</div>
+            </div>
+            <div style="flex:1;min-width:160px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(180,200,255,.7);margin-bottom:8px">SAVE OPTIONS</div>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                <input type="text" id="htx-out-name" value="planet_texture"
+                  style="flex:1;background:rgba(8,14,36,.8);border:1px solid rgba(120,160,255,.25);
+                  border-radius:3px;color:rgba(220,220,255,.9);font-family:'JetBrains Mono',monospace;
+                  font-size:.58rem;padding:5px 8px">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(150,150,180,.5)">.png</span>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button onclick="htxSaveToAssets()"
+                  style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:6px 14px;
+                  background:rgba(60,100,220,.2);border:1px solid rgba(120,160,255,.4);
+                  border-radius:3px;color:rgba(180,210,255,.9);cursor:pointer;letter-spacing:.05em">
+                  💾 SAVE TO ASSETS
+                </button>
+                <button onclick="htxDownloadPNG()"
+                  style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:6px 14px;
+                  background:rgba(30,40,80,.6);border:1px solid rgba(120,160,255,.25);
+                  border-radius:3px;color:rgba(160,180,240,.7);cursor:pointer;letter-spacing:.05em">
+                  ⬇ DOWNLOAD PNG
+                </button>
+              </div>
+              <div id="htx-save-status" style="display:none;font-family:'JetBrains Mono',monospace;font-size:.5rem;
+                color:rgba(100,220,180,.8);margin-top:8px"></div>
+              <div style="margin-top:12px;font-family:'JetBrains Mono',monospace;font-size:.48rem;color:rgba(130,130,160,.5);line-height:1.7">
+                <div>📌 Polar mode → use for Earth/Mars/Jupiter-style textures</div>
+                <div>📌 Front-face mode → use for Mercury/Io/Triton-style textures</div>
+                <div>📌 Saved textures appear in ASSETS → TEXTURES tab</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- #htx-loaded -->
+    </div><!-- #hmt-texmap -->
 
   </div><!-- #hmt-content -->
 </div><!-- #hmt-modal -->
