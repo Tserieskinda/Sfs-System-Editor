@@ -743,7 +743,7 @@ function fillSidebar(name){
   toggleAtmoSection('av-fields','av-has');
 
   // CLOUDS (sub-section of ATMO_VISUALS)
-  const hasClouds = !!(AVD.CLOUDS && AVD.CLOUDS.texture && AVD.CLOUDS.texture !== 'None');
+  const hasClouds = !!(AVD.CLOUDS && (AVD.CLOUDS.enabled || (AVD.CLOUDS.texture && AVD.CLOUDS.texture !== 'None')));
   setTog('cl-has', hasClouds);
   const CL = AVD.CLOUDS||{}; setSelectVal('cl-tex',CL.texture); setSimpleKm('cl-sh',CL.startHeight);
   setSimpleKm('cl-w',CL.width); setSimpleKm('cl-h',CL.height); setSlider('cl-a', CL.alpha, 0, 1); setCloudVelDisplay(CL.velocity || 0);
@@ -1327,7 +1327,7 @@ function _liveSyncNow(){
   // ATMO VISUALS
   if(tog('av-has')){
     const cloudsObj = tog('cl-has')
-      ? { texture:val('cl-tex'), startHeight:getSimpleKmMetres('cl-sh'), width:getSimpleKmMetres('cl-w'), height:getSimpleKmMetres('cl-h'), alpha:_sf('cl-a', 0), velocity:_sf('cl-v', 0) }
+      ? { enabled:true, texture:val('cl-tex'), startHeight:getSimpleKmMetres('cl-sh'), width:getSimpleKmMetres('cl-w'), height:getSimpleKmMetres('cl-h'), alpha:_sf('cl-a', 0), velocity:_sf('cl-v', 0) }
       : { texture:'None', startHeight:0, width:0, height:0, alpha:0, velocity:0 };
     const fogObj = tog('fog-has')
       ? { keys: collectFogKeys() }
