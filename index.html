@@ -1649,7 +1649,7 @@
 <script src="js/namegen.js?v=5.12"></script>
 <script src="js/tex-creator.js?v=5.12"></script>
 <script src="js/sfx.js?v=5.12"></script>
-<script src="js/utils.js?v=5.15"></script>
+<script src="js/utils.js?v=5.16"></script>
 <script src="js/images.js?v=5.12"></script>
 <script src="js/procgen.js?v=1.0"></script>
 <script src="js/landmark-features.js?v=1.1"></script>
@@ -4287,6 +4287,54 @@ document.addEventListener('keydown', function(e){
             </div>
           </div>
         </div>
+
+        <!-- Matched Heightmap section -->
+        <div id="htx-hm-section" style="display:none;flex-direction:column;gap:0;border-top:1px solid rgba(100,220,180,.15);padding:14px 16px 16px">
+          <div style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.12em;color:rgba(100,220,180,.8);margin-bottom:10px">&#x1F5FA;&#xFE0F; MATCHED HEIGHTMAP</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(150,160,200,.6);line-height:1.6;margin-bottom:10px">
+            The sample line is locked to the polar warp circumference latitude &mdash; terrain and texture stay in sync. Use the offset slider to fine-tune.
+          </div>
+          <div style="position:relative;border-radius:4px;overflow:hidden;border:1px solid rgba(100,220,180,.15);margin-bottom:10px">
+            <canvas id="htx-hm-linepreview" style="width:100%;height:auto;display:block"></canvas>
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(180,200,255,.5)">LATITUDE OFFSET <span id="htx-hm-off-val" style="color:rgba(180,210,255,.8)">0</span></div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.44rem;color:rgba(130,130,160,.5);margin-bottom:4px">Fine-tune the sample row (&plus; towards pole, &minus; towards equator)</div>
+            <input type="range" id="htx-hm-offset" min="-60" max="60" value="0" step="1"
+              oninput="document.getElementById('htx-hm-off-val').textContent=this.value;htxUpdateHM()"
+              style="width:100%;accent-color:#64dcb4">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-bottom:10px">
+            <div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(180,200,255,.5);margin-bottom:4px">HM WIDTH (px)</div>
+              <input type="number" id="htx-hm-width" min="1" max="8192" value="1024" step="1" oninput="htxUpdateHM()"
+                style="width:100%;background:rgba(8,14,36,.8);border:1px solid rgba(100,220,180,.2);border-radius:3px;color:rgba(220,220,255,.9);font-family:'JetBrains Mono',monospace;font-size:.6rem;padding:5px 8px;box-sizing:border-box">
+            </div>
+            <div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(180,200,255,.5);margin-bottom:4px">HM HEIGHT (px)</div>
+              <input type="number" id="htx-hm-height" min="1" max="4096" value="512" step="1"
+                style="width:100%;background:rgba(8,14,36,.8);border:1px solid rgba(100,220,180,.2);border-radius:3px;color:rgba(220,220,255,.9);font-family:'JetBrains Mono',monospace;font-size:.6rem;padding:5px 8px;box-sizing:border-box">
+            </div>
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(100,220,180,.4);margin-bottom:4px">PROFILE</div>
+            <canvas id="htx-hm-profile" style="width:100%;height:52px;display:block;background:rgba(4,8,20,.7);border:1px solid rgba(100,220,180,.12);border-radius:3px"></canvas>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="htx-hm-name" value="planet_heightmap"
+              style="flex:1;min-width:120px;background:rgba(8,14,36,.8);border:1px solid rgba(100,220,180,.25);border-radius:3px;color:rgba(220,220,255,.9);font-family:'JetBrains Mono',monospace;font-size:.58rem;padding:5px 8px">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(150,150,180,.5)">.png</span>
+            <button onclick="htxSaveHMToAssets()"
+              style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:6px 14px;background:rgba(20,80,60,.3);border:1px solid rgba(100,220,180,.4);border-radius:3px;color:rgba(100,220,180,.9);cursor:pointer;letter-spacing:.05em">
+              &#x1F4BE; SAVE HEIGHTMAP
+            </button>
+            <button onclick="htxDownloadHM()"
+              style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:6px 14px;background:rgba(8,14,36,.6);border:1px solid rgba(100,220,180,.2);border-radius:3px;color:rgba(100,220,180,.6);cursor:pointer;letter-spacing:.05em">
+              &#x2B07; DOWNLOAD
+            </button>
+          </div>
+          <div id="htx-hm-status" style="display:none;font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(100,220,180,.8);margin-top:6px"></div>
+        </div><!-- #htx-hm-section -->
 
       </div><!-- #htx-loaded -->
     </div><!-- #hmt-texmap -->

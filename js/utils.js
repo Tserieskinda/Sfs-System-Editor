@@ -1016,6 +1016,10 @@ function htxUpdate() {
   const fishRow = document.getElementById('htx-fisheye-row');
   if(fishRow) fishRow.style.opacity = mode === 'polar' ? '1' : '0.35';
 
+  // Show matched heightmap section only in polar mode
+  const hmSec = document.getElementById('htx-hm-section');
+  if(hmSec) hmSec.style.display = mode === 'polar' ? 'flex' : 'none';
+
   // Build at preview size (256px for speed)
   const sizeSaved = document.getElementById('htx-size').value;
   document.getElementById('htx-size').value = '256';
@@ -1030,6 +1034,9 @@ function htxUpdate() {
 
   // Update the source cut-line overlay
   _htxDrawCutLine();
+
+  // Update matched heightmap
+  if(mode === 'polar') htxUpdateHM();
 }
 
 // Draw the hemisphere cut line on source preview
@@ -1123,6 +1130,186 @@ function htxDownloadPNG() {
   if(!outC) return;
   const link = document.createElement('a');
   link.href     = outC.toDataURL('image/png');
+  link.download = uniqueName + '.png';
+  link.click();
+}
+
+// ════════════════════════════════════════════════════════════
+//  MATCHED HEIGHTMAP (polar warp circumference-locked)
+// ════════════════════════════════════════════════════════════
+
+let _htxHMProfile = null;  // Float32Array [0..1], output-width samples
+
+// Compute the edgeV (equator-cut latitude in 0..1) from current texmap settings
+// This is the same calculation as _htxBuildCanvas uses
+function _htxEdgeV() {
+  const hemi   = document.querySelector('input[name="htx-hemi"]:checked')?.value || 'bottom';
+  const latCut = (parseInt(document.getElementById('htx-lat').value) || 50) / 100;
+  if(hemi === 'top')    return 0.5 * latCut;           // vMax for top
+  if(hemi === 'bottom') return 1.0 - 0.5 * latCut;    // vMin for bottom (equator side)
+  // full: midpoint — use vMin (top edge of strip)
+  return 0.5 - 0.5 * latCut;
+}
+
+function htxUpdateHM() {
+  if(!_htxSrcPx) return;
+
+  const hemi    = document.querySelector('input[name="htx-hemi"]:checked')?.value || 'bottom';
+  const lonRot  = (parseInt(document.getElementById('htx-lon').value) || 0) / 360;
+  const offset  = parseInt(document.getElementById('htx-hm-offset').value) || 0;
+  const outW    = Math.max(1, parseInt(document.getElementById('htx-hm-width').value) || 1024);
+
+  // edgeV is the circumference latitude — the row we sample for the heightmap profile
+  // For bottom hemi: edgeV is vMin (equator-cut, top of strip).
+  // For top hemi: edgeV is vMax (equator-cut, bottom of strip).
+  // This is the outermost ring of the polar warp, matching the planet's visible edge.
+  let edgeV = _htxEdgeV();
+
+  // Apply pixel offset (convert offset in px-of-source to v fraction)
+  // For bottom hemi, equator is above pole → positive offset moves toward pole (increasing v)
+  // For top hemi, equator is below pole → positive offset moves toward pole (decreasing v)
+  const vOffsetFrac = offset / _htxSrcH;
+  if(hemi === 'bottom') {
+    edgeV = Math.max(0, Math.min(1, edgeV + vOffsetFrac));
+  } else {
+    edgeV = Math.max(0, Math.min(1, edgeV - vOffsetFrac));
+  }
+
+  // Sample the grayscale luma along that row, with longitude offset matching the polar warp
+  const raw = new Float32Array(outW);
+  for(let i = 0; i < outW; i++) {
+    const srcFrac = ((i / outW) + lonRot) % 1;
+    // Polar warp flips u: u = 1 - angle_u, so we reverse here to match
+    const u = 1.0 - srcFrac;
+    const fx = ((u % 1 + 1) % 1) * (_htxSrcW - 1);
+    const fy = edgeV * (_htxSrcH - 1);
+    const x0 = Math.floor(fx), x1 = Math.min(x0+1, _htxSrcW-1);
+    const y0 = Math.floor(fy), y1 = Math.min(y0+1, _htxSrcH-1);
+    const dx = fx - x0, dy = fy - y0;
+    function luma(row, col) {
+      const idx = (row * _htxSrcW + col) * 4;
+      return _htxSrcPx[idx] / 255;
+    }
+    const v = (luma(y0,x0)*(1-dx)*(1-dy) + luma(y0,x1)*dx*(1-dy)
+             + luma(y1,x0)*(1-dx)*dy     + luma(y1,x1)*dx*dy);
+    raw[i] = v;
+  }
+
+  _htxHMProfile = raw;
+
+  // Draw the line preview on source image
+  _htxDrawHMLine(edgeV);
+
+  // Draw profile curve
+  _htxDrawHMProfile();
+}
+
+function _htxDrawHMLine(edgeV) {
+  const pv = document.getElementById('htx-hm-linepreview');
+  if(!pv || !_htxSrcImg) return;
+  pv.width  = _htxSrcW;
+  pv.height = _htxSrcH;
+  const ctx = pv.getContext('2d');
+  ctx.drawImage(_htxSrcImg, 0, 0);
+  const y = edgeV * _htxSrcH;
+  // Shade areas outside the sample row
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  const band = Math.max(2, _htxSrcH * 0.01);
+  ctx.fillRect(0, 0, _htxSrcW, Math.max(0, y - band));
+  ctx.fillRect(0, y + band, _htxSrcW, _htxSrcH - y - band);
+  // Draw the line
+  ctx.strokeStyle = 'rgba(100,220,180,0.95)';
+  ctx.lineWidth   = Math.max(1.5, _htxSrcH / 120);
+  ctx.setLineDash([10, 8]);
+  ctx.beginPath();
+  ctx.moveTo(0, y);
+  ctx.lineTo(_htxSrcW, y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function _htxDrawHMProfile() {
+  const el = document.getElementById('htx-hm-profile');
+  if(!el || !_htxHMProfile) return;
+  const W = el.offsetWidth || 400;
+  const H = 52;
+  el.width = W; el.height = H;
+  const ctx = el.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(4,8,20,.7)';
+  ctx.fillRect(0, 0, W, H);
+  const N = _htxHMProfile.length;
+  ctx.strokeStyle = 'rgba(100,220,180,.85)';
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath();
+  for(let i = 0; i < N; i++) {
+    const x = (i / (N-1)) * W;
+    const y = H - _htxHMProfile[i] * (H - 4) - 2;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+
+// Build the SFS heightmap canvas from matched profile
+function _htxBuildHMCanvas() {
+  if(!_htxHMProfile) return null;
+  const outW = _htxHMProfile.length;
+  const outH = Math.max(1, parseInt(document.getElementById('htx-hm-height')?.value) || 512);
+  const outC = document.createElement('canvas');
+  outC.width = outW; outC.height = outH;
+  const ctx  = outC.getContext('2d');
+  const CHUNK = 512;
+  for(let chunkStart = 0; chunkStart < outW; chunkStart += CHUNK) {
+    const chunkW = Math.min(CHUNK, outW - chunkStart);
+    const imgd   = ctx.createImageData(chunkW, outH);
+    const d      = imgd.data;
+    for(let ci = 0; ci < chunkW; ci++) {
+      const x    = chunkStart + ci;
+      const frac = _htxHMProfile[outW - x - 1]; // SFS horizontal flip
+      const cutY = Math.round(outH * (1 - frac));
+      for(let y = 0; y < outH; y++) {
+        const idx = (y * chunkW + ci) * 4;
+        d[idx] = d[idx+1] = d[idx+2] = 0;
+        d[idx+3] = y >= cutY ? 255 : 0;
+      }
+    }
+    ctx.putImageData(imgd, chunkStart, 0);
+  }
+  return outC;
+}
+
+function htxSaveHMToAssets() {
+  if(!_htxHMProfile) { alert('Generate matched heightmap first.'); return; }
+  const rawName    = (document.getElementById('htx-hm-name').value || 'planet_heightmap').trim().replace(/\.png$/i,'');
+  const uniqueName = _hmtUniqueName(rawName);
+  const pngName    = uniqueName + '.png';
+  const outC = _htxBuildHMCanvas();
+  if(!outC) { alert('Failed to build heightmap.'); return; }
+  const dataUrl = outC.toDataURL('image/png');
+  const b64 = dataUrl.split(',')[1];
+  const byteStr = atob(b64);
+  const bytes = new Uint8Array(byteStr.length);
+  for(let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i);
+  const entry = { name: pngName, url: dataUrl, type: 'image/png', bytes, size: bytes.length };
+  if(typeof assets !== 'undefined' && assets.heightmaps) assets.heightmaps.push(entry);
+  if(typeof injectCustomHeightmap === 'function') injectCustomHeightmap(pngName);
+  if(typeof renderAssetRow        === 'function') renderAssetRow(entry, 'heightmaps');
+  document.getElementById('htx-hm-name').value = uniqueName;
+  const status = document.getElementById('htx-hm-status');
+  status.textContent = '✓ Saved as ' + pngName + ' → ASSETS › HEIGHTMAPS';
+  status.style.display = 'block';
+  clearTimeout(status._t);
+  status._t = setTimeout(() => { status.style.display = 'none'; }, 4000);
+}
+
+function htxDownloadHM() {
+  if(!_htxHMProfile) { alert('Generate matched heightmap first.'); return; }
+  const rawName    = (document.getElementById('htx-hm-name').value || 'planet_heightmap').trim().replace(/\.png$/i,'');
+  const uniqueName = _hmtUniqueName(rawName);
+  const outC = _htxBuildHMCanvas();
+  if(!outC) return;
+  const link = document.createElement('a');
+  link.href = outC.toDataURL('image/png');
   link.download = uniqueName + '.png';
   link.click();
 }
