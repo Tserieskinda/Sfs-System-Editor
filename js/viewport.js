@@ -113,6 +113,111 @@ function cycleDifficulty(){
   drawViewport();
 }
 
+function toggleDistRings(){
+  const on = localStorage.getItem('sfs_dist_rings') !== '0';
+  localStorage.setItem('sfs_dist_rings', on ? '0' : '1');
+  _syncDistRingsBtn();
+  drawViewport();
+}
+
+function _syncDistRingsBtn(){
+  const btn = document.getElementById('btn-dist-rings');
+  if(!btn) return;
+  const on = localStorage.getItem('sfs_dist_rings') !== '0';
+  btn.style.opacity    = on ? '1' : '0.4';
+  btn.style.background = on ? 'rgba(120,200,255,.1)' : '';
+}
+
+// ── Distance ring scale presets ────────────────────────────────────────────────
+// Each preset defines a named scale and its ring values in AU.
+// LY values are stored as AU (1 LY = 63241 AU) so the renderer is unchanged.
+const _LY = 63241; // AU per light-year
+const _DIST_RING_PRESETS = [
+  { id: 'inner',   label: 'Inner system', sub: '0.1 – 2 AU',            rings: [0.1, 0.25, 0.5, 1, 2] },
+  { id: 'solar',   label: 'Solar system', sub: '1 – 50 AU',             rings: [1, 5, 10, 20, 30, 50] },
+  { id: '100au',   label: '100 AU scale', sub: '10 – 100 AU',           rings: [10, 25, 50, 75, 100] },
+  { id: '1kau',    label: '1 000 AU',     sub: '100 – 1 000 AU',        rings: [100, 250, 500, 1000] },
+  { id: '0.1ly',   label: '0.1 LY',       sub: '0.01 – 0.1 LY',        rings: [0.01*_LY, 0.025*_LY, 0.05*_LY, 0.1*_LY] },
+  { id: '1ly',     label: '1 LY',         sub: '0.1 – 1 LY',           rings: [0.1*_LY, 0.25*_LY, 0.5*_LY, _LY] },
+  { id: '10ly',    label: '10 LY',        sub: '1 – 10 LY',            rings: [_LY, 2*_LY, 5*_LY, 10*_LY] },
+  { id: '100ly',   label: '100 LY',       sub: '10 – 100 LY',          rings: [10*_LY, 25*_LY, 50*_LY, 100*_LY] },
+];
+
+// Returns the ring AU array for the active preset.
+function _getDistRingsCfg(){
+  const id = localStorage.getItem('sfs_dist_rings_preset') || 'solar';
+  const p  = _DIST_RING_PRESETS.find(p => p.id === id) || _DIST_RING_PRESETS[1];
+  return p.rings.slice();
+}
+
+// Build a nice label for a ring value — auto-selects AU vs LY.
+function _ringLabel(au){
+  if(au >= _LY * 0.09){
+    const ly = au / _LY;
+    const s  = ly >= 10 ? Math.round(ly) : (ly >= 1 ? +ly.toFixed(1) : +ly.toFixed(2));
+    return s + ' LY';
+  }
+  const s = au >= 10 ? Math.round(au) : (au >= 1 ? +au.toFixed(1) : +au.toFixed(2));
+  return s + ' AU';
+}
+
+function openDistRingsMenu(){
+  const modal = document.getElementById('dist-rings-modal');
+  if(!modal) return;
+  _distRingsRenderPresets();
+  modal.style.display = 'flex';
+}
+
+function closeDistRingsMenu(){
+  const modal = document.getElementById('dist-rings-modal');
+  if(modal) modal.style.display = 'none';
+}
+
+function _distRingsRenderPresets(){
+  const list = document.getElementById('dist-rings-list');
+  if(!list) return;
+  const active = localStorage.getItem('sfs_dist_rings_preset') || 'solar';
+  list.innerHTML = _DIST_RING_PRESETS.map(p => {
+    const on = p.id === active;
+    const ringStr = p.rings.map(_ringLabel).join(', ');
+    return `<div onclick="_distRingsSelectPreset('${p.id}')" style="
+        display:flex;align-items:center;gap:10px;padding:7px 10px;margin-bottom:5px;
+        border-radius:7px;cursor:pointer;border:1px solid ${on ? 'rgba(120,200,255,.45)' : 'rgba(120,200,255,.1)'};
+        background:${on ? 'rgba(120,200,255,.1)' : 'rgba(120,200,255,.03)'};
+        transition:background .12s,border-color .12s;">
+      <div style="width:14px;height:14px;border-radius:50%;flex-shrink:0;
+        border:2px solid ${on ? 'rgba(120,200,255,.9)' : 'rgba(120,200,255,.3)'};
+        background:${on ? 'rgba(120,200,255,.7)' : 'transparent'};
+        box-shadow:${on ? '0 0 6px rgba(120,200,255,.5)' : 'none'};"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:.72rem;color:${on ? 'rgba(180,220,255,.95)' : 'rgba(150,185,230,.7)'};
+          letter-spacing:.04em;">${p.label}</div>
+        <div style="font-size:.58rem;color:rgba(110,150,200,.5);margin-top:1px;
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ringStr}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function _distRingsSelectPreset(id){
+  localStorage.setItem('sfs_dist_rings_preset', id);
+  _distRingsRenderPresets();
+  drawViewport();
+}
+
+function _distRingsReset(){
+  localStorage.removeItem('sfs_dist_rings_preset');
+  _distRingsRenderPresets();
+  drawViewport();
+}
+
+// Sync dist-rings button state on load
+(function _initDistRingsBtn(){
+  const _go = () => _syncDistRingsBtn();
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _go);
+  else _go();
+})();
+
 // Keplerian: given SMA(px), ecc, argPeriapsis, return {cx,cy,rx,ry,angle, bodyX, bodyY}
 // In SFS, argument of periapsis rotates the ellipse. Body is placed at periapsis (true anomaly=0).
 function orbitGeometry(smaPx, ecc, aopDeg, parentCX, parentCY){
@@ -426,7 +531,16 @@ function _drawViewportNow(){
   // Always clear the PP CSS filter at frame start — it is re-applied below only if active.
   // This prevents stale filters persisting across frames when PP is toggled or no body found.
   vp.style.filter = '';
+  const _prevSMAScale = _cachedSMAScale; // may be null on first frame
   _cachedSMAScale = null; // invalidate per-frame cache
+  const _newSMAScale = getSMAScale();    // recompute now
+  // If the SMA scale changed (e.g. a body was added/removed changing maxSMA),
+  // rescale vpOffX/Y proportionally so the viewport centre stays fixed in world space.
+  if (_prevSMAScale !== null && _prevSMAScale !== _newSMAScale && _newSMAScale > 0) {
+    const ratio = _newSMAScale / _prevSMAScale;
+    vpOffX *= ratio;
+    vpOffY *= ratio;
+  }
   ctx2.clearRect(0, 0, vp.width, vp.height);
 
   const names = Object.keys(bodies);
@@ -602,6 +716,67 @@ function _drawViewportNow(){
   });
 
   ctx2.restore(); // end lighter composite
+
+  // ── Distance rings ────────────────────────────────────────────────────────
+  // Concentric circles around the SELECTED body (or centre if nothing selected).
+  // Only drawn when the setting is enabled (localStorage sfs_dist_rings).
+  if(localStorage.getItem('sfs_dist_rings') !== '0'){
+    // Determine ring centre: prefer selected body, fall back to system centre
+    const _ringBodyName = (typeof selectedBody !== 'undefined' && selectedBody && bodies[selectedBody])
+      ? selectedBody
+      : names.find(n => bodies[n].isCenter);
+    if(_ringBodyName){
+      const _rWP = bodyWorldPos[_ringBodyName] || {x:0, y:0};
+      const _cSP = worldToScreen(_rWP.x, _rWP.y);
+      const _AU      = 1.496e11;
+      const _smaScl  = getSMAScale();
+
+      // Use configurable ring list
+      const _ringAUs  = typeof _getDistRingsCfg === 'function' ? _getDistRingsCfg() : [0.1,0.25,0.5,1,2,5,10,20,50,100,500,1000];
+      const _RINGS = _ringAUs.map(au => ({
+        m: _AU * au,
+        label: typeof _ringLabel === 'function' ? _ringLabel(au) : au + ' AU',
+      }));
+
+      const _diagPx2 = Math.hypot(vp.width, vp.height);
+
+      ctx2.save();
+      ctx2.setLineDash([4, 6]);
+      ctx2.lineWidth = 0.7;
+
+      for(const {m, label} of _RINGS){
+        const _rpx = m * _smaScl * vpZ;
+        if(_rpx < 20 || _rpx > _diagPx2 * 4) continue;
+
+        const _fadeIn    = Math.min(1, (_rpx - 20) / 20);
+        const _coverage  = Math.min(1, _diagPx2 / _rpx);
+        const _alpha     = _fadeIn * Math.min(1, _coverage * 3) * 0.35;
+        if(_alpha < 0.01) continue;
+
+        ctx2.strokeStyle = `rgba(120,200,255,${_alpha})`;
+        ctx2.beginPath();
+        ctx2.arc(_cSP.x, _cSP.y, _rpx, 0, Math.PI * 2);
+        ctx2.stroke();
+
+        if(_rpx < _diagPx2 * 1.5 && _alpha > 0.05){
+          const _lx = _cSP.x;
+          const _ly = _cSP.y - _rpx;
+          if(_lx >= 0 && _lx <= vp.width && _ly >= -10 && _ly <= vp.height){
+            ctx2.globalAlpha = _alpha * 2.2;
+            ctx2.fillStyle = 'rgba(120,200,255,1)';
+            ctx2.font = '10px monospace';
+            ctx2.textAlign = 'center';
+            ctx2.textBaseline = 'bottom';
+            ctx2.fillText(label, _lx, _ly - 2);
+            ctx2.globalAlpha = 1;
+          }
+        }
+      }
+
+      ctx2.restore();
+    }
+  }
+  // ── End distance rings ────────────────────────────────────────────────────
 
 
   const centerName2 = names.find(n => bodies[n].isCenter);
@@ -2319,6 +2494,11 @@ function _drawViewportNow(){
       }
     });
     ctx2.restore();
+  }
+
+  // ── Distance indicators overlay ──
+  if(typeof _drawDistanceIndicators === 'function'){
+    _drawDistanceIndicators(ctx2, vpZ, vpOffX, vpOffY, vp.width, vp.height);
   }
 
   // ── Image overlays — drawn on top of everything ──
