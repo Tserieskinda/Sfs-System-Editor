@@ -531,16 +531,7 @@ function _drawViewportNow(){
   // Always clear the PP CSS filter at frame start — it is re-applied below only if active.
   // This prevents stale filters persisting across frames when PP is toggled or no body found.
   vp.style.filter = '';
-  const _prevSMAScale = _cachedSMAScale; // may be null on first frame
   _cachedSMAScale = null; // invalidate per-frame cache
-  const _newSMAScale = getSMAScale();    // recompute now
-  // If the SMA scale changed (e.g. a body was added/removed changing maxSMA),
-  // rescale vpOffX/Y proportionally so the viewport centre stays fixed in world space.
-  if (_prevSMAScale !== null && _prevSMAScale !== _newSMAScale && _newSMAScale > 0) {
-    const ratio = _newSMAScale / _prevSMAScale;
-    vpOffX *= ratio;
-    vpOffY *= ratio;
-  }
   ctx2.clearRect(0, 0, vp.width, vp.height);
 
   const names = Object.keys(bodies);
