@@ -531,7 +531,28 @@ function _drawViewportNow(){
   // Always clear the PP CSS filter at frame start — it is re-applied below only if active.
   // This prevents stale filters persisting across frames when PP is toggled or no body found.
   vp.style.filter = '';
+  const _prevSMAScale = _cachedSMAScale;
   _cachedSMAScale = null; // invalidate per-frame cache
+  const _newSMAScale = getSMAScale();
+  // When getSMAScale changes (body added/removed changing maxSMA), all bodyWorldPos values
+  // rescale proportionally. Compensate vpOffX/Y and unlocked overlay worldX/Y by the same
+  // ratio so nothing visually jumps.
+  if (_prevSMAScale !== null && _prevSMAScale !== _newSMAScale && _newSMAScale > 0) {
+    const ratio = _newSMAScale / _prevSMAScale;
+    vpOffX *= ratio;
+    vpOffY *= ratio;
+    if (typeof _imgOverlays !== 'undefined') {
+      _imgOverlays.forEach(ov => {
+        if (!ov.lockToBody || ov.lockToBody === 'None') {
+          ov.worldX *= ratio;
+          ov.worldY *= ratio;
+        }
+        // worldW/H drive screen size (worldW * vpZ) — rescale for all overlays
+        ov.worldW *= ratio;
+        ov.worldH *= ratio;
+      });
+    }
+  }
   ctx2.clearRect(0, 0, vp.width, vp.height);
 
   const names = Object.keys(bodies);
