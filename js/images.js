@@ -97,36 +97,30 @@ function _imgAddOverlay(name, dataUrl) {
 // ── Draw all overlays (called from _drawViewportNow hook) ─────────────────────
 function imgDrawOverlays(ctx, vpZ_, vpOffX_, vpOffY_, vpW, vpH) {
   _imgOverlays.forEach(ov => {
-    // Resolve lock-to-body: _lockOffX/Y is offset of image TOP-LEFT from body centre
-    // When first locked (image already placed), offset preserves visual position.
-    // The centre of the image = body + offset + (w/2, h/2)
-    let wx = ov.worldX, wy = ov.worldY;
-    if(ov.lockToBody && ov.lockToBody !== 'None') {
-      if(typeof bodyWorldPos === 'undefined'){
-        console.warn('[IMG] bodyWorldPos is undefined!');
-      } else {
-        const bp = bodyWorldPos[ov.lockToBody];
-        if(bp) {
-          wx = bp.x + ov._lockOffX;
-          wy = bp.y + ov._lockOffY;
-        } else {
-          console.warn('[IMG] Body not found in bodyWorldPos:', ov.lockToBody, 'Available:', Object.keys(bodyWorldPos));
-        }
-      }
-    }
-
-    const sx = (wx + vpOffX_) * vpZ_ + vpW / 2;
-    const sy = (wy + vpOffY_) * vpZ_ + vpH / 2;
+    let sx_centre, sy_centre;
     const sw = ov.worldW * vpZ_;
     const sh = ov.worldH * vpZ_;
 
+    if (ov.lockToBody && ov.lockToBody !== 'None') {
+      // Use screen-space position of the body — immune to SMA scale changes
+      const bsp = (typeof bodyScreenPos !== 'undefined') ? bodyScreenPos[ov.lockToBody] : null;
+      if (!bsp) return; // body not on screen yet this frame
+      // _lockOffX/Y are in screen pixels relative to body centre
+      sx_centre = bsp.x + ov._lockOffX;
+      sy_centre = bsp.y + ov._lockOffY;
+    } else {
+      const wx = ov.worldX, wy = ov.worldY;
+      sx_centre = (wx + vpOffX_) * vpZ_ + vpW / 2 + sw / 2;
+      sy_centre = (wy + vpOffY_) * vpZ_ + vpH / 2 + sh / 2;
+    }
+
     // Cull if entirely off-screen (generous margin for rotated images)
     const diag = Math.hypot(sw, sh) / 2;
-    if(sx + diag < 0 || sx - diag > vpW || sy + diag < 0 || sy - diag > vpH) return;
+    if(sx_centre + diag < 0 || sx_centre - diag > vpW || sy_centre + diag < 0 || sy_centre - diag > vpH) return;
 
     ctx.save();
     ctx.globalAlpha = ov.opacity;
-    ctx.translate(sx + sw / 2, sy + sh / 2);
+    ctx.translate(sx_centre, sy_centre);
     ctx.rotate(ov.rotation);
     ctx.drawImage(ov.img, -sw / 2, -sh / 2, sw, sh);
 
@@ -173,19 +167,33 @@ function imgHitTest(sx, sy) {
   return null;
 }
 
-function _imgWorldXY(ov) {
-  let wx = ov.worldX, wy = ov.worldY;
-  if(ov.lockToBody && ov.lockToBody !== 'None' && typeof bodyWorldPos !== 'undefined') {
-    const bp = bodyWorldPos[ov.lockToBody];
-    if(bp) { wx = bp.x + ov._lockOffX; wy = bp.y + ov._lockOffY; }
+// Returns the screen-space centre {sx, sy} and world top-left {wx, wy} of an overlay.
+// For locked overlays, sx/sy are derived from bodyScreenPos (immune to SMA scale changes).
+function _imgScreenCentre(ov) {
+  const sw = ov.worldW * vpZ, sh = ov.worldH * vpZ;
+  if(ov.lockToBody && ov.lockToBody !== 'None' && typeof bodyScreenPos !== 'undefined') {
+    const bsp = bodyScreenPos[ov.lockToBody];
+    if(bsp) {
+      return { sx: bsp.x + ov._lockOffX, sy: bsp.y + ov._lockOffY };
+    }
   }
+  // Unlocked: derive from world coords
+  const sx = (ov.worldX + vpOffX) * vpZ + vp.width  / 2 + sw / 2;
+  const sy = (ov.worldY + vpOffY) * vpZ + vp.height / 2 + sh / 2;
+  return { sx, sy };
+}
+
+function _imgWorldXY(ov) {
+  const sw = ov.worldW * vpZ, sh = ov.worldH * vpZ;
+  const { sx, sy } = _imgScreenCentre(ov);
+  // Top-left world coords
+  const wx = (sx - sw / 2 - vp.width  / 2) / vpZ - vpOffX;
+  const wy = (sy - sh / 2 - vp.height / 2) / vpZ - vpOffY;
   return { wx, wy };
 }
 
 function _imgPointInOverlay(sx, sy, ov) {
-  const { wx, wy } = _imgWorldXY(ov);
-  const cx = (wx + vpOffX) * vpZ + vp.width  / 2 + (ov.worldW * vpZ) / 2;
-  const cy = (wy + vpOffY) * vpZ + vp.height / 2 + (ov.worldH * vpZ) / 2;
+  const { sx: cx, sy: cy } = _imgScreenCentre(ov);
   const dx = sx - cx, dy = sy - cy;
   const cos = Math.cos(-ov.rotation), sin = Math.sin(-ov.rotation);
   const lx = cos * dx - sin * dy;
@@ -199,10 +207,8 @@ function _imgHandleAt(sx, sy) {
   if(_imgSelected === null) return null;
   const ov = _imgOverlays.find(o => o.id === _imgSelected);
   if(!ov) return null;
-  const { wx, wy } = _imgWorldXY(ov);
+  const { sx: cx, sy: cy } = _imgScreenCentre(ov);
   const sw = ov.worldW * vpZ, sh = ov.worldH * vpZ;
-  const cx = (wx + vpOffX) * vpZ + vp.width  / 2 + sw / 2;
-  const cy = (wy + vpOffY) * vpZ + vp.height / 2 + sh / 2;
   const dx = sx - cx, dy = sy - cy;
   const cos = Math.cos(-ov.rotation), sin = Math.sin(-ov.rotation);
   const lx = cos * dx - sin * dy;
@@ -260,18 +266,24 @@ function imgPinchMove(t0x, t0y, t1x, t1y) {
   const newH = _imgAspectLocked ? newW * _imgPinch.aspect
                                 : Math.max(20 / vpZ, _imgPinch.startH * scale);
   // Keep centre of image pinned to the start midpoint in world coords
-  const rect = vp.getBoundingClientRect();
-  const midSx = _imgPinch.startMidClientX - rect.left;
-  const midSy = _imgPinch.startMidClientY - rect.top;
-  const midWx = (midSx - vp.width  / 2) / vpZ - vpOffX;
-  const midWy = (midSy - vp.height / 2) / vpZ - vpOffY;
   ov.worldW = newW;
   ov.worldH = newH;
-  // Place top-left so centre stays at midWx/midWy
+  // Place top-left so centre stays at midpoint
   if(ov.lockToBody && ov.lockToBody !== 'None') {
-    const bp = typeof bodyWorldPos !== 'undefined' ? bodyWorldPos[ov.lockToBody] : null;
-    if(bp) { ov._lockOffX = midWx - bp.x - newW / 2; ov._lockOffY = midWy - bp.y - newH / 2; }
+    const bsp = typeof bodyScreenPos !== 'undefined' ? bodyScreenPos[ov.lockToBody] : null;
+    if(bsp) {
+      // midSx/midSy is the desired new centre in screen coords
+      const midSx = _imgPinch.startMidClientX - vp.getBoundingClientRect().left;
+      const midSy = _imgPinch.startMidClientY - vp.getBoundingClientRect().top;
+      ov._lockOffX = midSx - bsp.x;
+      ov._lockOffY = midSy - bsp.y;
+    }
   } else {
+    const rect = vp.getBoundingClientRect();
+    const midSx = _imgPinch.startMidClientX - rect.left;
+    const midSy = _imgPinch.startMidClientY - rect.top;
+    const midWx = (midSx - vp.width  / 2) / vpZ - vpOffX;
+    const midWy = (midSy - vp.height / 2) / vpZ - vpOffY;
     ov.worldX = midWx - newW / 2;
     ov.worldY = midWy - newH / 2;
   }
@@ -341,13 +353,18 @@ function imgMouseMove(clientX, clientY) {
 
   if(_imgDrag.type === 'move') {
     if(ov.lockToBody && ov.lockToBody !== 'None') {
-      ov._lockOffX = _imgDrag.startOffX + dx;
-      ov._lockOffY = _imgDrag.startOffY + dy;
+      // _lockOffX/Y are screen pixels — use raw client delta
+      ov._lockOffX = _imgDrag.startOffX + (clientX - _imgDrag.startX);
+      ov._lockOffY = _imgDrag.startOffY + (clientY - _imgDrag.startY);
     } else {
+      const dx = (clientX - _imgDrag.startX) / vpZ;
+      const dy = (clientY - _imgDrag.startY) / vpZ;
       ov.worldX = _imgDrag.startWX + dx;
       ov.worldY = _imgDrag.startWY + dy;
     }
   } else if(_imgDrag.type === 'corner') {
+    const dx = (clientX - _imgDrag.startX) / vpZ;
+    const dy = (clientY - _imgDrag.startY) / vpZ;
     // Which corner index: 0=TL,1=TR,2=BL,3=BR
     const ci = _imgDrag.cornerIdx;
     const signX = (ci === 1 || ci === 3) ? 1 : -1; // right corners → positive X
@@ -368,9 +385,7 @@ function imgMouseMove(clientX, clientY) {
     ov.worldX = _imgDrag.startWX - dw / 2;
     ov.worldY = _imgDrag.startWY - dh / 2;
   } else if(_imgDrag.type === 'rotate') {
-    const { wx, wy } = _imgWorldXY(ov);
-    const cx = (wx + vpOffX) * vpZ + vp.width  / 2 + ov.worldW * vpZ / 2;
-    const cy = (wy + vpOffY) * vpZ + vp.height / 2 + ov.worldH * vpZ / 2;
+    const { sx: cx, sy: cy } = _imgScreenCentre(ov);
     const rect = vp.getBoundingClientRect();
     const sx = clientX - rect.left, sy = clientY - rect.top;
     ov.rotation = Math.atan2(sy - cy, sx - cx) + Math.PI / 2;
@@ -460,21 +475,32 @@ function imgFieldChange(field, value) {
     const prev = ov.lockToBody;
     ov.lockToBody = value;
     if(value !== 'None') {
-      // drawViewport populates bodyWorldPos — call it first to ensure positions are current
+      // drawViewport populates bodyScreenPos — call it first to ensure positions are current
       drawViewport();
-      const bp = typeof bodyWorldPos !== 'undefined' ? bodyWorldPos[value] : null;
-      if(bp) {
-        // Centre the image on the body: _lockOffX/Y = offset of top-left from body centre
-        ov._lockOffX = -ov.worldW / 2;
-        ov._lockOffY = -ov.worldH / 2;
+      const bsp = typeof bodyScreenPos !== 'undefined' ? bodyScreenPos[value] : null;
+      if(bsp) {
+        // _lockOffX/Y = screen-pixel offset of image CENTRE from body screen position
+        // Default: centre image on the body
+        ov._lockOffX = 0;
+        ov._lockOffY = 0;
         // Bake into worldX/Y so unlocking preserves position
-        ov.worldX = bp.x + ov._lockOffX;
-        ov.worldY = bp.y + ov._lockOffY;
+        const sw = ov.worldW * vpZ;
+        const sh = ov.worldH * vpZ;
+        const wc = screenToWorld(bsp.x - sw / 2, bsp.y - sh / 2);
+        ov.worldX = wc.x;
+        ov.worldY = wc.y;
       }
     } else if(prev !== 'None') {
-      // Unlocking: bake current locked world position into worldX/Y
-      const { wx, wy } = _imgWorldXY(ov);
-      ov.worldX = wx; ov.worldY = wy;
+      // Unlocking: bake current locked screen position into worldX/Y
+      const bsp = typeof bodyScreenPos !== 'undefined' ? bodyScreenPos[prev] : null;
+      if(bsp) {
+        const cx = bsp.x + ov._lockOffX;
+        const cy = bsp.y + ov._lockOffY;
+        const sw = ov.worldW * vpZ;
+        const sh = ov.worldH * vpZ;
+        ov.worldX = screenToWorld(cx - sw / 2, cy - sh / 2).x;
+        ov.worldY = screenToWorld(cx - sw / 2, cy - sh / 2).y;
+      }
     }
   }
   _imgUpdateSidebar();
