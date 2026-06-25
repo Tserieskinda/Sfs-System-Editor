@@ -668,13 +668,24 @@ async function autoLoadRemoteAssets(){
     const { url, name: fname } = REMOTE_ASSETS_URLS[i];
     const cached = await idbCacheRead(url);
     cacheRecords.push(cached);
-    if(cached && cached.textures && cached.textures.length > 0){
+    // A valid cache record just needs to exist — it may have textures, presets,
+    // heightmaps, or any combination. Don't gate on textures.length > 0.
+    const isCacheHit = cached && (
+      (cached.textures    && cached.textures.length    > 0) ||
+      (cached.heightmaps  && cached.heightmaps.length  > 0) ||
+      (cached.namedSources && Object.keys(cached.namedSources).length > 0) ||
+      (cached.presets && (
+        Object.keys(cached.presets.vanilla || {}).length > 0 ||
+        Object.keys(cached.presets.custom  || {}).length > 0
+      ))
+    );
+    if(isCacheHit){
       anyCacheHit = true;
       const label = `(${i+1}/${REMOTE_ASSETS_URLS.length}) ${fname}`;
       const r = await _replayFromCache(cached, { showUI: true, progressLabel: label });
       totalTextures += r.totalTextures;
       totalPresets  += r.totalPresets;
-      console.log(`[SFS|IDB] Cache hit: "${fname}" (${r.totalTextures} tex)`);
+      console.log(`[SFS|IDB] Cache hit: "${fname}" (${r.totalTextures} tex, ${r.totalPresets} presets)`);
     } else {
       anyMissing = true;
     }
@@ -702,9 +713,17 @@ async function autoLoadRemoteAssets(){
 
   for(let i = 0; i < REMOTE_ASSETS_URLS.length; i++){
     if(signal.aborted){ cancelled = true; break; }
-    if(cacheRecords[i] && cacheRecords[i].textures && cacheRecords[i].textures.length > 0){
-      continue; // already served from cache in Pass 1
-    }
+    const cr = cacheRecords[i];
+    const alreadyServed = cr && (
+      (cr.textures    && cr.textures.length    > 0) ||
+      (cr.heightmaps  && cr.heightmaps.length  > 0) ||
+      (cr.namedSources && Object.keys(cr.namedSources).length > 0) ||
+      (cr.presets && (
+        Object.keys(cr.presets.vanilla || {}).length > 0 ||
+        Object.keys(cr.presets.custom  || {}).length > 0
+      ))
+    );
+    if(alreadyServed) continue; // already served from cache in Pass 1
 
     const { url, name: fname } = REMOTE_ASSETS_URLS[i];
     setLoadingMsg(`(${i+1}/${REMOTE_ASSETS_URLS.length}) ${fname}`);
@@ -758,8 +777,12 @@ async function autoLoadRemoteAssets(){
       totalPresets  += res.totalPresets;
       errors        += res.errors;
 
-      if(res.totalTextures > 0 || res.totalPresets > 0){
-        const payload = _snapshotNewAssets(texBefore, presetsBefore, hmBefore);
+      const payload = _snapshotNewAssets(texBefore, presetsBefore, hmBefore);
+      const hasContent = payload.textures.length > 0 || payload.heightmaps.length > 0 ||
+        Object.keys(payload.presets.vanilla).length > 0 ||
+        Object.keys(payload.presets.custom).length  > 0 ||
+        Object.keys(payload.namedSources).length    > 0;
+      if(hasContent){
         idbCacheWrite(url, freshEtag, freshSize, payload).then(ok => {
           if(ok) console.log(`[SFS|IDB] Cached "${fname}" (${payload.textures.length} tex, etag=${freshEtag})`);
         });
