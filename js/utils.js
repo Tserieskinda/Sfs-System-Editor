@@ -366,24 +366,10 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
-function hmtSetTab(tab) {
-  // Bumpmap tab
-  const bmpPanel = document.getElementById('hmt-bumpmap');
-  const texPanel = document.getElementById('hmt-texmap');
-  const bmpBtn   = document.getElementById('hmt-tab-bmp');
-  const texBtn   = document.getElementById('hmt-tab-texmap');
-
-  if(tab === 'bumpmap') {
-    bmpPanel.style.display = 'flex';
-    if(texPanel) texPanel.style.display = 'none';
-    if(bmpBtn) { bmpBtn.style.background='rgba(100,220,180,.12)'; bmpBtn.style.color='rgba(100,220,180,.9)'; }
-    if(texBtn) { texBtn.style.background='none'; texBtn.style.color='rgba(180,200,255,.6)'; }
-  } else if(tab === 'texmap') {
-    bmpPanel.style.display = 'none';
-    if(texPanel) texPanel.style.display = 'flex';
-    if(bmpBtn) { bmpBtn.style.background='none'; bmpBtn.style.color='rgba(180,200,255,.6)'; }
-    if(texBtn) { texBtn.style.background='rgba(120,160,255,.12)'; texBtn.style.color='rgba(180,210,255,.9)'; }
-  }
+// Both tools are now displayed side-by-side; tab switching is no longer needed.
+// Function kept for backward compatibility (called from openHeightmapTools).
+function hmtSetTab(_tab) {
+  // no-op — bump map and texture map are always shown together
 }
 
 // ── Breakpoint management ─────────────────────────────────────
@@ -553,13 +539,15 @@ function hmtUpdate() {
   const smooth    = parseInt(document.getElementById('hmt-smooth').value);
   const invert    = document.getElementById('hmt-invert').checked;
   const outW      = Math.max(1, parseInt(document.getElementById('hmt-width').value) || 1024);
-  const vshift    = parseInt(document.getElementById('hmt-vshift').value) || 0;
+  const vshiftPct = parseFloat(document.getElementById('hmt-vshift').value) || 0;
+  // Convert vshift from % of image height to absolute rows — works at any resolution
+  const vshift    = (vshiftPct / 100) * _hmtBmpH;
 
   // Update labels
   document.getElementById('hmt-lon-val').textContent    = Math.round(lonOff * 360) + '°';
   document.getElementById('hmt-scale-val').textContent  = scale.toFixed(2) + '×';
   document.getElementById('hmt-smooth-val').textContent = smooth;
-  document.getElementById('hmt-vshift-val').textContent = vshift;
+  document.getElementById('hmt-vshift-val').textContent = (vshiftPct > 0 ? '+' : '') + vshiftPct.toFixed(0) + '%';
   // Keep lag warning in sync when hmtUpdate is called from other paths
   const warn = document.getElementById('hmt-width-warn');
   if(warn) warn.style.display = (outW > 4096) ? 'block' : 'none';
@@ -903,6 +891,7 @@ function _htxBuildCanvas() {
   const hemi    = document.querySelector('input[name="htx-hemi"]:checked')?.value || 'bottom';
   const mode    = document.querySelector('input[name="htx-mode"]:checked')?.value || 'polar';
   const latCut  = (parseInt(document.getElementById('htx-lat').value) || 50) / 100;  // 0..1
+  const latOff  = (parseInt(document.getElementById('htx-latoff').value) || 0) / 100; // -0.5..0.5
   const lonRot  = (parseInt(document.getElementById('htx-lon').value) || 0) / 360;   // 0..1
   const fishStr = parseFloat(document.getElementById('htx-fish').value) || 1.0;
 
@@ -913,20 +902,20 @@ function _htxBuildCanvas() {
   const px = imgData.data;
 
   // Determine source vertical range in [0..1] (top=0, bottom=1 in equirect)
-  // Top hemisphere: 0..0.5, Bottom hemisphere: 0.5..1.0
-  // latCut shrinks/expands how much we include
+  // latCut: fraction of hemisphere height to include (0%=pole only, 100%=equator)
+  // latOff: shifts the equatorial cut boundary (positive=more toward pole side)
   let vMin, vMax;
   if(hemi === 'top') {
     vMin = 0;
-    vMax = 0.5 * latCut;
+    vMax = Math.max(0, Math.min(1, 0.5 * latCut + latOff));
   } else if(hemi === 'bottom') {
     vMax = 1.0;
-    vMin = 1.0 - 0.5 * latCut;
+    vMin = Math.max(0, Math.min(1, 1.0 - 0.5 * latCut - latOff));
   } else {
-    // full — use latCut as fraction of full height centred at equator
+    // full — use latCut as fraction of full height centred at equator + offset
     const halfH = 0.5 * latCut;
-    vMin = 0.5 - halfH;
-    vMax = 0.5 + halfH;
+    vMin = Math.max(0, Math.min(1, 0.5 - halfH + latOff));
+    vMax = Math.max(0, Math.min(1, 0.5 + halfH + latOff));
   }
 
   const cx = size / 2;
@@ -1016,10 +1005,6 @@ function htxUpdate() {
   const fishRow = document.getElementById('htx-fisheye-row');
   if(fishRow) fishRow.style.opacity = mode === 'polar' ? '1' : '0.35';
 
-  // Show matched heightmap section only in polar mode
-  const hmSec = document.getElementById('htx-hm-section');
-  if(hmSec) hmSec.style.display = mode === 'polar' ? 'flex' : 'none';
-
   // Build at preview size (256px for speed)
   const sizeSaved = document.getElementById('htx-size').value;
   document.getElementById('htx-size').value = '256';
@@ -1034,9 +1019,6 @@ function htxUpdate() {
 
   // Update the source cut-line overlay
   _htxDrawCutLine();
-
-  // Update matched heightmap
-  if(mode === 'polar') htxUpdateHM();
 }
 
 // Draw the hemisphere cut line on source preview
@@ -1051,15 +1033,17 @@ function _htxDrawCutLine() {
 
   const hemi   = document.querySelector('input[name="htx-hemi"]:checked')?.value || 'bottom';
   const latCut = (parseInt(document.getElementById('htx-lat').value) || 50) / 100;
+  const latOff = (parseInt(document.getElementById('htx-latoff').value) || 0) / 100;
 
   let vMin, vMax;
   if(hemi === 'top') {
-    vMin = 0; vMax = 0.5 * latCut;
+    vMin = 0; vMax = Math.max(0, Math.min(1, 0.5 * latCut + latOff));
   } else if(hemi === 'bottom') {
-    vMax = 1.0; vMin = 1.0 - 0.5 * latCut;
+    vMax = 1.0; vMin = Math.max(0, Math.min(1, 1.0 - 0.5 * latCut - latOff));
   } else {
     const halfH = 0.5 * latCut;
-    vMin = 0.5 - halfH; vMax = 0.5 + halfH;
+    vMin = Math.max(0, Math.min(1, 0.5 - halfH + latOff));
+    vMax = Math.max(0, Math.min(1, 0.5 + halfH + latOff));
   }
 
   const yMin = vMin * _htxSrcH;
@@ -1135,181 +1119,611 @@ function htxDownloadPNG() {
 }
 
 // ════════════════════════════════════════════════════════════
-//  MATCHED HEIGHTMAP (polar warp circumference-locked)
+//  TEXTURE EDITOR → BUMP MAP: copy line position
 // ════════════════════════════════════════════════════════════
 
-let _htxHMProfile = null;  // Float32Array [0..1], output-width samples
-
 // Compute the edgeV (equator-cut latitude in 0..1) from current texmap settings
-// This is the same calculation as _htxBuildCanvas uses
 function _htxEdgeV() {
   const hemi   = document.querySelector('input[name="htx-hemi"]:checked')?.value || 'bottom';
   const latCut = (parseInt(document.getElementById('htx-lat').value) || 50) / 100;
-  if(hemi === 'top')    return 0.5 * latCut;           // vMax for top
-  if(hemi === 'bottom') return 1.0 - 0.5 * latCut;    // vMin for bottom (equator side)
-  // full: midpoint — use vMin (top edge of strip)
-  return 0.5 - 0.5 * latCut;
+  const latOff = (parseInt(document.getElementById('htx-latoff').value) || 0) / 100;
+  if(hemi === 'top')    return Math.max(0, Math.min(1, 0.5 * latCut + latOff));
+  if(hemi === 'bottom') return Math.max(0, Math.min(1, 1.0 - 0.5 * latCut - latOff));
+  return Math.max(0, Math.min(1, 0.5 - 0.5 * latCut + latOff));
 }
 
-function htxUpdateHM() {
-  if(!_htxSrcPx) return;
-
-  const hemi    = document.querySelector('input[name="htx-hemi"]:checked')?.value || 'bottom';
-  const lonRot  = (parseInt(document.getElementById('htx-lon').value) || 0) / 360;
-  const offset  = parseInt(document.getElementById('htx-hm-offset').value) || 0;
-  const outW    = Math.max(1, parseInt(document.getElementById('htx-hm-width').value) || 1024);
-
-  // edgeV is the circumference latitude — the row we sample for the heightmap profile
-  // For bottom hemi: edgeV is vMin (equator-cut, top of strip).
-  // For top hemi: edgeV is vMax (equator-cut, bottom of strip).
-  // This is the outermost ring of the polar warp, matching the planet's visible edge.
-  let edgeV = _htxEdgeV();
-
-  // Apply pixel offset (convert offset in px-of-source to v fraction)
-  // For bottom hemi, equator is above pole → positive offset moves toward pole (increasing v)
-  // For top hemi, equator is below pole → positive offset moves toward pole (decreasing v)
-  const vOffsetFrac = offset / _htxSrcH;
-  if(hemi === 'bottom') {
-    edgeV = Math.max(0, Math.min(1, edgeV + vOffsetFrac));
-  } else {
-    edgeV = Math.max(0, Math.min(1, edgeV - vOffsetFrac));
+// Copy the texture editor's circumference sample line position into the bump map editor
+// as a flat horizontal line at that latitude, then update the bump map.
+function htxCopyLineToBumpMap() {
+  const edgeV = _htxEdgeV();
+  if(typeof _hmtBreakpoints === 'undefined') { alert('Bump map editor not initialised.'); return; }
+  // Set to flat line at edgeV
+  _hmtBreakpoints = [{ x: 0, lat: edgeV }, { x: 1, lat: edgeV }];
+  if(typeof hmtUpdate === 'function') hmtUpdate();
+  // Flash confirmation
+  const btn = document.getElementById('htx-copy-line-btn');
+  if(btn) {
+    const orig = btn.textContent;
+    btn.textContent = '✓ COPIED';
+    btn.style.color = 'rgba(100,220,180,.9)';
+    setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 1500);
   }
+}
 
-  // Sample the grayscale luma along that row, with longitude offset matching the polar warp
-  const raw = new Float32Array(outW);
-  for(let i = 0; i < outW; i++) {
-    const srcFrac = ((i / outW) + lonRot) % 1;
-    // Polar warp flips u: u = 1 - angle_u, so we reverse here to match
-    const u = 1.0 - srcFrac;
-    const fx = ((u % 1 + 1) % 1) * (_htxSrcW - 1);
-    const fy = edgeV * (_htxSrcH - 1);
-    const x0 = Math.floor(fx), x1 = Math.min(x0+1, _htxSrcW-1);
-    const y0 = Math.floor(fy), y1 = Math.min(y0+1, _htxSrcH-1);
-    const dx = fx - x0, dy = fy - y0;
-    function luma(row, col) {
-      const idx = (row * _htxSrcW + col) * 4;
-      return _htxSrcPx[idx] / 255;
+
+
+
+// ════════════════════════════════════════════════════════════
+//  TEXTURE CUT OVERLAY — draggable line on htx-cut-overlay
+// ════════════════════════════════════════════════════════════
+
+(function() {
+  // Initialise drag once the texture map is loaded (htxLoadFile calls htxUpdate which redraws the overlay)
+  // We wire events on DOMContentLoaded so the canvas exists
+  document.addEventListener('DOMContentLoaded', function() {
+    const ov = document.getElementById('htx-cut-overlay');
+    if(!ov) return;
+
+    let _dragging = false;
+    let _dragLine = null; // 'min' or 'max'
+
+    function _getLineYs() {
+      // Recompute cut line positions in canvas-space (mirrors _htxDrawCutLine logic)
+      if(!_htxSrcH) return null;
+      const hemi   = document.querySelector('input[name="htx-hemi"]:checked')?.value || 'bottom';
+      const latCut = (parseInt(document.getElementById('htx-lat').value) || 50) / 100;
+      const latOff = (parseInt(document.getElementById('htx-latoff').value) || 0) / 100;
+      let vMin, vMax;
+      if(hemi === 'top')         { vMin = 0; vMax = Math.max(0, Math.min(1, 0.5 * latCut + latOff)); }
+      else if(hemi === 'bottom') { vMax = 1.0; vMin = Math.max(0, Math.min(1, 1.0 - 0.5 * latCut - latOff)); }
+      else { const halfH = 0.5 * latCut; vMin = Math.max(0, Math.min(1, 0.5 - halfH + latOff)); vMax = Math.max(0, Math.min(1, 0.5 + halfH + latOff)); }
+      return { vMin, vMax };
     }
-    const v = (luma(y0,x0)*(1-dx)*(1-dy) + luma(y0,x1)*dx*(1-dy)
-             + luma(y1,x0)*(1-dx)*dy     + luma(y1,x1)*dx*dy);
-    raw[i] = v;
-  }
 
-  _htxHMProfile = raw;
+    function _clientToV(clientY) {
+      const rect = ov.getBoundingClientRect();
+      return Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+    }
 
-  // Draw the line preview on source image
-  _htxDrawHMLine(edgeV);
-
-  // Draw profile curve
-  _htxDrawHMProfile();
-}
-
-function _htxDrawHMLine(edgeV) {
-  const pv = document.getElementById('htx-hm-linepreview');
-  if(!pv || !_htxSrcImg) return;
-  pv.width  = _htxSrcW;
-  pv.height = _htxSrcH;
-  const ctx = pv.getContext('2d');
-  ctx.drawImage(_htxSrcImg, 0, 0);
-  const y = edgeV * _htxSrcH;
-  // Shade areas outside the sample row
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  const band = Math.max(2, _htxSrcH * 0.01);
-  ctx.fillRect(0, 0, _htxSrcW, Math.max(0, y - band));
-  ctx.fillRect(0, y + band, _htxSrcW, _htxSrcH - y - band);
-  // Draw the line
-  ctx.strokeStyle = 'rgba(100,220,180,0.95)';
-  ctx.lineWidth   = Math.max(1.5, _htxSrcH / 120);
-  ctx.setLineDash([10, 8]);
-  ctx.beginPath();
-  ctx.moveTo(0, y);
-  ctx.lineTo(_htxSrcW, y);
-  ctx.stroke();
-  ctx.setLineDash([]);
-}
-
-function _htxDrawHMProfile() {
-  const el = document.getElementById('htx-hm-profile');
-  if(!el || !_htxHMProfile) return;
-  const W = el.offsetWidth || 400;
-  const H = 52;
-  el.width = W; el.height = H;
-  const ctx = el.getContext('2d');
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = 'rgba(4,8,20,.7)';
-  ctx.fillRect(0, 0, W, H);
-  const N = _htxHMProfile.length;
-  ctx.strokeStyle = 'rgba(100,220,180,.85)';
-  ctx.lineWidth   = 1.5;
-  ctx.beginPath();
-  for(let i = 0; i < N; i++) {
-    const x = (i / (N-1)) * W;
-    const y = H - _htxHMProfile[i] * (H - 4) - 2;
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-  }
-  ctx.stroke();
-}
-
-// Build the SFS heightmap canvas from matched profile
-function _htxBuildHMCanvas() {
-  if(!_htxHMProfile) return null;
-  const outW = _htxHMProfile.length;
-  const outH = Math.max(1, parseInt(document.getElementById('htx-hm-height')?.value) || 512);
-  const outC = document.createElement('canvas');
-  outC.width = outW; outC.height = outH;
-  const ctx  = outC.getContext('2d');
-  const CHUNK = 512;
-  for(let chunkStart = 0; chunkStart < outW; chunkStart += CHUNK) {
-    const chunkW = Math.min(CHUNK, outW - chunkStart);
-    const imgd   = ctx.createImageData(chunkW, outH);
-    const d      = imgd.data;
-    for(let ci = 0; ci < chunkW; ci++) {
-      const x    = chunkStart + ci;
-      const frac = _htxHMProfile[outW - x - 1]; // SFS horizontal flip
-      const cutY = Math.round(outH * (1 - frac));
-      for(let y = 0; y < outH; y++) {
-        const idx = (y * chunkW + ci) * 4;
-        d[idx] = d[idx+1] = d[idx+2] = 0;
-        d[idx+3] = y >= cutY ? 255 : 0;
+    function _hitLine(clientY) {
+      const lines = _getLineYs(); if(!lines) return null;
+      const rect  = ov.getBoundingClientRect();
+      const THRESH = 16 / rect.height;
+      const yFrac  = _clientToV(clientY);
+      const hemi   = document.querySelector('input[name="htx-hemi"]:checked')?.value || 'bottom';
+      // Which line(s) are visible?
+      if(hemi === 'top'    && Math.abs(yFrac - lines.vMax) < THRESH) return 'max';
+      if(hemi === 'bottom' && Math.abs(yFrac - lines.vMin) < THRESH) return 'min';
+      if(hemi === 'full') {
+        const dMin = Math.abs(yFrac - lines.vMin);
+        const dMax = Math.abs(yFrac - lines.vMax);
+        if(dMin < THRESH || dMax < THRESH) return dMin < dMax ? 'min' : 'max';
       }
+      return null;
     }
-    ctx.putImageData(imgd, chunkStart, 0);
+
+    function _applyDrag(clientY) {
+      const v    = _clientToV(clientY);
+      const hemi = document.querySelector('input[name="htx-hemi"]:checked')?.value || 'bottom';
+      const latCutEl  = document.getElementById('htx-lat');
+      const latOffEl  = document.getElementById('htx-latoff');
+      const latCutVal = document.getElementById('htx-lat-val');
+      const latOffVal = document.getElementById('htx-latoff-val');
+
+      if(hemi === 'bottom') {
+        // vMin = 1 - 0.5*latCut - latOff → dragging vMin line changes latOff
+        const latCut = (parseInt(latCutEl.value) || 50) / 100;
+        const newOff = (1.0 - v - 0.5 * latCut) * 100;
+        const clamped = Math.max(-40, Math.min(40, Math.round(newOff)));
+        latOffEl.value = clamped;
+        latOffVal.textContent = (clamped >= 0 ? '+' : '') + clamped + '%';
+      } else if(hemi === 'top') {
+        // vMax = 0.5*latCut + latOff → dragging vMax line changes latOff
+        const latCut = (parseInt(latCutEl.value) || 50) / 100;
+        const newOff = (v - 0.5 * latCut) * 100;
+        const clamped = Math.max(-40, Math.min(40, Math.round(newOff)));
+        latOffEl.value = clamped;
+        latOffVal.textContent = (clamped >= 0 ? '+' : '') + clamped + '%';
+      } else {
+        // 'full': drag either boundary — adjust latCut and latOff together
+        const lines = _getLineYs();
+        const latCur = (parseInt(latCutEl.value) || 50) / 100;
+        const offCur = (parseInt(latOffEl.value) || 0) / 100;
+        if(_dragLine === 'min') {
+          // vMin = 0.5 - halfH + latOff; move vMin while keeping vMax fixed
+          const vMax = lines.vMax;
+          const newHalf = (vMax - v) / 2;
+          const newLatCut = Math.max(0.1, Math.min(1, newHalf * 2)) * 100;
+          const newOff    = (v - (0.5 - newHalf)) * 100;
+          latCutEl.value  = Math.round(newLatCut);
+          latOffEl.value  = Math.max(-40, Math.min(40, Math.round(newOff)));
+          latCutVal.textContent = Math.round(newLatCut) + '%';
+          latOffVal.textContent = (latOffEl.value >= 0 ? '+' : '') + latOffEl.value + '%';
+        } else {
+          // move vMax while keeping vMin fixed
+          const vMin = lines.vMin;
+          const newHalf = (v - vMin) / 2;
+          const newLatCut = Math.max(0.1, Math.min(1, newHalf * 2)) * 100;
+          const newOff    = (vMin - (0.5 - newHalf)) * 100;
+          latCutEl.value  = Math.round(newLatCut);
+          latOffEl.value  = Math.max(-40, Math.min(40, Math.round(newOff)));
+          latCutVal.textContent = Math.round(newLatCut) + '%';
+          latOffVal.textContent = (latOffEl.value >= 0 ? '+' : '') + latOffEl.value + '%';
+        }
+      }
+      htxUpdate();
+    }
+
+    function _setCursor(clientY) {
+      ov.style.cursor = _hitLine(clientY) ? 'ns-resize' : 'default';
+    }
+
+    ov.addEventListener('mousemove', e => { if(!_dragging) _setCursor(e.clientY); });
+    ov.addEventListener('mousedown', e => {
+      const line = _hitLine(e.clientY);
+      if(!line) return;
+      _dragging = true; _dragLine = line;
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', e => { if(_dragging) _applyDrag(e.clientY); });
+    window.addEventListener('mouseup',   () => { _dragging = false; });
+
+    ov.addEventListener('touchstart', e => {
+      const line = _hitLine(e.touches[0].clientY);
+      if(!line) return;
+      _dragging = true; _dragLine = line;
+      e.preventDefault();
+    }, {passive: false});
+    ov.addEventListener('touchmove', e => {
+      if(_dragging) { e.preventDefault(); _applyDrag(e.touches[0].clientY); }
+    }, {passive: false});
+    ov.addEventListener('touchend', () => { _dragging = false; });
+  });
+})();
+
+// ════════════════════════════════════════════════════════════
+//  FULLSCREEN IMAGE VIEW
+// ════════════════════════════════════════════════════════════
+
+let _fsMode     = null;   // 'bumpmap' | 'texmap'
+let _fsPanX     = 0;
+let _fsPanY     = 0;
+let _fsZoom     = 1;
+let _fsDragging = false;
+let _fsDragX    = 0;
+let _fsDragY    = 0;
+let _fsPinchD   = 0;
+let _fsLineDrag = false;
+let _fsLineSide = null;
+
+function hmtOpenFullscreen(mode) {
+  _fsMode = mode;
+  _fsPanX = 0; _fsPanY = 0; _fsZoom = 1;
+  const ov = document.getElementById('hmt-fs-overlay');
+  const title = document.getElementById('hmt-fs-title');
+  if(mode === 'bumpmap') {
+    if(!_hmtBmpPx) return;
+    title.textContent = '🌄 BUMP MAP — FULLSCREEN';
+    title.style.color = 'rgba(100,220,180,.9)';
+  } else {
+    if(!_htxSrcPx) return;
+    title.textContent = '🌍 TEXTURE MAP — FULLSCREEN';
+    title.style.color = 'rgba(120,160,255,.9)';
   }
-  return outC;
+  ov.style.display = 'flex';
+  _fsDraw();
+  _fsInitEvents();
 }
 
-function htxSaveHMToAssets() {
-  if(!_htxHMProfile) { alert('Generate matched heightmap first.'); return; }
-  const rawName    = (document.getElementById('htx-hm-name').value || 'planet_heightmap').trim().replace(/\.png$/i,'');
-  const uniqueName = _hmtUniqueName(rawName);
-  const pngName    = uniqueName + '.png';
-  const outC = _htxBuildHMCanvas();
-  if(!outC) { alert('Failed to build heightmap.'); return; }
-  const dataUrl = outC.toDataURL('image/png');
-  const b64 = dataUrl.split(',')[1];
-  const byteStr = atob(b64);
-  const bytes = new Uint8Array(byteStr.length);
-  for(let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i);
-  const entry = { name: pngName, url: dataUrl, type: 'image/png', bytes, size: bytes.length };
-  if(typeof assets !== 'undefined' && assets.heightmaps) assets.heightmaps.push(entry);
-  if(typeof injectCustomHeightmap === 'function') injectCustomHeightmap(pngName);
-  if(typeof renderAssetRow        === 'function') renderAssetRow(entry, 'heightmaps');
-  document.getElementById('htx-hm-name').value = uniqueName;
-  const status = document.getElementById('htx-hm-status');
-  status.textContent = '✓ Saved as ' + pngName + ' → ASSETS › HEIGHTMAPS';
-  status.style.display = 'block';
-  clearTimeout(status._t);
-  status._t = setTimeout(() => { status.style.display = 'none'; }, 4000);
+function hmtCloseFullscreen() {
+  document.getElementById('hmt-fs-overlay').style.display = 'none';
+  _fsMode = null;
 }
 
-function htxDownloadHM() {
-  if(!_htxHMProfile) { alert('Generate matched heightmap first.'); return; }
-  const rawName    = (document.getElementById('htx-hm-name').value || 'planet_heightmap').trim().replace(/\.png$/i,'');
-  const uniqueName = _hmtUniqueName(rawName);
-  const outC = _htxBuildHMCanvas();
-  if(!outC) return;
-  const link = document.createElement('a');
-  link.href = outC.toDataURL('image/png');
-  link.download = uniqueName + '.png';
-  link.click();
+function hmtFsApply() {
+  hmtCloseFullscreen();
+}
+
+function hmtFsResetView() {
+  _fsPanX = 0; _fsPanY = 0; _fsZoom = 1;
+  _fsDraw();
+}
+
+function _fsDraw() {
+  const wrap  = document.getElementById('hmt-fs-wrap');
+  const imgC  = document.getElementById('hmt-fs-canvas');
+  const lineC = document.getElementById('hmt-fs-line');
+  if(!wrap || !imgC) return;
+
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  imgC.width  = W; imgC.height  = H;
+  lineC.width = W; lineC.height = H;
+
+  const ctx = imgC.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#050a18';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw the source image scaled + panned
+  let srcImg = null;
+  if(_fsMode === 'bumpmap' && _hmtBmpImg)  srcImg = _hmtBmpImg;
+  if(_fsMode === 'texmap'  && _htxSrcImg)  srcImg = _htxSrcImg;
+  if(!srcImg) return;
+
+  const imgAspect = srcImg.width / srcImg.height;
+  // Fit image in viewport
+  const fitW = W * 0.92;
+  const fitH = fitW / imgAspect;
+  const baseW = fitW, baseH = fitH;
+  const drawW = baseW * _fsZoom, drawH = baseH * _fsZoom;
+  const drawX = (W - drawW) / 2 + _fsPanX;
+  const drawY = (H - drawH) / 2 + _fsPanY;
+
+  ctx.imageSmoothingEnabled = _fsZoom < 3;
+  ctx.drawImage(srcImg, drawX, drawY, drawW, drawH);
+
+  // Update zoom label
+  const zlbl = document.getElementById('hmt-fs-zoomlabel');
+  if(zlbl) zlbl.textContent = Math.round(_fsZoom * 100) + '%';
+
+  // Draw line overlay
+  _fsDrawLine(lineC, drawX, drawY, drawW, drawH, srcImg.height);
+}
+
+function _fsDrawLine(lineC, drawX, drawY, drawW, drawH, srcH) {
+  const ctx = lineC.getContext('2d');
+  ctx.clearRect(0, 0, lineC.width, lineC.height);
+
+  if(_fsMode === 'bumpmap') {
+    // Draw breakpoint path + handles
+    if(!_hmtBreakpoints || !_hmtBmpH) return;
+    const bps = _hmtBreakpoints;
+    const lw  = Math.max(1.5, 2.5);
+    const handleR = 8;
+
+    ctx.strokeStyle = 'rgba(100,220,180,.9)';
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    for(let i = 0; i < bps.length; i++) {
+      const px = drawX + bps[i].x * drawW;
+      const py = drawY + bps[i].lat * drawH;
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    for(let i = 0; i < bps.length; i++) {
+      const px = drawX + bps[i].x * drawW;
+      const py = drawY + bps[i].lat * drawH;
+      ctx.fillStyle = 'rgba(100,220,180,.45)';
+      ctx.strokeStyle = 'rgba(100,220,180,.95)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(px, py, handleR, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      const latDeg = Math.round((bps[i].lat - 0.5) * 180);
+      ctx.font = 'bold 11px JetBrains Mono, monospace';
+      ctx.fillStyle = 'rgba(100,220,180,.9)';
+      ctx.textAlign = 'center';
+      ctx.fillText((latDeg >= 0 ? '+' : '') + latDeg + '°', px, py - handleR - 4);
+    }
+  } else {
+    // Texture map: draw cut lines
+    if(!_htxSrcH) return;
+    const hemi   = document.querySelector('input[name="htx-hemi"]:checked')?.value || 'bottom';
+    const latCut = (parseInt(document.getElementById('htx-lat').value) || 50) / 100;
+    const latOff = (parseInt(document.getElementById('htx-latoff').value) || 0) / 100;
+    let vMin, vMax;
+    if(hemi === 'top')         { vMin = 0; vMax = Math.max(0, Math.min(1, 0.5 * latCut + latOff)); }
+    else if(hemi === 'bottom') { vMax = 1.0; vMin = Math.max(0, Math.min(1, 1.0 - 0.5 * latCut - latOff)); }
+    else { const halfH = 0.5 * latCut; vMin = Math.max(0, Math.min(1, 0.5 - halfH + latOff)); vMax = Math.max(0, Math.min(1, 0.5 + halfH + latOff)); }
+
+    const yMin = drawY + vMin * drawH;
+    const yMax = drawY + vMax * drawH;
+
+    // Shade excluded areas
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    if(vMin > 0)     ctx.fillRect(drawX, drawY, drawW, yMin - drawY);
+    if(vMax < 1)     ctx.fillRect(drawX, yMax, drawW, drawY + drawH - yMax);
+
+    ctx.strokeStyle = 'rgba(120,160,255,.9)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 8]);
+    if(vMin > 0) { ctx.beginPath(); ctx.moveTo(drawX, yMin); ctx.lineTo(drawX + drawW, yMin); ctx.stroke(); }
+    if(vMax < 1) { ctx.beginPath(); ctx.moveTo(drawX, yMax); ctx.lineTo(drawX + drawW, yMax); ctx.stroke(); }
+    ctx.setLineDash([]);
+
+    // Labels
+    const drawLabel = (y, text) => {
+      ctx.font = 'bold 11px JetBrains Mono, monospace';
+      ctx.fillStyle = 'rgba(140,180,255,.9)';
+      ctx.textAlign = 'left';
+      ctx.fillText(text, drawX + 8, y - 5);
+    };
+    if(vMin > 0) drawLabel(yMin, '── cut line (drag)');
+    if(vMax < 1) drawLabel(yMax, '── cut line (drag)');
+  }
+}
+
+function _fsGetDrawGeom() {
+  const wrap = document.getElementById('hmt-fs-wrap');
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  let srcImg = null;
+  if(_fsMode === 'bumpmap' && _hmtBmpImg)  srcImg = _hmtBmpImg;
+  if(_fsMode === 'texmap'  && _htxSrcImg)  srcImg = _htxSrcImg;
+  if(!srcImg) return null;
+  const imgAspect = srcImg.width / srcImg.height;
+  const fitW = W * 0.92, fitH = fitW / imgAspect;
+  const drawW = fitW * _fsZoom, drawH = fitH * _fsZoom;
+  const drawX = (W - drawW) / 2 + _fsPanX;
+  const drawY = (H - drawH) / 2 + _fsPanY;
+  return { drawX, drawY, drawW, drawH };
+}
+
+function _fsHitLine(clientY) {
+  const lineC = document.getElementById('hmt-fs-line');
+  const geom  = _fsGetDrawGeom(); if(!geom) return null;
+  const rect  = lineC.getBoundingClientRect();
+  const localY = clientY - rect.top;
+  const THRESH = 14;
+
+  if(_fsMode === 'bumpmap') {
+    if(!_hmtBreakpoints) return null;
+    // For fullscreen bumpmap: only vertical drag on handles
+    return null; // handled separately below
+  } else {
+    const hemi   = document.querySelector('input[name="htx-hemi"]:checked')?.value || 'bottom';
+    const latCut = (parseInt(document.getElementById('htx-lat').value) || 50) / 100;
+    const latOff = (parseInt(document.getElementById('htx-latoff').value) || 0) / 100;
+    let vMin, vMax;
+    if(hemi === 'top')         { vMin = 0; vMax = Math.max(0, Math.min(1, 0.5 * latCut + latOff)); }
+    else if(hemi === 'bottom') { vMax = 1.0; vMin = Math.max(0, Math.min(1, 1.0 - 0.5 * latCut - latOff)); }
+    else { const halfH = 0.5 * latCut; vMin = Math.max(0, Math.min(1, 0.5 - halfH + latOff)); vMax = Math.max(0, Math.min(1, 0.5 + halfH + latOff)); }
+    const yMin = geom.drawY + vMin * geom.drawH;
+    const yMax = geom.drawY + vMax * geom.drawH;
+    if(hemi === 'top'    && Math.abs(localY - yMax) < THRESH) return 'max';
+    if(hemi === 'bottom' && Math.abs(localY - yMin) < THRESH) return 'min';
+    if(hemi === 'full') {
+      const dMin = Math.abs(localY - yMin), dMax = Math.abs(localY - yMax);
+      if(dMin < THRESH || dMax < THRESH) return dMin < dMax ? 'min' : 'max';
+    }
+    return null;
+  }
+}
+
+// Bumpmap: hit test handles in fullscreen
+let _fsBpDragIdx = -1;
+function _fsBpHit(clientX, clientY) {
+  const geom = _fsGetDrawGeom(); if(!geom || !_hmtBreakpoints) return -1;
+  const lineC = document.getElementById('hmt-fs-line');
+  const rect = lineC.getBoundingClientRect();
+  const lx = clientX - rect.left, ly = clientY - rect.top;
+  const R = 14;
+  for(let i = 0; i < _hmtBreakpoints.length; i++) {
+    const px = geom.drawX + _hmtBreakpoints[i].x * geom.drawW;
+    const py = geom.drawY + _hmtBreakpoints[i].lat * geom.drawH;
+    if(Math.sqrt((lx-px)**2 + (ly-py)**2) < R) return i;
+  }
+  return -1;
+}
+
+function _fsFractionFromClient(clientX, clientY) {
+  const geom = _fsGetDrawGeom(); if(!geom) return {xf:0.5, yf:0.5};
+  const lineC = document.getElementById('hmt-fs-line');
+  const rect = lineC.getBoundingClientRect();
+  const lx = clientX - rect.left, ly = clientY - rect.top;
+  return {
+    xf: Math.max(0, Math.min(1, (lx - geom.drawX) / geom.drawW)),
+    yf: Math.max(0, Math.min(1, (ly - geom.drawY) / geom.drawH)),
+  };
+}
+
+function _fsApplyTexLineDrag(clientY) {
+  const geom = _fsGetDrawGeom(); if(!geom) return;
+  const lineC = document.getElementById('hmt-fs-line');
+  const rect = lineC.getBoundingClientRect();
+  const localY = clientY - rect.top;
+  const v = Math.max(0, Math.min(1, (localY - geom.drawY) / geom.drawH));
+
+  const hemi = document.querySelector('input[name="htx-hemi"]:checked')?.value || 'bottom';
+  const latCutEl  = document.getElementById('htx-lat');
+  const latOffEl  = document.getElementById('htx-latoff');
+  const latCutVal = document.getElementById('htx-lat-val');
+  const latOffVal = document.getElementById('htx-latoff-val');
+
+  if(hemi === 'bottom') {
+    const latCut = (parseInt(latCutEl.value) || 50) / 100;
+    const newOff = (1.0 - v - 0.5 * latCut) * 100;
+    const clamped = Math.max(-40, Math.min(40, Math.round(newOff)));
+    latOffEl.value = clamped;
+    latOffVal.textContent = (clamped >= 0 ? '+' : '') + clamped + '%';
+  } else if(hemi === 'top') {
+    const latCut = (parseInt(latCutEl.value) || 50) / 100;
+    const newOff = (v - 0.5 * latCut) * 100;
+    const clamped = Math.max(-40, Math.min(40, Math.round(newOff)));
+    latOffEl.value = clamped;
+    latOffVal.textContent = (clamped >= 0 ? '+' : '') + clamped + '%';
+  }
+  htxUpdate();
+  _fsDraw();
+}
+
+function _fsInitEvents() {
+  const wrap  = document.getElementById('hmt-fs-wrap');
+  const lineC = document.getElementById('hmt-fs-line');
+
+  // Clone to remove stale listeners
+  const freshWrap = wrap.cloneNode(true);
+  const freshLine = freshWrap.querySelector('#hmt-fs-line');
+  const freshImg  = freshWrap.querySelector('#hmt-fs-canvas');
+  wrap.parentNode.replaceChild(freshWrap, wrap);
+
+  function onDown(clientX, clientY) {
+    // Check line hit first
+    if(_fsMode === 'bumpmap') {
+      const bpIdx = _fsBpHit(clientX, clientY);
+      if(bpIdx >= 0) { _fsBpDragIdx = bpIdx; _fsLineDrag = true; return; }
+    } else {
+      const side = _fsHitLine(clientY);
+      if(side) { _fsLineDrag = true; _fsLineSide = side; return; }
+    }
+    // Pan
+    _fsDragging = true; _fsDragX = clientX; _fsDragY = clientY;
+  }
+
+  function onMove(clientX, clientY) {
+    if(_fsLineDrag) {
+      if(_fsMode === 'bumpmap' && _fsBpDragIdx >= 0) {
+        const {xf, yf} = _fsFractionFromClient(clientX, clientY);
+        const bp = _hmtBreakpoints[_fsBpDragIdx];
+        bp.lat = Math.max(0, Math.min(1, yf));
+        if(_fsBpDragIdx > 0 && _fsBpDragIdx < _hmtBreakpoints.length - 1) {
+          const xMin = _hmtBreakpoints[_fsBpDragIdx - 1].x + 0.01;
+          const xMax = _hmtBreakpoints[_fsBpDragIdx + 1].x - 0.01;
+          bp.x = Math.max(xMin, Math.min(xMax, xf));
+        }
+        hmtUpdate(); _fsDraw(); return;
+      }
+      if(_fsMode === 'texmap') { _fsApplyTexLineDrag(clientY); return; }
+    }
+    if(!_fsDragging) return;
+    _fsPanX += clientX - _fsDragX; _fsPanY += clientY - _fsDragY;
+    _fsDragX = clientX; _fsDragY = clientY;
+    _fsDraw();
+  }
+
+  function onUp() { _fsDragging = false; _fsLineDrag = false; _fsBpDragIdx = -1; }
+
+  freshWrap.addEventListener('mousedown', e => onDown(e.clientX, e.clientY));
+  window.addEventListener('mousemove', e => { if(_fsMode) onMove(e.clientX, e.clientY); });
+  window.addEventListener('mouseup',   () => { if(_fsMode) onUp(); });
+
+  freshWrap.addEventListener('touchstart', e => {
+    if(e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      _fsPinchD = Math.sqrt(dx*dx+dy*dy);
+      return;
+    }
+    onDown(e.touches[0].clientX, e.touches[0].clientY);
+  }, {passive:true});
+
+  freshWrap.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if(e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx*dx+dy*dy);
+      if(_fsPinchD > 0) {
+        const W = freshWrap.clientWidth, H = freshWrap.clientHeight;
+        const ratio = dist / _fsPinchD;
+        const mid = { x: (e.touches[0].clientX + e.touches[1].clientX)/2, y: (e.touches[0].clientY + e.touches[1].clientY)/2 };
+        const rect = freshWrap.getBoundingClientRect();
+        const mx = mid.x - rect.left, my = mid.y - rect.top;
+        const oldZoom = _fsZoom;
+        _fsZoom = Math.max(0.5, Math.min(10, _fsZoom * ratio));
+        const factor = _fsZoom / oldZoom;
+        _fsPanX = mx - W/2 - (mx - W/2 - _fsPanX) * factor;
+        _fsPanY = my - H/2 - (my - H/2 - _fsPanY) * factor;
+        _fsDraw();
+      }
+      _fsPinchD = dist; return;
+    }
+    onMove(e.touches[0].clientX, e.touches[0].clientY);
+  }, {passive:false});
+
+  freshWrap.addEventListener('touchend', onUp);
+
+  freshWrap.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = freshWrap.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const delta = e.deltaY > 0 ? 0.88 : 1.12;
+    const oldZoom = _fsZoom;
+    _fsZoom = Math.max(0.5, Math.min(10, _fsZoom * delta));
+    const factor = _fsZoom / oldZoom;
+    const W = freshWrap.clientWidth, H = freshWrap.clientHeight;
+    _fsPanX = mx - W/2 - (mx - W/2 - _fsPanX) * factor;
+    _fsPanY = my - H/2 - (my - H/2 - _fsPanY) * factor;
+    _fsDraw();
+  }, {passive:false});
+
+  // Cursor update
+  const fsLineC = freshWrap.querySelector('#hmt-fs-line');
+  if(fsLineC) {
+    fsLineC.addEventListener('mousemove', e => {
+      if(_fsDragging || _fsLineDrag) return;
+      if(_fsMode === 'texmap' && _fsHitLine(e.clientY)) fsLineC.style.cursor = 'ns-resize';
+      else if(_fsMode === 'bumpmap' && _fsBpHit(e.clientX, e.clientY) >= 0) fsLineC.style.cursor = 'grab';
+      else fsLineC.style.cursor = 'grab';
+    });
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  SET LINE AS EQUATOR
+//  Rolls the source pixel buffer vertically so that the
+//  midpoint of the current vMin..vMax cut becomes v=0.5,
+//  then resets latOff to 0 and redraws.
+// ════════════════════════════════════════════════════════════
+function htxSetAsEquator() {
+  if(!_htxSrcPx || !_htxSrcW || !_htxSrcH) return;
+
+  const hemi   = document.querySelector('input[name="htx-hemi"]:checked')?.value || 'bottom';
+  const latCut = (parseInt(document.getElementById('htx-lat').value) || 50) / 100;
+  const latOff = (parseInt(document.getElementById('htx-latoff').value) || 0) / 100;
+
+  let vMin, vMax;
+  if(hemi === 'top') {
+    vMin = 0; vMax = Math.max(0, Math.min(1, 0.5 * latCut + latOff));
+  } else if(hemi === 'bottom') {
+    vMax = 1.0; vMin = Math.max(0, Math.min(1, 1.0 - 0.5 * latCut - latOff));
+  } else {
+    const halfH = 0.5 * latCut;
+    vMin = Math.max(0, Math.min(1, 0.5 - halfH + latOff));
+    vMax = Math.max(0, Math.min(1, 0.5 + halfH + latOff));
+  }
+
+  // The midpoint of the selected band — this should become v=0.5
+  const midV = (vMin + vMax) / 2;
+  // Pixel row that currently sits at midV
+  const midRow = midV * _htxSrcH;
+  // We want midRow to end up at _htxSrcH/2, so we shift up by (midRow - H/2)
+  const shiftRows = Math.round(midRow - _htxSrcH / 2);
+  if(shiftRows === 0) return; // already centred
+
+  // Roll the pixel buffer by shiftRows (positive = move content up)
+  const W = _htxSrcW, H = _htxSrcH;
+  const bytesPerRow = W * 4;
+  const src = _htxSrcPx;
+  const dst = new Uint8ClampedArray(src.length);
+
+  for(let y = 0; y < H; y++) {
+    const srcRow = ((y + shiftRows) % H + H) % H;
+    dst.set(src.subarray(srcRow * bytesPerRow, srcRow * bytesPerRow + bytesPerRow), y * bytesPerRow);
+  }
+
+  // Bake rolled pixels back into the source state
+  const oc = document.createElement('canvas');
+  oc.width = W; oc.height = H;
+  const octx = oc.getContext('2d');
+  const id = octx.createImageData(W, H);
+  id.data.set(dst);
+  octx.putImageData(id, 0, 0);
+  _htxSrcPx = dst;
+
+  // Update the source preview canvas
+  const pv = document.getElementById('htx-src-preview');
+  if(pv) { pv.width = W; pv.height = H; pv.getContext('2d').drawImage(oc, 0, 0); }
+
+  // Rebuild _htxSrcImg from the rolled canvas so fullscreen view is also current
+  const url = oc.toDataURL();
+  const img = new Image();
+  img.onload = () => { _htxSrcImg = img; };
+  img.src = url;
+
+  // Reset latOff to 0 — the image is now centred on the old cut line
+  const latOffEl  = document.getElementById('htx-latoff');
+  const latOffVal = document.getElementById('htx-latoff-val');
+  if(latOffEl)  latOffEl.value = 0;
+  if(latOffVal) latOffVal.textContent = '+0%';
+
+  htxUpdate();
 }

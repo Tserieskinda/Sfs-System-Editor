@@ -216,6 +216,65 @@ const SFX = (() => {
     patch('imgDuplicateSelected', positive);
     patch('imgTriggerFileInput',  select);
 
+    // ── PRECISE OBJECT PLACER ────────────────────────────────────
+    patch('openPlacer',          select);
+    patch('closePlacer',         click);
+    patch('placerToggleActive',  select);
+    patch('placerResetCount',    click);
+    patch('placerOnParentChange',click);
+    patch('placerOnPresetChange',select);
+    patch('placerOnDirChange',   select);
+    patch('placerOnEccInput',    click);
+
+    // ── LANDMARK FEATURES ────────────────────────────────────────
+    patch('openProceduralLandmarks',  select);
+    patch('closeProceduralLandmarks', click);
+    patch('runProceduralScan',        positive);
+    patch('plmReroll',                select);
+    patch('applyProceduralLandmarks', positive);
+    patch('openSuffixModal',          select);
+    patch('closeSuffixModal',         click);
+    patch('filterSuffixList',         click);
+    patch('selectSuffixTerm',         select);
+    patch('updateSuffixPreview',      click);
+    patch('applySuffix',              positive);
+
+    // ── HEIGHTMAP / TEXTURE TOOLS (hmt / htx) ────────────────────
+    patch('openHeightmapTools',  select);
+    patch('closeHeightmapTools', click);
+    patch('hmtSetTab',           select);
+    patch('hmtAddBreakpoint',    select);
+    patch('hmtRemoveBreakpoint', warning);
+    patch('hmtResetBreakpoints', warning);
+    patch('hmtLoadFile',         select);
+    patch('hmtSaveToAssets',     positive);
+    patch('hmtDownloadPNG',      positive);
+    patch('htxLoadFile',         select);
+    patch('htxReload',           click);
+    patch('htxSaveToAssets',     positive);
+    patch('htxDownloadPNG',      positive);
+    patch('htxUpdateHM',         click);
+    patch('htxSaveHMToAssets',   positive);
+    patch('htxDownloadHM',       positive);
+
+    // ── GROUP SELECT ─────────────────────────────────────────────
+    patch('enterGroupSelect',    select);
+    patch('exitGroupSelect',     click);
+    patch('groupSelToggle',      select);
+    patch('groupSelDeleteAll',   warning);
+    patch('groupSelInvert',      select);
+    patch('groupSelScaleSMA',    positive);
+    patch('groupSelScaleRadii',  positive);
+    patch('groupSelJitterSMA',   positive);
+    patch('groupSelJitterEcc',   positive);
+
+    // ── BODY SEARCH extras ────────────────────────────────────────
+    patch('bsearchZoom',       select);
+    patch('downloadBodyTxt',   positive);
+
+    // ── UI HUE PICKER ────────────────────────────────────────────
+    patch('onUiHuePick',  select);
+
     // ── PROCGEN ───────────────────────────────────────────────────
     patch('pgGenerate',         positive);
     patch('pgClear',            warning);

@@ -2937,6 +2937,39 @@ body {
   transform: translateX(0);
 }
 
+#placer-panel.open {
+  transform: translateX(0) !important;
+}
+
+/* Mobile: placer panel slides up full-width from bottom (matches img-panel pattern) */
+@media (max-width: 600px) {
+  #placer-panel {
+    width: 100% !important;
+    height: 72dvh !important;
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    border-left: none !important;
+    border-top: 1px solid rgba(255,180,60,.3) !important;
+    border-radius: 14px 14px 0 0;
+    transform: translateY(100%) !important;
+    transition: transform .25s cubic-bezier(.4,0,.2,1) !important;
+  }
+  #placer-panel.open {
+    transform: translateY(0) !important;
+  }
+}
+
+/* Coarse-pointer (touch): larger tap targets in placer panel */
+@media (pointer: coarse) {
+  #placer-panel select,
+  #placer-panel input[type="range"] { min-height: 44px; touch-action: manipulation; }
+  #placer-toggle-btn { min-height: 48px !important; font-size: .68rem !important; }
+  #psc-tab-size, #psc-tab-dist,
+  #psc-btn-all,  #psc-btn-sel  { min-height: 44px; min-width: 44px; touch-action: manipulation; }
+}
+
 /* drop zone drag-over state */
 #img-drop-zone.drag-over {
   border-color: rgba(100,220,180,.7) !important;

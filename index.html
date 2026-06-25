@@ -102,6 +102,7 @@
       </div>
       <button class="tb-btn" onclick="openBodySearch()" title="Search bodies in system" style="border-color:rgba(64,200,255,.3);color:var(--sky2);font-size:.85rem;padding:7px 10px">🔍</button>
       <button class="tb-btn" id="btn-difficulty" onclick="cycleDifficulty()" title="Switch orbit display difficulty" style="border-color:rgba(255,200,64,.3);color:#ffd060;min-width:96px">⚖ NORMAL</button>
+      <button class="tb-btn" id="btn-dist-rings" onclick="toggleDistRings()" title="Toggle AU distance rings around selected body" style="border-color:rgba(120,200,255,.3);color:rgba(120,200,255,.75);font-size:.75rem;letter-spacing:.05em;padding:7px 10px">⊙ AU</button><button class="tb-btn" onclick="openDistRingsMenu()" title="Configure ring distances" style="border-color:rgba(120,200,255,.2);color:rgba(120,200,255,.5);font-size:.7rem;padding:7px 7px;margin-left:-6px;border-left:none;border-radius:0 5px 5px 0">⚙</button>
       <button class="tb-btn" id="btn-add-body" onclick="addBodyPrompt()" title="Add a body to the system (requires a system center first)" style="border-color:rgba(100,220,120,.6);color:#7defa0;font-weight:700;background:rgba(100,220,120,.12);letter-spacing:.08em">＋ ADD BODY</button>
       <!-- ── Tools dropdown ── -->
       <div id="tools-dropdown-wrap" style="position:relative;display:inline-block">
@@ -568,9 +569,15 @@
           <div class="frow" style="flex-wrap:wrap;gap:4px">
             <span class="flabel" style="flex:0 0 100%">Cloud Velocity</span>
             <select class="fselect" id="cl-v-mode" style="flex:0 0 auto;font-size:.62rem;padding:3px 5px" onchange="syncCloudVel()" title="Input mode">
-              <option value="ms">m/s</option>
+              <option value="raw">raw</option>
               <option value="rph">rot/hr</option>
               <option value="rps">rot/s</option>
+              <option value="rpm">rot/min</option>
+              <option value="period_s">period (s)</option>
+              <option value="period_m">period (min)</option>
+              <option value="period_h">period (h)</option>
+              <option value="ms">m/s</option>
+              <option value="kms">km/s</option>
             </select>
             <input class="finput" id="cl-v-input" type="text" inputmode="decimal" step="0.001" style="flex:1;min-width:60px" oninput="syncCloudVel()" title="Cloud velocity">
             <input type="hidden" id="cl-v">
@@ -1633,6 +1640,11 @@
 <script src="js/background.js?v=5.12"></script>
 <script src="js/ui-hue.js?v=5.12"></script>
 <script src="js/nav-state.js?v=5.12"></script>
+<!-- io.js must precede presets.js — it declares dynamicPresets which
+     buildAllPresets() references at parse/call time. -->
+<script src="js/idb-cache.js?v=5.12"></script>
+<script src="js/assets.js?v=5.12"></script>
+<script src="js/io.js?v=5.13"></script>
 <script src="js/presets.js?v=5.12"></script>
 <script src="js/state.js?v=5.12"></script>
 <script src="js/settings.js?v=5.12"></script>
@@ -1642,15 +1654,13 @@
 <script src="js/units.js?v=5.12"></script>
 <script src="js/sidebar.js?v=5.13"></script>
 <script src="js/export.js?v=5.12"></script>
-<script src="js/assets.js?v=5.12"></script>
-<script src="js/idb-cache.js?v=5.12"></script>
-<script src="js/io.js?v=5.12"></script>
 <script src="js/body-search.js?v=5.12"></script>
 <script src="js/namegen.js?v=5.12"></script>
 <script src="js/tex-creator.js?v=5.12"></script>
 <script src="js/sfx.js?v=5.12"></script>
 <script src="js/utils.js?v=5.16"></script>
 <script src="js/images.js?v=5.12"></script>
+<script src="js/placer.js?v=1.0"></script>
 <script src="js/procgen.js?v=1.0"></script>
 <script src="js/landmark-features.js?v=1.1"></script>
 <!-- ══ TERRAIN DETAIL DROPDOWN (body-level to escape topbar stacking context) ══ -->
@@ -1710,6 +1720,16 @@
     <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Drag bodies to adjust orbit</span></span>
   </button>
   <div style="height:1px;background:rgba(255,180,80,.1);margin:0 10px"></div>
+  <button onclick="replaceCenterBody();document.getElementById('tools-dropdown').style.display='none';" style="display:flex;align-items:center;gap:10px;
+    width:100%;padding:9px 14px;background:none;border:none;cursor:pointer;
+    font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
+    letter-spacing:.05em;transition:background .12s;text-align:left"
+    onmouseover="this.style.background='rgba(255,180,80,.1)'" onmouseout="this.style.background='none'">
+    <span style="font-size:1rem">⭐</span>
+    <span><span style="display:block;color:rgba(255,180,80,.9)">CHANGE CENTER BODY</span>
+    <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Swap the star / black hole — orbits preserved</span></span>
+  </button>
+  <div style="height:1px;background:rgba(255,180,80,.1);margin:0 10px"></div>
   <div style="padding:9px 14px 10px;display:flex;flex-direction:column;gap:5px">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <span style="font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(255,180,80,.9);letter-spacing:.05em">⌨ WASD SPEED</span>
@@ -1754,24 +1774,68 @@
     onmouseover="this.style.background='rgba(255,180,80,.1)'" onmouseout="this.style.background='none'">
     <span style="font-size:1rem">⚖️</span>
     <span>
-      <span style="display:block;color:rgba(255,180,80,.9)">SIZE COMPARISON</span>
-      <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Compare planet sizes visually</span>
+      <span style="display:block;color:rgba(255,180,80,.9)">OBJECT COMPARISON</span>
+      <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Compare planet sizes and orbital distances</span>
     </span>
+  </button>
   <div style="height:1px;background:rgba(255,180,80,.1);margin:0 10px"></div>
-  <button onclick="toggleLockSidebar()" style="display:flex;align-items:center;gap:10px;
+  <button onclick="toggleDisablePlanetSelection()" style="display:flex;align-items:center;gap:10px;
     width:100%;padding:9px 14px;background:none;border:none;cursor:pointer;
     font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
     letter-spacing:.05em;transition:background .12s;text-align:left"
     onmouseover="this.style.background='rgba(255,180,80,.1)'" onmouseout="this.style.background='none'">
-    <span style="font-size:1rem">🔒</span>
+    <span style="font-size:1rem">🚫</span>
     <span>
-      <span style="display:block;color:rgba(255,180,80,.9)">LOCK SIDEBAR</span>
-      <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Prevent sidebar opening on click</span>
+      <span style="display:block;color:rgba(255,180,80,.9)">DISABLE PLANET SELECTION</span>
+      <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Prevent selecting planets on click</span>
     </span>
-    <span id="lock-sidebar-badge" style="margin-left:auto;font-size:.48rem;padding:2px 5px;border-radius:3px;
+    <span id="disable-planet-selection-badge" style="margin-left:auto;font-size:.48rem;padding:2px 5px;border-radius:3px;
       background:rgba(255,180,80,.12);color:rgba(255,180,80,.4);border:1px solid rgba(255,180,80,.2);
       letter-spacing:.08em;flex-shrink:0">OFF</span>
   </button>
+  <div style="height:1px;background:rgba(255,180,80,.1);margin:0 10px"></div>
+  <button onclick="toggleDistanceIndicators();document.getElementById('tools-dropdown').style.display='none';" style="display:flex;align-items:center;gap:10px;
+    width:100%;padding:9px 14px;background:none;border:none;cursor:pointer;
+    font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
+    letter-spacing:.05em;transition:background .12s;text-align:left"
+    onmouseover="this.style.background='rgba(255,180,80,.1)'" onmouseout="this.style.background='none'">
+    <span style="font-size:1rem">📡</span>
+    <span>
+      <span style="display:block;color:rgba(255,180,80,.9)">DISTANCE INDICATORS</span>
+      <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Show distance line in viewport</span>
+    </span>
+    <span id="dist-indicator-badge" style="margin-left:auto;font-size:.48rem;padding:2px 5px;border-radius:3px;
+      background:rgba(255,180,80,.12);color:rgba(255,180,80,.4);border:1px solid rgba(255,180,80,.2);
+      letter-spacing:.08em;flex-shrink:0">OFF</span>
+  </button>
+  <!-- Mode cycle + body pickers (visible only when ON) -->
+  <button onclick="cycleDistanceMode();" style="display:flex;align-items:center;gap:10px;
+    width:100%;padding:6px 14px 6px 38px;background:none;border:none;cursor:pointer;
+    font-family:'JetBrains Mono',monospace;font-size:.58rem;color:rgba(200,200,230,.7);
+    letter-spacing:.05em;transition:background .12s;text-align:left"
+    onmouseover="this.style.background='rgba(255,180,80,.07)'" onmouseout="this.style.background='none'">
+    <span style="color:rgba(180,180,220,.5)">⇄ MODE:</span>
+    <span style="margin-left:6px;color:rgba(200,200,255,.75)">CENTER → SELECTED &nbsp;|&nbsp; BODY ↔ BODY</span>
+  </button>
+  <!-- Body A / B selectors (only shown in body-body mode) -->
+  <div id="dist-body-picker-row" style="display:none;flex-direction:column;gap:4px;padding:4px 14px 8px 38px;">
+    <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.58rem;color:rgba(140,160,255,.8);">
+      <span style="flex-shrink:0;width:14px">A:</span>
+      <select id="dist-body-a-sel" onchange="_distSetBodyA(this.value)"
+        style="flex:1;background:#0d1220;color:rgba(200,210,255,.9);border:1px solid rgba(140,160,255,.3);
+        border-radius:4px;padding:3px 5px;font-family:'JetBrains Mono',monospace;font-size:.58rem;cursor:pointer;">
+        <option value="">— pick body —</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.58rem;color:rgba(140,160,255,.8);">
+      <span style="flex-shrink:0;width:14px">B:</span>
+      <select id="dist-body-b-sel" onchange="_distSetBodyB(this.value)"
+        style="flex:1;background:#0d1220;color:rgba(200,210,255,.9);border:1px solid rgba(140,160,255,.3);
+        border-radius:4px;padding:3px 5px;font-family:'JetBrains Mono',monospace;font-size:.58rem;cursor:pointer;">
+        <option value="">— pick body —</option>
+      </select>
+    </div>
+  </div>
   <div style="height:1px;background:rgba(255,180,80,.1);margin:0 10px"></div>
   <button onclick="openAsteroidsMenu()" style="display:flex;align-items:center;gap:10px;
     width:100%;padding:9px 14px;background:none;border:none;cursor:pointer;
@@ -1784,6 +1848,30 @@
       <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Draw, generate & place asteroids</span>
     </span>
   </button>
+</div>
+
+<!-- ═══════════════════════════ DIST RINGS CONFIG MODAL ═══════════════════════════ -->
+<div id="dist-rings-modal" style="display:none;position:fixed;inset:0;z-index:200002;
+  background:rgba(2,6,18,.85);backdrop-filter:blur(6px);align-items:center;justify-content:center;"
+  onclick="if(event.target===this)closeDistRingsMenu()">
+  <div style="background:#0d1220;border:1px solid rgba(120,200,255,.25);border-radius:12px;
+    padding:18px 20px;width:300px;max-width:92vw;font-family:'JetBrains Mono',monospace;color:#c8d8f0;
+    box-shadow:0 0 40px rgba(0,0,0,.7);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <span style="font-size:.78rem;color:rgba(120,200,255,.9);letter-spacing:.08em;">⊙ RING SCALE</span>
+      <button onclick="closeDistRingsMenu()" style="background:none;border:none;color:rgba(180,200,240,.5);
+        font-size:1.1rem;cursor:pointer;padding:0 2px;line-height:1;">✕</button>
+    </div>
+    <div style="font-size:.57rem;color:rgba(150,170,210,.45);margin-bottom:12px;line-height:1.5;">
+      Choose a scale to match your system size. Rings auto-label in AU or LY.
+    </div>
+    <div id="dist-rings-list"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+      <button onclick="_distRingsReset()"
+        style="background:rgba(255,120,80,.08);color:rgba(255,150,100,.55);border:1px solid rgba(255,100,60,.15);
+        border-radius:4px;padding:4px 12px;font-size:.6rem;cursor:pointer;">↺ Reset</button>
+    </div>
+  </div>
 </div>
 
 <!-- ═══════════════════════════ ASTEROIDS MODAL ═══════════════════════════ -->
@@ -2877,7 +2965,7 @@ function astApplyToBody() {
   const bytes = new Uint8Array(byteStr.length);
   for (let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i);
 
-  const entry = { name: pngName, url: dataUrl, type: 'image/png', bytes };
+  const entry = { name: pngName, url: dataUrl, type: 'image/png', bytes, size: bytes.length };
 
   // Add to heightmaps array
   if (existing) existing.push(entry);
@@ -2974,10 +3062,26 @@ astGenerate = function() { _astOrigGenerate(); astUpdateApplyPreview(); };
     padding:10px 12px;background:rgba(6,10,22,.97);border:1px solid rgba(255,180,80,.22);
     border-bottom:none;border-radius:6px 6px 0 0;flex-shrink:0;margin-top:auto;flex-wrap:wrap;min-width:0">
     <span style="font-family:'Orbitron',sans-serif;font-size:.65rem;color:rgba(255,180,80,.9);
-      letter-spacing:.14em;flex:1">⚖️ PLANET SIZE COMPARISON</span>
+      letter-spacing:.14em;flex:1">⚖️ OBJECT COMPARISON</span>
 
-    <!-- Mode toggle -->
-    <div style="display:flex;gap:4px">
+    <!-- View tabs -->
+    <div style="display:flex;gap:4px;margin-right:6px">
+      <button id="psc-tab-size" onclick="_pscSetView('size')"
+        style="font-family:'JetBrains Mono',monospace;font-size:.52rem;padding:4px 9px;
+        border-radius:3px;cursor:pointer;letter-spacing:.06em;
+        border:1px solid rgba(255,180,80,.5);background:rgba(255,180,80,.18);color:#ffb850">
+        ⚖ SIZE
+      </button>
+      <button id="psc-tab-dist" onclick="_pscSetView('distance')"
+        style="font-family:'JetBrains Mono',monospace;font-size:.52rem;padding:4px 9px;
+        border-radius:3px;cursor:pointer;letter-spacing:.06em;
+        border:1px solid rgba(255,180,80,.2);background:none;color:rgba(255,180,80,.45)">
+        📏 DISTANCE
+      </button>
+    </div>
+
+    <!-- Mode toggle (size view only) -->
+    <div id="psc-mode-btns" style="display:flex;gap:4px">
       <button id="psc-btn-all" onclick="_pscSetMode('all')"
         style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:4px 10px;
         border-radius:3px;cursor:pointer;letter-spacing:.06em;
@@ -3018,12 +3122,19 @@ astGenerate = function() { _astOrigGenerate(); astUpdateApplyPreview(); };
       padding-right:4px"></div>
   </div>
 
-  <!-- Canvas area -->
-  <div style="width:min(96vw,960px);height:min(52vh,520px);
+  <!-- Canvas area (size view) -->
+  <div id="psc-canvas-wrap" style="width:min(96vw,960px);height:min(52vh,520px);
     background:rgba(4,8,18,.98);border:1px solid rgba(255,180,80,.22);
-    border-top:none;border-radius:0 0 6px 6px;overflow:hidden;position:relative;cursor:grab;touch-action:none"
-    id="psc-canvas-wrap">
+    border-top:none;border-radius:0 0 6px 6px;overflow:hidden;position:relative;cursor:grab;touch-action:none">
     <canvas id="psc-canvas" style="display:block;width:100%;height:100%"></canvas>
+  </div>
+
+  <!-- Distance comparison view -->
+  <div id="psc-dist-wrap" style="display:none;width:min(96vw,960px);
+    max-height:min(70vh,600px);overflow-y:auto;-webkit-overflow-scrolling:touch;
+    background:rgba(4,8,18,.98);border:1px solid rgba(255,180,80,.22);
+    border-top:none;border-radius:0 0 6px 6px;position:relative;">
+    <canvas id="psc-dist-canvas" style="display:block;width:100%;touch-action:pan-y"></canvas>
   </div>
 
   <!-- Legend / hints -->
@@ -3205,6 +3316,15 @@ document.addEventListener('keydown', function(e){
     <span style="font-size:1rem">✨</span>
     <span><span style="display:block;color:var(--sky2)">PROCEDURAL GENERATION</span>
     <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Generate random systems with full control</span></span>
+  </button>
+  <button onclick="openPlacer()" style="display:flex;align-items:center;gap:10px;
+    width:100%;padding:9px 14px;background:none;border:none;cursor:pointer;
+    font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
+    letter-spacing:.05em;transition:background .12s;text-align:left"
+    onmouseover="this.style.background='var(--ac12)'" onmouseout="this.style.background='none'">
+    <span style="font-size:1rem">📍</span>
+    <span><span style="display:block;color:var(--sky2)">PRECISE OBJECT PLACER</span>
+    <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Click viewport to place bodies at exact positions</span></span>
   </button>
 </div>
 <input type="file" id="img-file-input" accept="image/*" multiple style="display:none">
@@ -3927,7 +4047,7 @@ document.addEventListener('keydown', function(e){
   overflow-y:auto;padding:12px 0 24px;box-sizing:border-box">
 
   <!-- Header -->
-  <div style="width:min(96vw,980px);display:flex;align-items:center;gap:10px;
+  <div style="width:min(96vw,1180px);display:flex;align-items:center;gap:10px;
     padding:10px 14px;background:rgba(6,10,22,.97);
     border:1px solid rgba(100,220,180,.2);border-bottom:none;
     border-radius:6px 6px 0 0;flex-shrink:0;margin-top:auto">
@@ -3935,31 +4055,58 @@ document.addEventListener('keydown', function(e){
     <button onclick="closeHeightmapTools()" style="background:none;border:1px solid rgba(255,80,80,.3);border-radius:3px;color:rgba(255,100,100,.7);font-size:.75rem;padding:3px 8px;cursor:pointer">✕</button>
   </div>
 
-  <!-- Tool tabs -->
-  <div style="width:min(96vw,980px);background:rgba(6,10,22,.97);
-    border:1px solid rgba(100,220,180,.2);border-top:1px solid rgba(100,220,180,.1);
-    border-bottom:none;display:flex;gap:0;flex-shrink:0">
-    <button id="hmt-tab-bmp" onclick="hmtSetTab('bumpmap')"
-      style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:8px 16px;
-      background:rgba(100,220,180,.12);color:rgba(100,220,180,.9);
-      border:none;border-right:1px solid rgba(100,220,180,.15);cursor:pointer;letter-spacing:.06em">
-      🌄 BUMP MAP → HEIGHTMAP
-    </button>
-    <button id="hmt-tab-texmap" onclick="hmtSetTab('texmap')"
-      style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:8px 16px;
-      background:none;color:rgba(180,200,255,.6);
-      border:none;border-right:1px solid rgba(100,220,180,.15);cursor:pointer;letter-spacing:.06em">
-      🌍 TEXTURE MAP → SFS TEXTURE
-    </button>
+  <!-- Mobile tab bar (hidden on desktop) -->
+  <div id="hmt-mobile-tabs" style="width:min(96vw,1180px);display:none;flex-shrink:0;
+    border:1px solid rgba(100,220,180,.2);border-bottom:none;
+    background:rgba(6,10,22,.97)">
+    <div style="display:flex">
+      <button onclick="hmtMobileTab('bumpmap',this)" id="hmtmtab-bumpmap"
+        style="flex:1;font-family:'JetBrains Mono',monospace;font-size:.52rem;
+        padding:9px 4px;border:none;border-right:1px solid rgba(100,220,180,.15);
+        background:rgba(100,220,180,.12);color:rgba(100,220,180,.9);cursor:pointer;
+        letter-spacing:.04em;outline:none">🌄 BMP</button>
+      <button onclick="hmtMobileTab('texmap',this)" id="hmtmtab-texmap"
+        style="flex:1;font-family:'JetBrains Mono',monospace;font-size:.52rem;
+        padding:9px 4px;border:none;border-right:1px solid rgba(100,220,180,.15);
+        background:transparent;color:rgba(180,210,255,.6);cursor:pointer;
+        letter-spacing:.04em;outline:none">🌍 TEX</button>
+      <button onclick="hmtMobileTab('watermask',this)" id="hmtmtab-watermask"
+        style="flex:1;font-family:'JetBrains Mono',monospace;font-size:.52rem;
+        padding:9px 4px;border:none;background:transparent;
+        color:rgba(100,180,255,.6);cursor:pointer;
+        letter-spacing:.04em;outline:none">💧 SEA</button>
+    </div>
   </div>
 
-  <!-- Tool content area -->
-  <div id="hmt-content" style="width:min(96vw,980px);background:rgba(4,8,20,.98);
+  <!-- Tool header — all three tools visible side by side (desktop) -->
+  <div id="hmt-desktop-header" style="width:min(96vw,1180px);background:rgba(6,10,22,.97);
+    border:1px solid rgba(100,220,180,.2);border-top:1px solid rgba(100,220,180,.1);
+    border-bottom:none;display:grid;grid-template-columns:1fr 1fr 1fr;flex-shrink:0">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:8px 16px;
+      background:rgba(100,220,180,.1);color:rgba(100,220,180,.9);
+      border-right:1px solid rgba(100,220,180,.18);letter-spacing:.06em">
+      🌄 BUMP MAP → HEIGHTMAP
+    </div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:8px 16px;
+      background:rgba(120,160,255,.08);color:rgba(180,210,255,.85);letter-spacing:.06em;
+      border-right:1px solid rgba(100,220,180,.12)">
+      🌍 TEXTURE MAP → SFS TEXTURE
+    </div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:8px 16px;
+      background:rgba(40,100,200,.08);color:rgba(100,180,255,.85);letter-spacing:.06em">
+      💧 WATERMASK GENERATOR
+    </div>
+  </div>
+
+  <!-- Tool content area — both panels side by side -->
+  <div id="hmt-content" style="width:min(96vw,1180px);background:rgba(4,8,20,.98);
     border:1px solid rgba(100,220,180,.2);border-top:none;
-    border-radius:0 0 6px 6px;flex-shrink:0;overflow:hidden">
+    border-radius:0 0 6px 6px;flex-shrink:0;overflow:hidden;
+    display:grid;grid-template-columns:1fr 1fr 1fr;min-height:200px">
 
     <!-- ─── BUMP MAP TOOL ─── -->
-    <div id="hmt-bumpmap" style="display:flex;flex-direction:column;gap:0">
+    <div id="hmt-bumpmap" style="display:flex;flex-direction:column;gap:0;
+      border-right:1px solid rgba(100,220,180,.12);overflow-y:auto;max-height:80vh">
 
       <!-- Upload zone -->
       <div id="hmt-dropzone" style="margin:16px;border:2px dashed rgba(100,220,180,.25);
@@ -3983,6 +4130,8 @@ document.addEventListener('keydown', function(e){
           <canvas id="hmt-preview" style="width:100%;height:auto;display:block;border-radius:4px"></canvas>
           <!-- Overlay canvas for the sample line + breakpoint handles -->
           <canvas id="hmt-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:all;touch-action:none"></canvas>
+          <!-- Fullscreen expand button -->
+          <button onclick="hmtOpenFullscreen('bumpmap')" title="Full-screen view" style="position:absolute;top:6px;right:6px;background:rgba(4,8,20,.8);border:1px solid rgba(100,220,180,.35);border-radius:3px;color:rgba(100,220,180,.8);font-size:.65rem;padding:3px 7px;cursor:pointer;z-index:2;font-family:'JetBrains Mono',monospace">⛶</button>
         </div>
 
         <!-- Breakpoint toolbar -->
@@ -4046,11 +4195,11 @@ document.addEventListener('keydown', function(e){
 
             <div>
               <label style="font-family:'JetBrains Mono',monospace;font-size:.55rem;color:rgba(100,220,180,.7);letter-spacing:.07em;display:block;margin-bottom:4px">
-                V SHIFT <span id="hmt-vshift-val" style="color:rgba(180,210,255,.8)">0</span>
-                <span style="color:rgba(150,160,200,.35);font-size:.46rem;margin-left:4px">rows from top</span>
+                V SHIFT <span id="hmt-vshift-val" style="color:rgba(180,210,255,.8)">+0%</span>
+                <span style="color:rgba(150,160,200,.35);font-size:.46rem;margin-left:4px">% of image height</span>
               </label>
               <div style="display:flex;align-items:center;gap:6px">
-                <input type="range" id="hmt-vshift" min="-256" max="256" value="0" step="1"
+                <input type="range" id="hmt-vshift" min="-50" max="50" value="0" step="0.5"
                   style="flex:1;accent-color:#64dcb4;min-height:20px" oninput="hmtUpdate()">
                 <button onclick="document.getElementById('hmt-vshift').value=0;hmtUpdate()"
                   style="background:transparent;border:1px solid rgba(90,90,112,.3);color:rgba(150,150,180,.6);
@@ -4133,7 +4282,7 @@ document.addEventListener('keydown', function(e){
     </div><!-- #hmt-bumpmap -->
 
     <!-- ─── TEXTURE MAP TOOL ─── -->
-    <div id="hmt-texmap" style="display:none;flex-direction:column;gap:0">
+    <div id="hmt-texmap" style="display:flex;flex-direction:column;gap:0;overflow-y:auto;max-height:80vh">
 
       <!-- Upload zone -->
       <div id="htx-dropzone" style="margin:16px;border:2px dashed rgba(120,160,255,.25);
@@ -4158,7 +4307,9 @@ document.addEventListener('keydown', function(e){
           <div style="position:relative;border-radius:4px;overflow:hidden;border:1px solid rgba(120,160,255,.15)">
             <canvas id="htx-src-preview" style="width:100%;height:auto;display:block"></canvas>
             <!-- Hemisphere cut line overlay -->
-            <canvas id="htx-cut-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></canvas>
+            <canvas id="htx-cut-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:all;touch-action:none;cursor:ns-resize"></canvas>
+            <!-- Fullscreen expand button -->
+            <button onclick="hmtOpenFullscreen('texmap')" title="Full-screen view" style="position:absolute;top:6px;right:6px;background:rgba(4,8,20,.8);border:1px solid rgba(120,160,255,.35);border-radius:3px;color:rgba(120,160,255,.8);font-size:.65rem;padding:3px 7px;cursor:pointer;z-index:2;font-family:'JetBrains Mono',monospace">⛶</button>
           </div>
           <button onclick="htxReload()" style="margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:.5rem;
             background:none;border:1px solid rgba(120,160,255,.25);border-radius:3px;
@@ -4207,6 +4358,22 @@ document.addEventListener('keydown', function(e){
             <input type="range" id="htx-lat" min="10" max="100" value="50" step="1"
               oninput="document.getElementById('htx-lat-val').textContent=this.value+'%';htxUpdate()"
               style="width:100%;accent-color:#7cb0ff">
+          </div>
+
+          <!-- Latitude offset -->
+          <div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(180,200,255,.5)">
+              LATITUDE OFFSET <span id="htx-latoff-val" style="color:rgba(180,210,255,.8)">0%</span>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.44rem;color:rgba(130,130,160,.5);margin-bottom:4px">Shift equatorial cut boundary (+ includes more hemisphere, − less)</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <input type="range" id="htx-latoff" min="-40" max="40" value="0" step="1"
+                oninput="document.getElementById('htx-latoff-val').textContent=(this.value>0?'+':'')+this.value+'%';htxUpdate()"
+                style="flex:1;accent-color:#7cb0ff">
+              <button onclick="document.getElementById('htx-latoff').value=0;document.getElementById('htx-latoff-val').textContent='0%';htxUpdate()"
+                style="background:transparent;border:1px solid rgba(90,90,112,.3);color:rgba(150,150,180,.6);
+                font-family:'JetBrains Mono',monospace;font-size:.48rem;padding:2px 7px;min-height:22px;cursor:pointer;border-radius:2px">↺</button>
+            </div>
           </div>
 
           <!-- Longitude rotation -->
@@ -4277,6 +4444,24 @@ document.addEventListener('keydown', function(e){
                   ⬇ DOWNLOAD PNG
                 </button>
               </div>
+              <div style="margin-top:8px">
+                <button id="htx-copy-line-btn" onclick="htxCopyLineToBumpMap()"
+                  style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:6px 14px;
+                  background:rgba(20,60,50,.4);border:1px solid rgba(100,220,180,.3);
+                  border-radius:3px;color:rgba(100,220,180,.7);cursor:pointer;letter-spacing:.05em">
+                  ↳ COPY LINE POS → BUMP MAP
+                </button>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:.43rem;color:rgba(130,130,160,.45);margin-top:3px">Sets bump map sample line to match current texture circumference cut</div>
+              </div>
+              <div style="margin-top:8px">
+                <button onclick="htxSetAsEquator()"
+                  style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:6px 14px;
+                  background:rgba(40,20,70,.4);border:1px solid rgba(180,130,255,.35);
+                  border-radius:3px;color:rgba(180,130,255,.8);cursor:pointer;letter-spacing:.05em">
+                  ⟳ SET LINE AS EQUATOR
+                </button>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:.43rem;color:rgba(130,130,160,.45);margin-top:3px">Rolls source image so the cut line becomes the horizontal midpoint (equator)</div>
+              </div>
               <div id="htx-save-status" style="display:none;font-family:'JetBrains Mono',monospace;font-size:.5rem;
                 color:rgba(100,220,180,.8);margin-top:8px"></div>
               <div style="margin-top:12px;font-family:'JetBrains Mono',monospace;font-size:.48rem;color:rgba(130,130,160,.5);line-height:1.7">
@@ -4288,59 +4473,188 @@ document.addEventListener('keydown', function(e){
           </div>
         </div>
 
-        <!-- Matched Heightmap section -->
-        <div id="htx-hm-section" style="display:none;flex-direction:column;gap:0;border-top:1px solid rgba(100,220,180,.15);padding:14px 16px 16px">
-          <div style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.12em;color:rgba(100,220,180,.8);margin-bottom:10px">&#x1F5FA;&#xFE0F; MATCHED HEIGHTMAP</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(150,160,200,.6);line-height:1.6;margin-bottom:10px">
-            The sample line is locked to the polar warp circumference latitude &mdash; terrain and texture stay in sync. Use the offset slider to fine-tune.
-          </div>
-          <div style="position:relative;border-radius:4px;overflow:hidden;border:1px solid rgba(100,220,180,.15);margin-bottom:10px">
-            <canvas id="htx-hm-linepreview" style="width:100%;height:auto;display:block"></canvas>
-          </div>
-          <div style="margin-bottom:10px">
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(180,200,255,.5)">LATITUDE OFFSET <span id="htx-hm-off-val" style="color:rgba(180,210,255,.8)">0</span></div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.44rem;color:rgba(130,130,160,.5);margin-bottom:4px">Fine-tune the sample row (&plus; towards pole, &minus; towards equator)</div>
-            <input type="range" id="htx-hm-offset" min="-60" max="60" value="0" step="1"
-              oninput="document.getElementById('htx-hm-off-val').textContent=this.value;htxUpdateHM()"
-              style="width:100%;accent-color:#64dcb4">
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-bottom:10px">
-            <div>
-              <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(180,200,255,.5);margin-bottom:4px">HM WIDTH (px)</div>
-              <input type="number" id="htx-hm-width" min="1" max="8192" value="1024" step="1" oninput="htxUpdateHM()"
-                style="width:100%;background:rgba(8,14,36,.8);border:1px solid rgba(100,220,180,.2);border-radius:3px;color:rgba(220,220,255,.9);font-family:'JetBrains Mono',monospace;font-size:.6rem;padding:5px 8px;box-sizing:border-box">
-            </div>
-            <div>
-              <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(180,200,255,.5);margin-bottom:4px">HM HEIGHT (px)</div>
-              <input type="number" id="htx-hm-height" min="1" max="4096" value="512" step="1"
-                style="width:100%;background:rgba(8,14,36,.8);border:1px solid rgba(100,220,180,.2);border-radius:3px;color:rgba(220,220,255,.9);font-family:'JetBrains Mono',monospace;font-size:.6rem;padding:5px 8px;box-sizing:border-box">
-            </div>
-          </div>
-          <div style="margin-bottom:10px">
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.1em;color:rgba(100,220,180,.4);margin-bottom:4px">PROFILE</div>
-            <canvas id="htx-hm-profile" style="width:100%;height:52px;display:block;background:rgba(4,8,20,.7);border:1px solid rgba(100,220,180,.12);border-radius:3px"></canvas>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <input type="text" id="htx-hm-name" value="planet_heightmap"
-              style="flex:1;min-width:120px;background:rgba(8,14,36,.8);border:1px solid rgba(100,220,180,.25);border-radius:3px;color:rgba(220,220,255,.9);font-family:'JetBrains Mono',monospace;font-size:.58rem;padding:5px 8px">
-            <span style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(150,150,180,.5)">.png</span>
-            <button onclick="htxSaveHMToAssets()"
-              style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:6px 14px;background:rgba(20,80,60,.3);border:1px solid rgba(100,220,180,.4);border-radius:3px;color:rgba(100,220,180,.9);cursor:pointer;letter-spacing:.05em">
-              &#x1F4BE; SAVE HEIGHTMAP
-            </button>
-            <button onclick="htxDownloadHM()"
-              style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:6px 14px;background:rgba(8,14,36,.6);border:1px solid rgba(100,220,180,.2);border-radius:3px;color:rgba(100,220,180,.6);cursor:pointer;letter-spacing:.05em">
-              &#x2B07; DOWNLOAD
-            </button>
-          </div>
-          <div id="htx-hm-status" style="display:none;font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(100,220,180,.8);margin-top:6px"></div>
-        </div><!-- #htx-hm-section -->
 
       </div><!-- #htx-loaded -->
     </div><!-- #hmt-texmap -->
 
+    <!-- ─── WATERMASK TOOL ─── -->
+    <div id="hmt-watermask" style="display:flex;flex-direction:column;gap:0;overflow-y:auto;max-height:80vh;
+      border-left:1px solid rgba(40,100,200,.18)">
+
+      <!-- Upload zone -->
+      <div id="wmk-dropzone" style="margin:16px;border:2px dashed rgba(100,160,255,.25);
+        border-radius:6px;padding:20px;text-align:center;cursor:pointer;transition:border-color .2s;
+        font-family:'JetBrains Mono',monospace"
+        onclick="document.getElementById('wmk-file-input').click()"
+        ondragover="event.preventDefault();this.style.borderColor='rgba(100,160,255,.7)'"
+        ondragleave="this.style.borderColor='rgba(100,160,255,.25)'"
+        ondrop="event.preventDefault();this.style.borderColor='rgba(100,160,255,.25)';wmkLoadFile(event.dataTransfer.files[0])">
+        <div style="font-size:1.6rem;margin-bottom:6px">🌊</div>
+        <div style="font-size:.62rem;color:rgba(100,160,255,.8);letter-spacing:.08em">DROP PLANET IMAGE</div>
+        <div style="font-size:.52rem;color:rgba(120,140,180,.5);margin-top:4px;letter-spacing:.04em">Use square planet images · click to browse</div>
+        <input type="file" id="wmk-file-input" accept="image/*" style="display:none" onchange="wmkLoadFile(this.files[0])">
+      </div>
+
+      <!-- Stats row -->
+      <div id="wmk-stats" style="display:none;flex-direction:row;gap:8px;padding:0 16px 8px;justify-content:center;flex-wrap:wrap">
+        <div style="background:rgba(6,12,28,.8);border:1px solid rgba(40,100,200,.3);border-radius:3px;
+          padding:5px 14px;font-family:'JetBrains Mono',monospace;font-size:.55rem;display:flex;align-items:center;gap:6px">
+          <span style="color:rgba(120,140,180,.6);text-transform:uppercase;font-size:.48rem;letter-spacing:.1em">Water</span>
+          <span id="wmk-water-count" style="font-family:'Orbitron',sans-serif;font-size:.8rem;font-weight:700;color:rgba(100,160,255,.9)">0</span>
+        </div>
+        <div style="background:rgba(6,12,28,.8);border:1px solid rgba(40,100,200,.3);border-radius:3px;
+          padding:5px 14px;font-family:'JetBrains Mono',monospace;font-size:.55rem;display:flex;align-items:center;gap:6px">
+          <span style="color:rgba(120,140,180,.6);text-transform:uppercase;font-size:.48rem;letter-spacing:.1em">Land</span>
+          <span id="wmk-land-count" style="font-family:'Orbitron',sans-serif;font-size:.8rem;font-weight:700;color:rgba(255,150,80,.9)">0</span>
+        </div>
+        <div id="wmk-gen-status" style="display:none;font-family:'JetBrains Mono',monospace;font-size:.48rem;
+          color:rgba(100,160,255,.7);letter-spacing:.08em;text-transform:uppercase;align-self:center">generating…</div>
+      </div>
+
+      <!-- Sampling mode buttons -->
+      <div id="wmk-sample-btns" style="display:none;flex-direction:row;gap:6px;padding:0 16px 10px;flex-wrap:wrap">
+        <button id="wmk-btn-liq" onclick="wmkSetMode('liq')"
+          style="font-family:'JetBrains Mono',monospace;font-size:.5rem;padding:5px 10px;
+          background:rgba(100,160,255,.18);border:1px solid rgba(100,160,255,.6);
+          color:rgba(100,160,255,.9);border-radius:3px;cursor:pointer;letter-spacing:.06em;flex:1">💧 WATER</button>
+        <button id="wmk-btn-land" onclick="wmkSetMode('land')"
+          style="font-family:'JetBrains Mono',monospace;font-size:.5rem;padding:5px 10px;
+          background:transparent;border:1px solid rgba(120,140,180,.3);
+          color:rgba(120,140,180,.6);border-radius:3px;cursor:pointer;letter-spacing:.06em;flex:1">⛰ LAND</button>
+        <button onclick="wmkGenerate()"
+          style="font-family:'JetBrains Mono',monospace;font-size:.5rem;padding:5px 10px;
+          background:rgba(40,80,160,.25);border:1px solid rgba(100,160,255,.3);
+          color:rgba(180,200,255,.8);border-radius:3px;cursor:pointer;letter-spacing:.06em;flex:1">⚙ GENERATE</button>
+      </div>
+
+      <!-- Canvas -->
+      <div id="wmk-canvas-wrap" style="display:none;padding:0 16px 10px;position:relative">
+        <canvas id="wmk-canvas" style="width:100%;height:auto;display:block;border-radius:4px;
+          border:1px solid rgba(40,100,200,.3);background:#000;touch-action:none;cursor:crosshair"></canvas>
+      </div>
+
+      <!-- Controls (shown after image loaded) -->
+      <div id="wmk-controls" style="display:none;flex-direction:column;gap:0;padding:0 16px 10px">
+
+        <!-- Pen tools row -->
+        <div style="background:rgba(6,12,28,.5);border:1px solid rgba(40,100,200,.2);border-radius:4px;padding:10px;margin-bottom:8px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.47rem;color:rgba(120,140,180,.6);
+            letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">✏ MANUAL EDIT</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px">
+            <button id="wmk-pen" onclick="wmkTogglePen()"
+              style="font-family:'JetBrains Mono',monospace;font-size:.47rem;padding:4px 8px;
+              background:transparent;border:1px solid rgba(120,140,180,.3);color:rgba(120,140,180,.6);
+              border-radius:3px;cursor:pointer;flex:1">✏ PEN</button>
+            <button id="wmk-erase" onclick="wmkToggleErase()"
+              style="font-family:'JetBrains Mono',monospace;font-size:.47rem;padding:4px 8px;
+              background:transparent;border:1px solid rgba(255,107,53,.25);color:rgba(255,107,53,.5);
+              border-radius:3px;cursor:pointer;flex:1">◻ ERASE</button>
+            <button id="wmk-black" onclick="wmkSetColor(0)"
+              style="font-family:'JetBrains Mono',monospace;font-size:.47rem;padding:4px 8px;
+              background:rgba(100,160,255,.15);border:1px solid rgba(100,160,255,.5);color:rgba(100,160,255,.8);
+              border-radius:3px;cursor:pointer;flex:1">⬛ BLACK</button>
+            <button id="wmk-white" onclick="wmkSetColor(255)"
+              style="font-family:'JetBrains Mono',monospace;font-size:.47rem;padding:4px 8px;
+              background:transparent;border:1px solid rgba(120,140,180,.3);color:rgba(120,140,180,.6);
+              border-radius:3px;cursor:pointer;flex:1">⬜ WHITE</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
+              letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
+              OPACITY <span id="wmk-opacity-val" style="color:rgba(180,200,255,.7)">100%</span>
+              <input type="range" id="wmk-opacity" min="0" max="100" value="100" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
+                oninput="document.getElementById('wmk-opacity-val').textContent=this.value+'%'">
+            </label>
+            <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
+              letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
+              SIZE <span id="wmk-size-val" style="color:rgba(180,200,255,.7)">4</span>
+              <input type="range" id="wmk-size" min="1" max="20" value="4" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
+                oninput="document.getElementById('wmk-size-val').textContent=this.value">
+            </label>
+          </div>
+        </div>
+
+        <!-- Depth controls -->
+        <div style="background:rgba(6,12,28,.5);border:1px solid rgba(40,100,200,.2);border-radius:4px;padding:10px;margin-bottom:8px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.47rem;color:rgba(120,140,180,.6);
+            letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">⚙ DEPTH PARAMETERS</div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
+              letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
+              DEPTH <span id="wmk-depth-val" style="color:rgba(180,200,255,.7)">200</span>
+              <input type="range" id="wmk-depth" min="80" max="360" value="200" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
+                oninput="document.getElementById('wmk-depth-val').textContent=this.value;wmkQueueApply()">
+            </label>
+            <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
+              letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
+              CONTRAST <span id="wmk-contrast-val" style="color:rgba(180,200,255,.7)">110</span>
+              <input type="range" id="wmk-contrast" min="60" max="160" value="110" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
+                oninput="document.getElementById('wmk-contrast-val').textContent=this.value;wmkQueueApply()">
+            </label>
+            <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
+              letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
+              COAST <span id="wmk-coast-val" style="color:rgba(180,200,255,.7)">40</span>
+              <input type="range" id="wmk-coast" min="5" max="120" value="40" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
+                oninput="document.getElementById('wmk-coast-val').textContent=this.value;wmkQueueApply()">
+            </label>
+            <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
+              letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
+              SPREAD <span id="wmk-spread-val" style="color:rgba(180,200,255,.7)">1.2</span>
+              <input type="range" id="wmk-spread" min="0.3" max="3" step="0.1" value="1.2" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
+                oninput="document.getElementById('wmk-spread-val').textContent=parseFloat(this.value).toFixed(1);wmkQueueApply()">
+            </label>
+            <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
+              letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:6px">
+              <input type="checkbox" id="wmk-terrain-circle" onchange="wmkRenderFinal()" style="accent-color:rgba(100,160,255,.8);width:14px;height:14px">
+              TERRAIN CIRCLE
+            </label>
+          </div>
+        </div>
+
+        <!-- Save -->
+        <button onclick="wmkSave()"
+          style="font-family:'JetBrains Mono',monospace;font-size:.52rem;padding:8px;
+          background:rgba(255,107,53,.1);border:1px solid rgba(255,107,53,.4);
+          color:rgba(255,150,80,.9);border-radius:3px;cursor:pointer;letter-spacing:.08em;
+          text-transform:uppercase;width:100%">↓ SAVE WATERMASK</button>
+      </div>
+
+    </div><!-- #hmt-watermask -->
+
   </div><!-- #hmt-content -->
 </div><!-- #hmt-modal -->
+
+<!-- ══════════════ HEIGHTMAP FULLSCREEN OVERLAY ══════════════ -->
+<div id="hmt-fs-overlay" style="display:none;position:fixed;inset:0;z-index:300000;
+  background:rgba(2,5,14,.97);flex-direction:column;align-items:stretch">
+  <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;
+    background:rgba(6,10,22,.98);border-bottom:1px solid rgba(100,220,180,.15);flex-shrink:0">
+    <span id="hmt-fs-title" style="font-family:'Orbitron',sans-serif;font-size:.6rem;
+      color:rgba(100,220,180,.9);letter-spacing:.12em;flex:1">FULLSCREEN VIEW</span>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(150,160,200,.45);margin-right:8px">
+      scroll/pinch to zoom · drag line to adjust · drag elsewhere to pan
+    </span>
+    <button onclick="hmtCloseFullscreen()" style="background:none;border:1px solid rgba(255,80,80,.3);
+      border-radius:3px;color:rgba(255,100,100,.7);font-size:.75rem;padding:3px 10px;cursor:pointer">✕ CLOSE</button>
+  </div>
+  <div style="flex:1;position:relative;overflow:hidden;touch-action:none" id="hmt-fs-wrap">
+    <canvas id="hmt-fs-canvas" style="position:absolute;top:0;left:0;image-rendering:pixelated"></canvas>
+    <canvas id="hmt-fs-line"   style="position:absolute;top:0;left:0;pointer-events:none"></canvas>
+  </div>
+  <div style="padding:6px 14px;background:rgba(6,10,22,.98);border-top:1px solid rgba(100,220,180,.1);
+    display:flex;align-items:center;gap:14px;flex-shrink:0;flex-wrap:wrap">
+    <button onclick="hmtFsResetView()" style="font-family:'JetBrains Mono',monospace;font-size:.5rem;
+      background:transparent;border:1px solid rgba(150,160,200,.25);border-radius:3px;
+      color:rgba(150,160,200,.6);padding:4px 10px;cursor:pointer">⊙ RESET VIEW</button>
+    <span id="hmt-fs-zoomlabel" style="font-family:'JetBrains Mono',monospace;font-size:.48rem;color:rgba(150,160,200,.45)">100%</span>
+    <span style="flex:1"></span>
+    <button id="hmt-fs-apply-btn" onclick="hmtFsApply()" style="font-family:'JetBrains Mono',monospace;font-size:.55rem;
+      padding:6px 16px;border-radius:3px;cursor:pointer;letter-spacing:.05em;
+      border:1px solid rgba(100,220,180,.45);background:rgba(100,220,180,.1);color:rgba(100,220,180,.9)">
+      ✓ APPLY &amp; CLOSE
+    </button>
+  </div>
+</div>
 
 <!-- ══════════════ PROCEDURAL GENERATION MODAL ══════════════ -->
 <!-- ══ Procgen: floating sidebar (no canvas, works over the main viewport) ══ -->
@@ -4548,6 +4862,119 @@ document.addEventListener('keydown', function(e){
   </div><!-- /pg-panel -->
 
 </div><!-- /procgen-modal -->
+
+<!-- ══════════════ PRECISE OBJECT PLACER PANEL ══════════════ -->
+<div id="placer-panel" style="
+  position:fixed;top:0;right:0;width:300px;height:100dvh;
+  background:rgba(6,10,22,.97);border-left:1px solid rgba(255,180,60,.2);
+  display:flex;flex-direction:column;z-index:9100;
+  font-family:'JetBrains Mono',monospace;
+  transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1)">
+
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;
+    padding:12px 14px;border-bottom:1px solid rgba(255,180,60,.15);flex-shrink:0">
+    <span style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.14em;
+      color:rgba(255,200,80,.9)">📍 OBJECT PLACER</span>
+    <button onclick="closePlacer()" style="background:none;border:none;cursor:pointer;
+      color:rgba(180,180,210,.45);font-size:1.1rem;padding:0 4px;line-height:1;
+      transition:color .15s" onmouseover="this.style.color='rgba(200,80,80,.8)'"
+      onmouseout="this.style.color='rgba(180,180,210,.45)'">✕</button>
+  </div>
+
+  <!-- Scrollable body -->
+  <div style="flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:14px">
+
+    <!-- Body type -->
+    <div>
+      <div style="font-size:.48rem;letter-spacing:.1em;color:rgba(255,200,80,.55);margin-bottom:5px">BODY TYPE TO PLACE</div>
+      <select id="placer-preset-sel" onchange="placerOnPresetChange()" style="
+        width:100%;background:rgba(8,14,36,.9);border:1px solid rgba(255,180,60,.25);
+        border-radius:3px;color:rgba(220,220,255,.9);font-family:'JetBrains Mono',monospace;
+        font-size:.58rem;padding:6px 8px;box-sizing:border-box;min-height:34px">
+        <option value="">— choose body type —</option>
+      </select>
+    </div>
+
+    <!-- Parent body -->
+    <div>
+      <div style="font-size:.48rem;letter-spacing:.1em;color:rgba(255,200,80,.55);margin-bottom:5px">ORBIT AROUND</div>
+      <select id="placer-parent-sel" onchange="placerOnParentChange()" style="
+        width:100%;background:rgba(8,14,36,.9);border:1px solid rgba(255,180,60,.25);
+        border-radius:3px;color:rgba(220,220,255,.9);font-family:'JetBrains Mono',monospace;
+        font-size:.58rem;padding:6px 8px;box-sizing:border-box;min-height:34px">
+        <option value="">— no bodies —</option>
+      </select>
+      <div style="font-size:.44rem;color:rgba(150,150,180,.45);margin-top:3px">SMA is calculated from click distance to this body</div>
+    </div>
+
+    <!-- Orbit direction -->
+    <div>
+      <div style="font-size:.48rem;letter-spacing:.1em;color:rgba(255,200,80,.55);margin-bottom:5px">ORBIT DIRECTION</div>
+      <select id="placer-dir-sel" onchange="placerOnDirChange()" style="
+        width:100%;background:rgba(8,14,36,.9);border:1px solid rgba(255,180,60,.25);
+        border-radius:3px;color:rgba(220,220,255,.9);font-family:'JetBrains Mono',monospace;
+        font-size:.58rem;padding:6px 8px;box-sizing:border-box;min-height:34px">
+        <option value="1">Clockwise (direction = 1)</option>
+        <option value="-1">Counterclockwise (direction = −1)</option>
+        <option value="0">Stationary (direction = 0)</option>
+      </select>
+    </div>
+
+    <!-- Eccentricity -->
+    <div>
+      <div style="font-size:.48rem;letter-spacing:.1em;color:rgba(255,200,80,.55);margin-bottom:4px">
+        ECCENTRICITY <span id="placer-ecc-val" style="color:rgba(220,220,255,.8)">0.00</span>
+      </div>
+      <div style="font-size:.44rem;color:rgba(150,150,180,.45);margin-bottom:4px">0 = circular. Body placed at periapsis.</div>
+      <input type="range" id="placer-ecc-sl" min="0" max="0.95" step="0.01" value="0"
+        oninput="placerOnEccInput()"
+        style="width:100%;accent-color:rgba(255,200,80,.8)">
+    </div>
+
+    <!-- Divider -->
+    <div style="border-top:1px solid rgba(255,180,60,.12)"></div>
+
+    <!-- Place toggle button -->
+    <div>
+      <button id="placer-toggle-btn" onclick="placerToggleActive()" style="
+        width:100%;padding:11px 14px;border-radius:4px;cursor:pointer;
+        font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.07em;
+        border:1px solid rgba(100,220,180,.4);background:rgba(100,220,180,.08);
+        color:rgba(100,220,180,.9);transition:background .12s,border-color .12s">
+        📍 START PLACING
+      </button>
+      <div id="placer-hint" style="opacity:.4;font-size:.48rem;color:rgba(255,220,100,.8);
+        margin-top:6px;line-height:1.6;text-align:center">
+        ← Click anywhere on the viewport to place a body
+      </div>
+    </div>
+
+    <!-- Counter -->
+    <div style="display:flex;align-items:center;justify-content:space-between;
+      padding:8px 10px;background:rgba(255,180,60,.06);border:1px solid rgba(255,180,60,.12);
+      border-radius:4px">
+      <div>
+        <div style="font-size:.48rem;color:rgba(255,200,80,.5);letter-spacing:.08em">PLACED THIS SESSION</div>
+        <div style="font-size:1.4rem;font-weight:bold;color:rgba(255,220,100,.9);
+          font-family:'Orbitron',sans-serif;margin-top:2px"><span id="placer-count">0</span></div>
+      </div>
+      <button onclick="placerResetCount()" style="background:none;border:1px solid rgba(150,150,180,.2);
+        border-radius:3px;color:rgba(150,150,180,.5);font-family:'JetBrains Mono',monospace;
+        font-size:.48rem;padding:4px 10px;cursor:pointer">RESET</button>
+    </div>
+
+    <!-- Usage tip -->
+    <div style="padding:10px;background:rgba(80,100,255,.06);border:1px solid rgba(80,100,255,.15);
+      border-radius:4px;font-size:.48rem;color:rgba(160,170,220,.6);line-height:1.7">
+      <div style="color:rgba(180,200,255,.7);margin-bottom:4px">💡 TIP — pattern placement</div>
+      Load a reference image via <strong style="color:rgba(100,220,180,.8)">IMAGE OVERLAY</strong>,
+      position it on the viewport, then use this tool to click each point in the pattern.
+      Set direction = 0 for static objects like a star cluster.
+    </div>
+
+  </div><!-- scrollable body -->
+</div><!-- /placer-panel -->
 
 <!-- ══ Import Options Dialog ══ -->
 <div id="pg-import-dialog" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
@@ -5139,4 +5566,322 @@ document.addEventListener('keydown', function(e){
   </div>
 </div>
 
+
+<!-- ══ WATERMASK + RESPONSIVE HMT MODAL ══ -->
+<style>
+/* ── Responsive: switch to single-panel (tabs) on narrow screens ── */
+@media (max-width: 860px) {
+  #hmt-desktop-header { display: none !important; }
+  #hmt-mobile-tabs    { display: block !important; }
+  #hmt-content        { grid-template-columns: 1fr !important; }
+  #hmt-bumpmap,
+  #hmt-texmap,
+  #hmt-watermask      { display: none; max-height: 75vh; }
+  #hmt-bumpmap.hmt-panel-active,
+  #hmt-texmap.hmt-panel-active,
+  #hmt-watermask.hmt-panel-active { display: flex !important; }
+}
+/* Desktop: remove border duplication on watermask */
+@media (min-width: 861px) {
+  #hmt-watermask { border-left: 1px solid rgba(40,100,200,.18); }
+}
+</style>
+
+<script>
+/* ══ Mobile tab switching for HMT modal ══ */
+function hmtMobileTab(panel, btn) {
+  ['bumpmap','texmap','watermask'].forEach(p => {
+    const el = document.getElementById('hmt-'+p);
+    if (el) el.classList.remove('hmt-panel-active');
+    const tb = document.getElementById('hmtmtab-'+p);
+    if (tb) {
+      tb.style.background = 'transparent';
+      tb.style.color = 'rgba(120,140,180,.5)';
+    }
+  });
+  const active = document.getElementById('hmt-'+panel);
+  if (active) active.classList.add('hmt-panel-active');
+  if (btn) {
+    btn.style.background = 'rgba(100,160,255,.15)';
+    btn.style.color = 'rgba(180,210,255,.9)';
+  }
+}
+
+// On open, activate first mobile tab
+document.addEventListener('DOMContentLoaded', () => {
+  // init mobile tab highlight
+  const t = document.getElementById('hmtmtab-bumpmap');
+  if (t) { t.style.background='rgba(100,160,255,.15)'; t.style.color='rgba(180,210,255,.9)'; }
+  // On mobile: bumpmap starts active
+  const el = document.getElementById('hmt-bumpmap');
+  if (el) el.classList.add('hmt-panel-active');
+});
+
+/* ══ WATERMASK TOOL LOGIC ══ */
+(function(){
+  // State
+  let wmkBaseImage = null, wmkGenerated = null, wmkContrastBase = null;
+  let wmkEditLayer = null, wmkSeaField = null, wmkSeaMask = null, wmkCoastDist = null;
+  let wmkLiqSamples = [], wmkLandSamples = [], wmkMode = 'liq';
+  let wmkDrawing = false, wmkPenMode = false, wmkEraseMode = false, wmkPenColor = 0;
+  let wmkPending = null;
+
+  const $ = id => document.getElementById(id);
+
+  // LAB helpers
+  function rgb2lab([r,g,b]){
+    r/=255;g/=255;b/=255;
+    r=r>0.04045?((r+0.055)/1.055)**2.4:r/12.92;
+    g=g>0.04045?((g+0.055)/1.055)**2.4:g/12.92;
+    b=b>0.04045?((b+0.055)/1.055)**2.4:b/12.92;
+    let x=(r*0.4124+g*0.3576+b*0.1805)/0.95047;
+    let y=(r*0.2126+g*0.7152+b*0.0722);
+    let z=(r*0.0193+g*0.1192+b*0.9505)/1.08883;
+    x=x>0.008856?Math.cbrt(x):(7.787*x+16/116);
+    y=y>0.008856?Math.cbrt(y):(7.787*y+16/116);
+    z=z>0.008856?Math.cbrt(z):(7.787*z+16/116);
+    return[500*(x-y),200*(y-z)];
+  }
+  const labAvg = a => a[0].map((_,i)=>a.reduce((s,p)=>s+p[i],0)/a.length);
+  const labDist = (a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+
+  function wmkGetCanvas() { return $('wmk-canvas'); }
+  function wmkGetCtx()    { return wmkGetCanvas().getContext('2d'); }
+
+  window.wmkLoadFile = function(file) {
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => {
+      const cv = wmkGetCanvas();
+      cv.width = img.naturalWidth;
+      cv.height = img.naturalHeight;
+      // Fit in panel width
+      wmkGetCtx().drawImage(img, 0, 0);
+      wmkBaseImage = wmkGetCtx().getImageData(0, 0, cv.width, cv.height);
+      wmkLiqSamples = []; wmkLandSamples = [];
+      $('wmk-water-count').textContent = $('wmk-land-count').textContent = '0';
+      $('wmk-dropzone').style.display = 'none';
+      $('wmk-stats').style.display = 'flex';
+      $('wmk-sample-btns').style.display = 'flex';
+      $('wmk-canvas-wrap').style.display = 'block';
+      $('wmk-controls').style.display = 'flex';
+      wmkGenerated = null; wmkEditLayer = null;
+    };
+    img.src = URL.createObjectURL(file);
+  };
+
+  window.wmkSetMode = function(mode) {
+    wmkMode = mode;
+    const isLiq = mode === 'liq';
+    $('wmk-btn-liq').style.background = isLiq ? 'rgba(100,160,255,.18)' : 'transparent';
+    $('wmk-btn-liq').style.borderColor = isLiq ? 'rgba(100,160,255,.6)' : 'rgba(120,140,180,.3)';
+    $('wmk-btn-liq').style.color = isLiq ? 'rgba(100,160,255,.9)' : 'rgba(120,140,180,.6)';
+    $('wmk-btn-land').style.background = !isLiq ? 'rgba(255,150,80,.15)' : 'transparent';
+    $('wmk-btn-land').style.borderColor = !isLiq ? 'rgba(255,150,80,.5)' : 'rgba(120,140,180,.3)';
+    $('wmk-btn-land').style.color = !isLiq ? 'rgba(255,150,80,.9)' : 'rgba(120,140,180,.6)';
+  };
+
+  window.wmkTogglePen = function() {
+    wmkPenMode = !wmkPenMode; wmkEraseMode = false;
+    const p=$('wmk-pen'), e=$('wmk-erase');
+    p.style.background = wmkPenMode ? 'rgba(100,160,255,.18)' : 'transparent';
+    p.style.borderColor = wmkPenMode ? 'rgba(100,160,255,.6)' : 'rgba(120,140,180,.3)';
+    p.style.color = wmkPenMode ? 'rgba(100,160,255,.9)' : 'rgba(120,140,180,.6)';
+    e.style.background = 'transparent';
+    e.style.borderColor = 'rgba(255,107,53,.25)'; e.style.color = 'rgba(255,107,53,.5)';
+    wmkGetCanvas().style.cursor = wmkPenMode ? 'crosshair' : 'crosshair';
+  };
+
+  window.wmkToggleErase = function() {
+    wmkEraseMode = !wmkEraseMode; wmkPenMode = false;
+    const p=$('wmk-pen'), e=$('wmk-erase');
+    e.style.background = wmkEraseMode ? 'rgba(255,107,53,.15)' : 'transparent';
+    e.style.borderColor = wmkEraseMode ? 'rgba(255,107,53,.6)' : 'rgba(255,107,53,.25)';
+    e.style.color = wmkEraseMode ? 'rgba(255,150,80,.9)' : 'rgba(255,107,53,.5)';
+    p.style.background = 'transparent';
+    p.style.borderColor = 'rgba(120,140,180,.3)'; p.style.color = 'rgba(120,140,180,.6)';
+  };
+
+  window.wmkSetColor = function(c) {
+    wmkPenColor = c;
+    const bl=$('wmk-black'), wh=$('wmk-white');
+    bl.style.background = c===0 ? 'rgba(100,160,255,.15)' : 'transparent';
+    bl.style.borderColor = c===0 ? 'rgba(100,160,255,.5)' : 'rgba(120,140,180,.3)';
+    bl.style.color = c===0 ? 'rgba(100,160,255,.8)' : 'rgba(120,140,180,.6)';
+    wh.style.background = c===255 ? 'rgba(255,255,255,.1)' : 'transparent';
+    wh.style.borderColor = c===255 ? 'rgba(255,255,255,.4)' : 'rgba(120,140,180,.3)';
+    wh.style.color = c===255 ? 'rgba(255,255,255,.85)' : 'rgba(120,140,180,.6)';
+  };
+
+  function wmkComputeCoastDist() {
+    const cv = wmkGetCanvas(), w=cv.width, h=cv.height;
+    wmkCoastDist = new Float32Array(w*h);
+    for(let i=0;i<w*h;i++) wmkCoastDist[i] = wmkSeaMask[i] ? Infinity : 0;
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+      const i=y*w+x;
+      const a=x>0?wmkCoastDist[i-1]+1:Infinity;
+      const b=y>0?wmkCoastDist[i-w]+1:Infinity;
+      wmkCoastDist[i]=Math.min(wmkCoastDist[i],a,b);
+    }
+    for(let y=h-1;y>=0;y--) for(let x=w-1;x>=0;x--){
+      const i=y*w+x;
+      const a=x<w-1?wmkCoastDist[i+1]+1:Infinity;
+      const b=y<h-1?wmkCoastDist[i+w]+1:Infinity;
+      wmkCoastDist[i]=Math.min(wmkCoastDist[i],a,b);
+    }
+  }
+
+  window.wmkGenerate = function() {
+    if (!wmkBaseImage || !wmkLiqSamples.length || !wmkLandSamples.length) {
+      alert('Click water pixels (💧 WATER mode) and land pixels (⛰ LAND mode) on the image first, then generate.');
+      return;
+    }
+    $('wmk-gen-status').style.display = 'flex';
+    requestAnimationFrame(() => {
+      const la = labAvg(wmkLiqSamples), lb = labAvg(wmkLandSamples);
+      const cv = wmkGetCanvas(), w=cv.width, h=cv.height;
+      wmkSeaField = new Float32Array(w*h);
+      wmkSeaMask  = new Uint8Array(w*h);
+      const src = wmkBaseImage.data;
+      for(let i=0,p=0;i<src.length;i+=4,p++){
+        const ab = rgb2lab([src[i],src[i+1],src[i+2]]);
+        const v = (labDist(ab,lb)-labDist(ab,la))/(labDist(ab,lb)+labDist(ab,la));
+        wmkSeaField[p]=v; wmkSeaMask[p]=v>0?1:0;
+      }
+      wmkComputeCoastDist();
+      wmkApplyDepth();
+      $('wmk-gen-status').style.display = 'none';
+    });
+  };
+
+  function wmkApplyDepth() {
+    if (!wmkSeaField) return;
+    const cv = wmkGetCanvas(), w=cv.width, h=cv.height, ctx=wmkGetCtx();
+    wmkGenerated  = ctx.createImageData(w,h);
+    wmkEditLayer  = ctx.createImageData(w,h);
+    const ed = wmkEditLayer.data;
+    for(let i=0;i<ed.length;i+=4){ed[i]=ed[i+1]=ed[i+2]=0;ed[i+3]=0;}
+    const cw=+$('wmk-coast').value, sp=+$('wmk-spread').value;
+    for(let i=0,p=0;i<wmkGenerated.data.length;i+=4,p++){
+      if(!wmkSeaMask[p]){wmkGenerated.data[i]=wmkGenerated.data[i+1]=wmkGenerated.data[i+2]=255;}
+      else{
+        let t=Math.min(1,wmkCoastDist[p]/cw);
+        t=Math.pow(t,sp); t=t*t*(3-2*t);
+        const v=220*(1-t)+10*t;
+        wmkGenerated.data[i]=wmkGenerated.data[i+1]=wmkGenerated.data[i+2]=v;
+      }
+      wmkGenerated.data[i+3]=255;
+    }
+    wmkContrastBase = new ImageData(new Uint8ClampedArray(wmkGenerated.data),w,h);
+    wmkApplyContrast();
+  }
+
+  function wmkApplyContrast() {
+    if (!wmkContrastBase) return;
+    const src=wmkContrastBase.data, dst=wmkGenerated.data;
+    let mn=255,mx=0;
+    for(let i=0;i<src.length;i+=4) if(src[i]!==255){mn=Math.min(mn,src[i]);mx=Math.max(mx,src[i]);}
+    if(mx-mn<5){wmkRenderFinal();return;}
+    const f=+$('wmk-contrast').value/100;
+    for(let i=0;i<dst.length;i+=4){
+      if(src[i]===255){dst[i]=dst[i+1]=dst[i+2]=255;continue;}
+      let n=(src[i]-mn)/(mx-mn); n=Math.pow(n,1/f);
+      dst[i]=dst[i+1]=dst[i+2]=mn+n*(mx-mn);
+    }
+    wmkRenderFinal();
+  }
+
+  window.wmkQueueApply = function() {
+    wmkPending = wmkApplyDepth;
+    clearTimeout(wmkPending._t);
+    wmkPending._t = setTimeout(()=>{if(wmkPending){wmkPending();wmkPending=null;}},200);
+  };
+
+  window.wmkRenderFinal = function() {
+    if (!wmkGenerated) return;
+    const cv = wmkGetCanvas(), ctx=wmkGetCtx(), w=cv.width, h=cv.height;
+    const preview=ctx.createImageData(w,h);
+    const t=wmkGenerated.data, ed=wmkEditLayer?wmkEditLayer.data:null, out=preview.data;
+    for(let i=0;i<t.length;i+=4){
+      let v=t[i];
+      if(ed&&ed[i+3]===255) v=ed[i];
+      out[i]=out[i+1]=out[i+2]=v; out[i+3]=255;
+    }
+    ctx.putImageData(preview,0,0);
+    if($('wmk-terrain-circle').checked){
+      const cx=w/2,cy=h/2,r=Math.min(w,h)/2-1;
+      ctx.save();ctx.strokeStyle='rgba(0,0,0,.9)';ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();ctx.restore();
+    }
+  };
+
+  // Canvas sampling click
+  document.addEventListener('DOMContentLoaded', () => {
+    const cv = $('wmk-canvas');
+
+    cv.addEventListener('click', e => {
+      if (!wmkBaseImage || wmkPenMode || wmkEraseMode) return;
+      const r=cv.getBoundingClientRect();
+      const x=(e.clientX-r.left)*cv.width/r.width;
+      const y=(e.clientY-r.top)*cv.height/r.height;
+      const ii=(Math.floor(y)*cv.width+Math.floor(x))*4;
+      const ab=rgb2lab(wmkBaseImage.data.slice(ii,ii+3));
+      // Draw dot on canvas
+      const ctx=wmkGetCtx();
+      ctx.fillStyle = wmkMode==='liq'?'#4499ff':'#ff9944';
+      ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();
+      if(wmkMode==='liq'){wmkLiqSamples.push(ab);$('wmk-water-count').textContent=wmkLiqSamples.length;}
+      else{wmkLandSamples.push(ab);$('wmk-land-count').textContent=wmkLandSamples.length;}
+    });
+
+    function wmkDrawAt(e) {
+      if (!wmkGenerated) return;
+      const r=cv.getBoundingClientRect();
+      const x=Math.floor((e.clientX-r.left)*cv.width/r.width);
+      const y=Math.floor((e.clientY-r.top)*cv.height/r.height);
+      const radius=+$('wmk-size').value;
+      const alpha=+$('wmk-opacity').value/100;
+      const d=wmkEditLayer.data;
+      for(let dy=-radius;dy<=radius;dy++) for(let dx=-radius;dx<=radius;dx++){
+        if(dx*dx+dy*dy>radius*radius) continue;
+        const nx=x+dx,ny=y+dy;
+        if(nx<0||ny<0||nx>=cv.width||ny>=cv.height) continue;
+        const ii=(ny*cv.width+nx)*4;
+        if(wmkEraseMode){d[ii+3]=0;}
+        else if(wmkPenMode){
+          const cur=wmkGenerated.data[ii];
+          d[ii]=d[ii+1]=d[ii+2]=cur*(1-alpha)+wmkPenColor*alpha; d[ii+3]=255;
+        }
+      }
+      wmkRenderFinal();
+    }
+
+    cv.addEventListener('pointerdown', e=>{
+      if(wmkPenMode||wmkEraseMode){wmkDrawing=true;wmkDrawAt(e);cv.setPointerCapture(e.pointerId);}
+    });
+    cv.addEventListener('pointermove', e=>{ if(wmkDrawing) wmkDrawAt(e); });
+    cv.addEventListener('pointerup',   ()=>wmkDrawing=false);
+    cv.addEventListener('pointercancel',()=>wmkDrawing=false);
+  });
+
+  window.wmkSave = function() {
+    if (!wmkGenerated) { alert('Generate a watermask first.'); return; }
+    const cv=wmkGetCanvas(), off=document.createElement('canvas');
+    off.width=cv.width; off.height=cv.height;
+    const oc=off.getContext('2d');
+    oc.drawImage(cv,0,0);
+    if($('wmk-terrain-circle').checked){
+      const cx=off.width/2,cy=off.height/2,r=Math.min(off.width,off.height)/2-1;
+      const img=oc.getImageData(0,0,off.width,off.height);
+      const d=img.data,w=off.width,h=off.height;
+      for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+        const dx=x-cx,dy=y-cy;
+        if(Math.sqrt(dx*dx+dy*dy)>r){const i=(y*w+x)*4;d[i]=d[i+1]=d[i+2]=255;}
+      }
+      oc.putImageData(img,0,0);
+    }
+    off.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='sea-map.png';a.click();});
+  };
+})();
+</script>
 </body>

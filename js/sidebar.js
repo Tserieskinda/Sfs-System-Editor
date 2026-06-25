@@ -35,7 +35,7 @@ function selectBody(name){
   document.getElementById('sb-sel').textContent = name;
   fillSidebar(name);
   // Respect sidebar lock — select the body but don't open the panel
-  if(!window._lockSidebar) openSidebar();
+  if(!window._disablePlanetSelection) openSidebar();
   drawViewport();
 }
 
@@ -81,6 +81,282 @@ function confirmDeleteBody(){
   closeSidebar();
   drawViewport();
   syncAddBodyBtn();
+}
+
+// ── Change system center to an existing body (re-root the orbit tree) ────
+// Shows a modal listing all non-center bodies. Selecting one re-roots
+// the tree at that body: edges along the path are reversed, all other
+// orbits are untouched.
+
+function replaceCenterBody() {
+  const names      = Object.keys(bodies);
+  const centerName = names.find(n => bodies[n].isCenter);
+  if (!centerName) { alert('No system center found.'); return; }
+
+  const nonCenter = names.filter(n => !bodies[n].isCenter);
+  if (!nonCenter.length) { alert('No other bodies in the system to promote.'); return; }
+
+  // Build / show modal
+  let modal = document.getElementById('change-center-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'change-center-modal';
+    modal.style.cssText = `
+      position:fixed;inset:0;z-index:300000;
+      display:flex;align-items:center;justify-content:center;
+      background:rgba(0,0,0,.72);backdrop-filter:blur(4px)`;
+    modal.innerHTML = `
+      <div style="background:rgba(6,10,22,.98);border:1px solid rgba(255,180,80,.3);
+        border-radius:8px;padding:0;width:min(92vw,380px);
+        font-family:'JetBrains Mono',monospace;overflow:hidden">
+
+        <div style="display:flex;align-items:center;justify-content:space-between;
+          padding:12px 16px;border-bottom:1px solid rgba(255,180,80,.15)">
+          <span style="font-family:'Orbitron',sans-serif;font-size:.6rem;
+            color:rgba(255,180,80,.9);letter-spacing:.14em">⭐ CHANGE CENTER BODY</span>
+          <button onclick="document.getElementById('change-center-modal').style.display='none'"
+            style="background:none;border:none;cursor:pointer;color:rgba(180,180,210,.4);
+            font-size:1.1rem;padding:0 4px;line-height:1">✕</button>
+        </div>
+
+        <div style="padding:12px 16px">
+          <div style="font-size:.5rem;color:rgba(150,160,200,.55);margin-bottom:10px;line-height:1.6">
+            Select a body to become the new system center.<br>
+            Orbit edges along the path will be reversed. Bodies at the same level are re-parented to the new center.
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px;padding:8px 10px;background:rgba(255,180,80,.04);border:1px solid rgba(255,180,80,.12);border-radius:4px">
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:.5rem;color:rgba(200,210,255,.7)">
+              <input type="checkbox" id="ccm-recompute-dist" checked
+                style="accent-color:#ffb450;width:13px;height:13px;cursor:pointer">
+              Recompute distances relative to new center
+            </label>
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:.5rem;color:rgba(200,210,255,.7)">
+              <input type="checkbox" id="ccm-preserve-ecc"
+                style="accent-color:#ffb450;width:13px;height:13px;cursor:pointer">
+              Preserve eccentricity
+            </label>
+          </div>
+          <div style="font-size:.48rem;color:rgba(255,180,80,.45);margin-bottom:6px;letter-spacing:.08em">
+            CURRENT CENTER: <span id="ccm-current" style="color:rgba(255,200,100,.7)"></span>
+          </div>
+          <div id="ccm-list" style="display:flex;flex-direction:column;gap:4px;
+            max-height:min(50vh,320px);overflow-y:auto;padding-right:2px"></div>
+        </div>
+
+      </div>`;
+    document.body.appendChild(modal);
+    // Close on backdrop click
+    modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+  }
+
+  // Populate
+  document.getElementById('ccm-current').textContent = centerName;
+  const list = document.getElementById('ccm-list');
+  list.innerHTML = '';
+
+  // Sort by depth then name for readability
+  nonCenter
+    .slice()
+    .sort((a, b) => {
+      const da = _ccmDepth(a), db = _ccmDepth(b);
+      return da !== db ? da - db : a.localeCompare(b);
+    })
+    .forEach(name => {
+      const btn = document.createElement('button');
+      const depth = _ccmDepth(name);
+      const parent = bodies[name].data?.ORBIT_DATA?.parent || '?';
+      btn.style.cssText = `
+        display:flex;align-items:center;justify-content:space-between;
+        width:100%;padding:9px 12px;background:rgba(255,180,80,.05);
+        border:1px solid rgba(255,180,80,.15);border-radius:4px;
+        cursor:pointer;text-align:left;transition:background .12s;
+        font-family:'JetBrains Mono',monospace`;
+      btn.innerHTML = `
+        <span>
+          <span style="display:block;font-size:.6rem;color:rgba(220,230,255,.9)">${name}</span>
+          <span style="display:block;font-size:.46rem;color:rgba(150,160,200,.5);margin-top:2px">
+            orbits ${parent} · depth ${depth}
+          </span>
+        </span>
+        <span style="font-size:.52rem;color:rgba(255,180,80,.5);letter-spacing:.06em">PROMOTE →</span>`;
+      btn.onmouseenter = () => { btn.style.background = 'rgba(255,180,80,.12)'; };
+      btn.onmouseleave = () => { btn.style.background = 'rgba(255,180,80,.05)'; };
+      btn.onclick = () => {
+        const recomputeDist = document.getElementById('ccm-recompute-dist').checked;
+        const preserveEcc   = document.getElementById('ccm-preserve-ecc').checked;
+        modal.style.display = 'none';
+        _ccmApply(centerName, name, recomputeDist, preserveEcc);
+      };
+      list.appendChild(btn);
+    });
+
+  modal.style.display = 'flex';
+}
+
+// Depth of a body in the tree (center = 0)
+function _ccmDepth(name, visited) {
+  visited = visited || new Set();
+  if (visited.has(name)) return 99; // cycle guard
+  visited.add(name);
+  const b = bodies[name];
+  if (!b) return 99;
+  if (b.isCenter) return 0;
+  const parent = b.data?.ORBIT_DATA?.parent;
+  if (!parent || !bodies[parent]) return 1;
+  return 1 + _ccmDepth(parent, visited);
+}
+
+// Find path from `from` up to `to` (inclusive on both ends).
+// Returns array like [from, ..., to] or null if no path.
+function _ccmPath(from, to, visited) {
+  visited = visited || new Set();
+  if (from === to) return [from];
+  if (visited.has(from)) return null;
+  visited.add(from);
+  const b = bodies[from];
+  if (!b) return null;
+  const parent = b.data?.ORBIT_DATA?.parent;
+  if (!parent) return null;
+  const rest = _ccmPath(parent, to, visited);
+  if (!rest) return null;
+  return [from, ...rest];
+}
+
+// Apply the re-root: promote `newCenterName` to center,
+// reversing every edge along the path to the old center.
+// Compute absolute SMA from root by summing up the chain (uses raw semiMajorAxis, no difficulty scale)
+function _ccmAbsSMA(name, visited) {
+  visited = visited || new Set();
+  if (visited.has(name)) return 0; // cycle guard
+  visited.add(name);
+  const b = bodies[name];
+  if (!b) return 0;
+  if (b.isCenter) return 0;
+  const od = b.data?.ORBIT_DATA;
+  if (!od) return 0;
+  return od.semiMajorAxis + _ccmAbsSMA(od.parent, visited);
+}
+
+// Compute absolute world position (in metres, Y-up like SFS) by walking the orbit chain.
+// Uses orbitGeometry conventions: body sits at periapsis point defined by AOP.
+function _ccmAbsPos(name, visited) {
+  visited = visited || new Set();
+  if (visited.has(name)) return { x: 0, y: 0 };
+  visited.add(name);
+  const b = bodies[name];
+  if (!b || b.isCenter) return { x: 0, y: 0 };
+  const od = b.data?.ORBIT_DATA;
+  if (!od || !od.parent) return { x: 0, y: 0 };
+  const parentPos = _ccmAbsPos(od.parent, visited);
+  const sma = od.semiMajorAxis;
+  const ecc = od.eccentricity || 0;
+  const aopRad = (od.argumentOfPeriapsis || 0) * Math.PI / 180;
+  const c = sma * ecc; // focus offset
+  // Body sits at periapsis: distance from focus = sma*(1-ecc)
+  // bodyX = parentX + (sma - c)*cos(aop),  bodyY = parentY + (sma - c)*sin(aop)  [Y-up]
+  return {
+    x: parentPos.x + (sma - c) * Math.cos(aopRad),
+    y: parentPos.y + (sma - c) * Math.sin(aopRad)
+  };
+}
+
+function _ccmApply(oldCenterName, newCenterName, recomputeDist, preserveEcc) {
+  // Find path: newCenter → ... → oldCenter
+  const path = _ccmPath(newCenterName, oldCenterName);
+  if (!path) {
+    alert(`Cannot find path from "${newCenterName}" to "${oldCenterName}". Cannot re-root.`);
+    return;
+  }
+
+  pushUndo();
+
+  // Walk path pairs [newCenter, A], [A, B], ..., [N, oldCenter]
+  // For each pair [child, parent], we need to reverse: parent gets child's old orbit (with AOP flipped)
+  // We snapshot ORBIT_DATA before modifying anything
+  const snapshots = {};
+  path.forEach(n => {
+    const od = bodies[n].data?.ORBIT_DATA;
+    snapshots[n] = od ? JSON.parse(JSON.stringify(od)) : null;
+  });
+
+  // Compute absolute SMAs and positions before any modifications (needed for distance/AOP recompute)
+  const absSMA = {};
+  const absPos = {};
+  if (recomputeDist) {
+    Object.keys(bodies).forEach(name => {
+      absSMA[name] = _ccmAbsSMA(name);
+      absPos[name] = _ccmAbsPos(name);
+    });
+  }
+  const newCenterAbsSMA = recomputeDist ? (absSMA[newCenterName] || 0) : 0;
+  const newCenterPos    = recomputeDist ? (absPos[newCenterName] || { x: 0, y: 0 }) : { x: 0, y: 0 };
+
+  const pathSet = new Set(path);
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const childName  = path[i];     // was child
+    const parentName = path[i + 1]; // was parent — now becomes child of childName
+
+    const childOD = snapshots[childName]; // the orbit that child had around parent
+
+    if (childOD) {
+      // Reverse the edge: parentName now orbits childName
+      // SMA and eccentricity stay the same (same ellipse)
+      // AOP flips by 180° (periapsis on the other side)
+      bodies[parentName].data.ORBIT_DATA = {
+        parent:              childName,
+        semiMajorAxis:       childOD.semiMajorAxis,
+        smaDifficultyScale:  childOD.smaDifficultyScale  || {},
+        eccentricity:        childOD.eccentricity        || 0,
+        argumentOfPeriapsis: ((childOD.argumentOfPeriapsis || 0) + 180) % 360,
+        direction:           childOD.direction           ?? 1,
+        multiplierSOI:       childOD.multiplierSOI       ?? 2.5,
+        soiDifficultyScale:  childOD.soiDifficultyScale  || {}
+      };
+      bodies[parentName].isCenter = false;
+    }
+
+    // Re-parent all non-path bodies that orbited parentName to now orbit childName.
+    // parentName's position in the hierarchy is being taken over by childName.
+    Object.keys(bodies).forEach(name => {
+      if (pathSet.has(name)) return;
+      const od = bodies[name].data?.ORBIT_DATA;
+      if (od && od.parent === parentName) {
+        od.parent = childName;
+        if (recomputeDist) {
+          // Recompute SMA as Euclidean distance from new center
+          const bp = absPos[name] || { x: 0, y: 0 };
+          const dx = bp.x - newCenterPos.x;
+          const dy = bp.y - newCenterPos.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const newSMA = Math.max(1000, dist);
+          od.semiMajorAxis = newSMA;
+          if (!preserveEcc) od.eccentricity = 0;
+          // AOP = angle from new center to body (Y-up → atan2(dy, dx), converted to degrees)
+          od.argumentOfPeriapsis = Math.atan2(dy, dx) * 180 / Math.PI;
+        }
+      }
+    });
+  }
+
+  // Promote new center
+  delete bodies[newCenterName].data.ORBIT_DATA;
+  bodies[newCenterName].isCenter = true;
+
+  // Update center name label in sidebar header if present
+  const sbCenter = document.getElementById('sb-center');
+  if (sbCenter) sbCenter.textContent = newCenterName;
+
+  // _cachedSMAScale is invalidated automatically at the top of each drawViewport frame
+
+  if (typeof resizeViewport  === 'function') resizeViewport();
+  if (typeof updateStatusBar === 'function') updateStatusBar();
+  if (typeof drawViewport    === 'function') drawViewport();
+
+  // If selected body was affected, refresh sidebar
+  if (typeof fillSidebar === 'function' && selectedBody && bodies[selectedBody]) {
+    fillSidebar(selectedBody);
+  }
 }
 
 // ── Replace body preset (keep orbit, satellites unaffected) ──
@@ -743,7 +1019,7 @@ function fillSidebar(name){
   toggleAtmoSection('av-fields','av-has');
 
   // CLOUDS (sub-section of ATMO_VISUALS)
-  const hasClouds = !!(AVD.CLOUDS && (AVD.CLOUDS.enabled || (AVD.CLOUDS.texture && AVD.CLOUDS.texture !== 'None')));
+  const hasClouds = !!(AVD.CLOUDS && AVD.CLOUDS.texture && AVD.CLOUDS.texture !== 'None');
   setTog('cl-has', hasClouds);
   const CL = AVD.CLOUDS||{}; setSelectVal('cl-tex',CL.texture); setSimpleKm('cl-sh',CL.startHeight);
   setSimpleKm('cl-w',CL.width); setSimpleKm('cl-h',CL.height); setSlider('cl-a', CL.alpha, 0, 1); setCloudVelDisplay(CL.velocity || 0);
@@ -1327,7 +1603,7 @@ function _liveSyncNow(){
   // ATMO VISUALS
   if(tog('av-has')){
     const cloudsObj = tog('cl-has')
-      ? { enabled:true, texture:val('cl-tex'), startHeight:getSimpleKmMetres('cl-sh'), width:getSimpleKmMetres('cl-w'), height:getSimpleKmMetres('cl-h'), alpha:_sf('cl-a', 0), velocity:_sf('cl-v', 0) }
+      ? { texture:val('cl-tex'), startHeight:getSimpleKmMetres('cl-sh'), width:getSimpleKmMetres('cl-w'), height:getSimpleKmMetres('cl-h'), alpha:_sf('cl-a', 0), velocity:_sf('cl-v', 0) }
       : { texture:'None', startHeight:0, width:0, height:0, alpha:0, velocity:0 };
     const fogObj = tog('fog-has')
       ? { keys: collectFogKeys() }
@@ -1572,59 +1848,101 @@ function clWidthAutoSync(){
 }
 
 function syncCloudVel(){
-  const mode  = document.getElementById('cl-v-mode')?.value || 'ms';
-  const raw   = parseFloat(document.getElementById('cl-v-input')?.value) || 0;
-  const hint  = document.getElementById('cl-v-hint');
-  const hidden= document.getElementById('cl-v');
-  // Need planet circumference to convert rot↔m/s
-  // Use current body radius + cloud startHeight for inner circumference
-  const b = selectedBody && bodies[selectedBody];
+  const mode   = document.getElementById('cl-v-mode')?.value || 'raw';
+  const raw    = parseFloat(document.getElementById('cl-v-input')?.value) || 0;
+  const hint   = document.getElementById('cl-v-hint');
+  const hidden = document.getElementById('cl-v');
+  const b      = selectedBody && bodies[selectedBody];
   const radius = (b?.data?.BASE_DATA?.radius) || 314970;
-  const startH = getSimpleKmMetres('cl-sh') || 0;
-  const innerCirc = 2 * Math.PI * (radius + startH); // metres
+  const TWO_PI = Math.PI * 2;
 
-  let ms = 0; // final value in m/s
-  if(mode === 'ms'){
-    ms = raw;
+  // Convert input → game velocity (formula: vel = rph * R / 18000)
+  let vel = 0;
+  if(mode === 'raw'){
+    vel = raw;
   } else if(mode === 'rph'){
-    ms = (raw * innerCirc) / 3600;
+    vel = (raw * radius) / 18000;
   } else if(mode === 'rps'){
-    ms = raw * innerCirc;
+    vel = (raw * radius * 3600) / 18000;
+  } else if(mode === 'rpm'){
+    vel = (raw * radius * 60) / 18000;
+  } else if(mode === 'period_s'){
+    // period_s → rph = 3600/period_s → vel
+    if(raw !== 0) vel = (3600 / raw) * radius / 18000;
+  } else if(mode === 'period_m'){
+    if(raw !== 0) vel = (60 / raw) * radius / 18000;
+  } else if(mode === 'period_h'){
+    if(raw !== 0) vel = (1 / raw) * radius / 18000;
+  } else if(mode === 'ms'){
+    // wind_ms = 2π·R / period_s  →  period_s = 2π·R / wind_ms  →  rph = 3600/period_s
+    if(raw !== 0) vel = (raw * 18000) / (radius * TWO_PI);
+  } else if(mode === 'kms'){
+    if(raw !== 0) vel = (raw * 1000 * 18000) / (radius * TWO_PI);
   }
-  if(hidden) hidden.value = ms;
 
-  // Show hint with other units
-  if(hint && innerCirc > 0 && ms !== 0){
-    const rps = ms / innerCirc;
-    const rph = rps * 3600;
-    const period_s = 1 / Math.abs(rps);
+  if(hidden) hidden.value = vel;
+
+  // Build hint line: show key equivalent values
+  if(hint && radius > 0 && vel !== 0){
+    const rph      = (vel * 18000) / radius;          // rotations per hour
+    const period_s = Math.abs(3600 / rph);            // seconds per rotation
+    const period_m = period_s / 60;
     const period_h = period_s / 3600;
-    if(mode === 'ms')
-      hint.textContent = `${rph.toExponential(2)} rot/hr  ·  1 rot = ${period_h.toFixed(1)}h`;
-    else if(mode === 'rph')
-      hint.textContent = `${ms.toExponential(2)} m/s  ·  1 rot = ${period_h.toFixed(1)}h`;
-    else
-      hint.textContent = `${ms.toExponential(2)} m/s  ·  1 rot = ${period_h.toFixed(1)}h`;
+    const wind_ms  = (TWO_PI * radius) / period_s;   // surface tangential speed m/s
+    const wind_kms = wind_ms / 1000;
+
+    const fmtPeriod = period_s < 120
+      ? period_s.toFixed(1) + ' s'
+      : period_m < 120
+        ? period_m.toFixed(2) + ' min'
+        : period_h.toFixed(3) + ' h';
+
+    const fmtWind = wind_ms < 1000
+      ? wind_ms.toFixed(2) + ' m/s'
+      : wind_kms.toFixed(3) + ' km/s';
+
+    if(mode === 'raw'){
+      hint.textContent = `${rph.toExponential(3)} rot/hr  ·  ${fmtPeriod}  ·  ${fmtWind}`;
+    } else if(mode === 'rph' || mode === 'rps' || mode === 'rpm'){
+      hint.textContent = `vel=${vel.toExponential(3)}  ·  ${fmtPeriod}  ·  ${fmtWind}`;
+    } else if(mode === 'period_s' || mode === 'period_m' || mode === 'period_h'){
+      hint.textContent = `vel=${vel.toExponential(3)}  ·  ${rph.toExponential(3)} rot/hr  ·  ${fmtWind}`;
+    } else {
+      // m/s or km/s
+      hint.textContent = `vel=${vel.toExponential(3)}  ·  ${fmtPeriod}  ·  ${rph.toExponential(3)} rot/hr`;
+    }
   } else if(hint){
     hint.textContent = '';
   }
   liveSync();
 }
 
-// Populate cl-v-input from a raw m/s value (called when loading body)
-function setCloudVelDisplay(ms){
-  const mode = document.getElementById('cl-v-mode')?.value || 'ms';
-  const b = selectedBody && bodies[selectedBody];
+// Populate cl-v-input from a raw game velocity value (called when loading body)
+function setCloudVelDisplay(vel){
+  const mode   = document.getElementById('cl-v-mode')?.value || 'raw';
+  const b      = selectedBody && bodies[selectedBody];
   const radius = (b?.data?.BASE_DATA?.radius) || 314970;
-  const startH = getSimpleKmMetres('cl-sh') || 0;
-  const innerCirc = 2 * Math.PI * (radius + startH);
-  let display = ms;
-  if(mode === 'rph' && innerCirc > 0) display = (ms * 3600) / innerCirc;
-  else if(mode === 'rps' && innerCirc > 0) display = ms / innerCirc;
+  const TWO_PI = Math.PI * 2;
+  let display  = vel;
+
+  if(radius > 0 && vel !== 0){
+    const rph     = (vel * 18000) / radius;
+    const period_s = Math.abs(3600 / rph);
+    if     (mode === 'rph')      display = rph;
+    else if(mode === 'rps')      display = rph / 3600;
+    else if(mode === 'rpm')      display = rph / 60;
+    else if(mode === 'period_s') display = period_s;
+    else if(mode === 'period_m') display = period_s / 60;
+    else if(mode === 'period_h') display = period_s / 3600;
+    else if(mode === 'ms')       display = (TWO_PI * radius) / period_s;
+    else if(mode === 'kms')      display = (TWO_PI * radius) / period_s / 1000;
+    else                          display = vel; // raw
+  }
+
   const inp = document.getElementById('cl-v-input');
-  if(inp) inp.value = display ? display.toFixed(4).replace(/\.?0+$/, '') : '';
+  if(inp) inp.value = (display && display !== 0) ? (+display.toFixed(8)).toString() : '';
   const hidden = document.getElementById('cl-v');
-  if(hidden) hidden.value = ms;
+  if(hidden) hidden.value = vel;
   syncCloudVel();
 }
 let _finaliseRenameTimer = null;

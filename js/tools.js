@@ -93,20 +93,20 @@ function toggleHighResSurface(){
   drawViewport();
 }
 
-// ════════════════════════════════ TOOLS: LOCK SIDEBAR ════════════════════════════════
+// ════════════════════════════════ TOOLS: DISABLE PLANET SELECTION ════════════════════════════════
 
-window._lockSidebar = false;
-function toggleLockSidebar(){
-  window._lockSidebar = !window._lockSidebar;
-  // Close sidebar immediately when locking
-  if(window._lockSidebar && typeof closeSidebar === 'function') closeSidebar();
+window._disablePlanetSelection = false;
+function toggleDisablePlanetSelection(){
+  window._disablePlanetSelection = !window._disablePlanetSelection;
+  // Deselect current body immediately when disabling selection
+  if(window._disablePlanetSelection && typeof closeSidebar === 'function') closeSidebar();
   // Update badge
-  const badge = document.getElementById('lock-sidebar-badge');
+  const badge = document.getElementById('disable-planet-selection-badge');
   if(badge){
-    badge.textContent = window._lockSidebar ? 'ON' : 'OFF';
-    badge.style.color        = window._lockSidebar ? 'rgba(48,224,144,.9)'  : 'rgba(255,180,80,.4)';
-    badge.style.borderColor  = window._lockSidebar ? 'rgba(48,224,144,.35)' : 'rgba(255,180,80,.2)';
-    badge.style.background   = window._lockSidebar ? 'rgba(48,224,144,.12)' : 'rgba(255,180,80,.12)';
+    badge.textContent = window._disablePlanetSelection ? 'ON' : 'OFF';
+    badge.style.color        = window._disablePlanetSelection ? 'rgba(48,224,144,.9)'  : 'rgba(255,180,80,.4)';
+    badge.style.borderColor  = window._disablePlanetSelection ? 'rgba(48,224,144,.35)' : 'rgba(255,180,80,.2)';
+    badge.style.background   = window._disablePlanetSelection ? 'rgba(48,224,144,.12)' : 'rgba(255,180,80,.12)';
   }
 }
 
@@ -122,6 +122,15 @@ function toggleToolsDropdown(){
     dd.style.top  = (r.bottom + 6) + 'px';
     dd.style.right = (window.innerWidth - r.right) + 'px';
     dd.style.left  = 'auto';
+    // Sync badge to current state on open
+    const badge = document.getElementById('disable-planet-selection-badge');
+    if(badge){
+      const on = !!window._disablePlanetSelection;
+      badge.textContent       = on ? 'ON' : 'OFF';
+      badge.style.color       = on ? 'rgba(48,224,144,.9)'  : 'rgba(255,180,80,.4)';
+      badge.style.borderColor = on ? 'rgba(48,224,144,.35)' : 'rgba(255,180,80,.2)';
+      badge.style.background  = on ? 'rgba(48,224,144,.12)' : 'rgba(255,180,80,.12)';
+    }
   }
   dd.style.display = _toolsDropOpen ? 'block' : 'none';
 }
@@ -440,6 +449,7 @@ vp.addEventListener('wheel', e => {
 }, {passive:false});
 vp.addEventListener('click', e => {
   if(dragOrbitMode) return; // click does nothing in drag orbit mode
+  if(window._disablePlanetSelection) return; // selection disabled
   // Ignore drag moves
   if(Math.abs(e.clientX - dragSX) > 4 || Math.abs(e.clientY - dragSY) > 4) return;
   // If a hold just opened the context menu, swallow the trailing click so the sidebar
@@ -736,7 +746,7 @@ vp.addEventListener('touchend', e => {
       });
       hitCandidatesT.sort((a,b) => b.iconR - a.iconR || a.d - b.d);
       const hit = hitCandidatesT.length ? hitCandidatesT[0].name : null;
-      if(hit) selectBody(hit);
+      if(hit && !window._disablePlanetSelection) selectBody(hit);
       else if(selectedBody){ selectedBody=null; document.getElementById('sb-sel').textContent='—'; document.getElementById('sidebar').classList.remove('open'); document.getElementById('statusbar').style.right='0'; setTimeout(resizeViewport,360); drawViewport(); }
     }
   }
@@ -811,6 +821,7 @@ function openPlanetComparison(){
   _PSC.open = true;
   _PSC.zoom = 1; _PSC.panX = 0; _PSC.panY = 0;
   _PSC.mode = 'all';
+  _PSC.view = 'size';
   _PSC.selected = new Set();
   _PSC.bodyA = null; _PSC.bodyB = null;
 
@@ -826,6 +837,7 @@ function openPlanetComparison(){
       _pscStarList = null; // regenerate stars for new size
     }
     _pscPopulateSelects();
+    _pscSetView('size');
     _pscScheduleDraw();
   });
 }
@@ -834,11 +846,384 @@ function closePlanetComparison(){
   _PSC.open = false;
   document.getElementById('psc-modal').style.display = 'none';
   if(_PSC.animFrame){ cancelAnimationFrame(_PSC.animFrame); _PSC.animFrame = null; }
+  if(_PSC.distFrame){ cancelAnimationFrame(_PSC.distFrame); _PSC.distFrame = null; }
+}
+
+// ── View switching: SIZE vs DISTANCE ─────────────────────────────────────
+_PSC.view = 'size';   // 'size' | 'distance'
+_PSC.distPanX = 0;    // horizontal scroll for distance view
+_PSC.distFrame = null;
+
+function _pscSetView(v){
+  _PSC.view = v;
+  const sizeWrap = document.getElementById('psc-canvas-wrap');
+  const distWrap = document.getElementById('psc-dist-wrap');
+  const modeBtns = document.getElementById('psc-mode-btns');
+  const selRow   = document.getElementById('psc-sel-row');
+  const tabSize  = document.getElementById('psc-tab-size');
+  const tabDist  = document.getElementById('psc-tab-dist');
+
+  if(v === 'size'){
+    if(sizeWrap) sizeWrap.style.display = '';
+    if(distWrap) distWrap.style.display = 'none';
+    if(modeBtns) modeBtns.style.display = 'flex';
+    if(tabSize){ tabSize.style.background='rgba(255,180,80,.18)'; tabSize.style.borderColor='rgba(255,180,80,.5)'; tabSize.style.color='#ffb850'; }
+    if(tabDist){ tabDist.style.background='none'; tabDist.style.borderColor='rgba(255,180,80,.2)'; tabDist.style.color='rgba(255,180,80,.45)'; }
+    _pscScheduleDraw();
+  } else {
+    if(sizeWrap) sizeWrap.style.display = 'none';
+    if(distWrap) distWrap.style.display = '';
+    // Hide SELECT BODIES row in distance view (distance always shows all)
+    if(modeBtns) modeBtns.style.display = 'none';
+    if(selRow)   selRow.style.display   = 'none';
+    if(tabDist){ tabDist.style.background='rgba(255,180,80,.18)'; tabDist.style.borderColor='rgba(255,180,80,.5)'; tabDist.style.color='#ffb850'; }
+    if(tabSize){ tabSize.style.background='none'; tabSize.style.borderColor='rgba(255,180,80,.2)'; tabSize.style.color='rgba(255,180,80,.45)'; }
+    _pscScheduleDistDraw();
+  }
+}
+
+// ── Distance view drawing ─────────────────────────────────────────────────
+const _AU_M  = 1.496e11;          // metres per AU
+const _LY_M  = 9.461e15;          // metres per light-year
+
+function _pscFmtDist(m){
+  if(m <= 0) return '0 AU';
+  const au = m / _AU_M;
+  if(au < 0.001) return (m / 1e9).toFixed(1) + ' Gm';
+  if(au < 10)    return au.toFixed(3) + ' AU';
+  if(au < 1e4)   return au.toFixed(1) + ' AU';
+  const ly = m / _LY_M;
+  if(ly < 0.1)   return au.toFixed(0) + ' AU';
+  if(ly < 1000)  return ly.toFixed(3) + ' ly';
+  return (ly / 1e3).toFixed(2) + ' kly';
+}
+
+function _pscScheduleDistDraw(){
+  if(_PSC.distFrame) cancelAnimationFrame(_PSC.distFrame);
+  _PSC.distFrame = requestAnimationFrame(_pscDrawDist);
+}
+
+function _pscDrawDist(){
+  _PSC.distFrame = null;
+  const cv = document.getElementById('psc-dist-canvas');
+  const wrap = document.getElementById('psc-dist-wrap');
+  if(!cv || !wrap) return;
+
+  // Size canvas to wrapper
+  const W = wrap.offsetWidth || 960;
+  const ROW_H  = 52;    // pixels per body row
+  const names  = Object.keys(bodies);
+  // Collect orbiting bodies with SMA; include center at 0
+  const items = names.map(n => {
+    const b  = bodies[n];
+    const od = b?.data?.ORBIT_DATA;
+    const sma = od?.semiMajorAxis ?? 0;
+    return { name: n, sma_m: sma, isCenter: b.isCenter || false };
+  }).filter(it => it.isCenter || it.sma_m > 0);
+  items.sort((a, b) => a.sma_m - b.sma_m);
+
+  const H = Math.max(120, items.length * ROW_H + 60);
+  cv.width  = W;
+  cv.height = H;
+
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#040810';
+  ctx.fillRect(0, 0, W, H);
+  _pscStars(ctx, W, H);
+
+  if(!items.length){
+    ctx.fillStyle = 'rgba(150,160,200,.45)';
+    ctx.font = '12px "JetBrains Mono",monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('No bodies in system.', W/2, H/2);
+    return;
+  }
+
+  const maxSMA  = Math.max(...items.map(i => i.sma_m), 1);
+  const PAD_L   = 130;  // left margin for labels
+  const PAD_R   = 20;
+  const barW    = W - PAD_L - PAD_R;
+
+  // Draw grid lines at round AU values
+  const maxAU   = maxSMA / _AU_M;
+  const step    = _pscNiceStep(maxAU, 6);
+  ctx.strokeStyle = 'rgba(255,180,80,.08)';
+  ctx.lineWidth   = 1;
+  for(let au = 0; au <= maxAU + step; au += step){
+    const x = PAD_L + (au / maxAU) * barW * (maxSMA / maxSMA);
+    // normalised x
+    const nx = PAD_L + barW * (au * _AU_M) / maxSMA;
+    if(nx > W - PAD_R + 1) break;
+    ctx.beginPath(); ctx.moveTo(nx, 0); ctx.lineTo(nx, H); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,180,80,.3)';
+    ctx.font = '8px "JetBrains Mono",monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(_pscFmtDist(au * _AU_M), nx, 10);
+  }
+
+  // Draw rows
+  items.forEach((it, i) => {
+    const y     = 24 + i * ROW_H;
+    const midY  = y + ROW_H / 2;
+    const b     = bodies[it.name];
+    const bd    = b?.data?.BASE_DATA || {};
+    const mc    = bd.mapColor || { r:.5, g:.55, b:.7 };
+    const col   = `rgb(${Math.round(mc.r*255)},${Math.round(mc.g*255)},${Math.round(mc.b*255)})`;
+
+    // Dashed line from center to body
+    const xBody = PAD_L + barW * (it.sma_m / maxSMA);
+    ctx.strokeStyle = 'rgba(255,180,80,.18)';
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath(); ctx.moveTo(PAD_L, midY); ctx.lineTo(xBody, midY); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Body dot
+    const dotR = it.isCenter ? 8 : Math.max(3, Math.min(10, 3 + Math.log10(Math.max(bd.radius || 1e6, 1e4)) * 1.5));
+    ctx.beginPath(); ctx.arc(xBody, midY, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = col;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.2)';
+    ctx.lineWidth = 0.5; ctx.stroke();
+
+    // Body name (left side)
+    ctx.textAlign  = 'right';
+    ctx.fillStyle  = 'rgba(220,230,255,.9)';
+    ctx.font       = `bold 10px "JetBrains Mono",monospace`;
+    ctx.fillText(it.name, PAD_L - 8, midY + 4);
+
+    // Distance label (right of dot)
+    if(!it.isCenter && it.sma_m > 0){
+      const au  = it.sma_m / _AU_M;
+      const ly  = it.sma_m / _LY_M;
+      const line1 = _pscFmtDist(it.sma_m);
+      const line2 = au >= 1e4 ? '' : `${ly.toExponential(2)} ly`;
+      const lx = Math.min(xBody + dotR + 6, W - PAD_R - 50);
+      ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(255,200,100,.85)';
+      ctx.font = '9px "JetBrains Mono",monospace';
+      ctx.fillText(line1, lx, midY + 1);
+      if(line2){
+        ctx.fillStyle = 'rgba(160,170,210,.55)';
+        ctx.fillText(line2, lx, midY + 11);
+      }
+    }
+  });
+
+  // Set canvas display height to match content
+  cv.style.height = H + 'px';
+}
+
+function _pscNiceStep(maxVal, targetTicks){
+  const raw  = maxVal / targetTicks;
+  const mag  = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  let nice = norm < 1.5 ? 1 : norm < 3.5 ? 2 : norm < 7.5 ? 5 : 10;
+  return nice * mag || 1;
 }
 
 function _pscOnModeChange(m){ _PSC.mode = m; _PSC.zoom=1; _PSC.panX=0; _PSC.panY=0; _pscScheduleDraw(); }
 function _pscOnSelChange(){ _PSC.zoom=1; _PSC.panX=0; _PSC.panY=0; _pscScheduleDraw(); }
 function _pscPopulateSelects(){}
+
+// ── Distance Indicators (viewport overlay) ────────────────────────────────
+let _distIndicatorsOn = false;
+// 'center' = center→selected (original), 'body-body' = user-picked A→B
+let _distMode  = 'center';
+let _distBodyA = null;   // name of body A in body-body mode
+let _distBodyB = null;   // name of body B in body-body mode
+
+function toggleDistanceIndicators(){
+  _distIndicatorsOn = !_distIndicatorsOn;
+  _updateDistBadge();
+  _updateDistBodyPickers();
+  if(typeof drawViewport === 'function') drawViewport();
+}
+
+function cycleDistanceMode(){
+  if(!_distIndicatorsOn) return;
+  _distMode = _distMode === 'center' ? 'body-body' : 'center';
+  _updateDistBadge();
+  _updateDistBodyPickers();
+  if(typeof drawViewport === 'function') drawViewport();
+}
+
+function _updateDistBadge(){
+  const badge = document.getElementById('dist-indicator-badge');
+  if(!badge) return;
+  if(!_distIndicatorsOn){
+    badge.textContent = 'OFF';
+    badge.style.color      = 'rgba(255,180,80,.4)';
+    badge.style.background = 'rgba(255,180,80,.12)';
+    badge.style.borderColor= 'rgba(255,180,80,.2)';
+  } else if(_distMode === 'center'){
+    badge.textContent = 'CENTER';
+    badge.style.color      = 'rgba(100,220,180,.9)';
+    badge.style.background = 'rgba(100,220,180,.15)';
+    badge.style.borderColor= 'rgba(100,220,180,.4)';
+  } else {
+    badge.textContent = 'BODY↔BODY';
+    badge.style.color      = 'rgba(140,160,255,.9)';
+    badge.style.background = 'rgba(140,160,255,.15)';
+    badge.style.borderColor= 'rgba(140,160,255,.4)';
+  }
+}
+
+function _updateDistBodyPickers(){
+  const row = document.getElementById('dist-body-picker-row');
+  if(!row) return;
+  row.style.display = (_distIndicatorsOn && _distMode === 'body-body') ? 'flex' : 'none';
+  if(_distIndicatorsOn && _distMode === 'body-body') _populateDistBodyPickers();
+}
+
+function _populateDistBodyPickers(){
+  const sa = document.getElementById('dist-body-a-sel');
+  const sb = document.getElementById('dist-body-b-sel');
+  if(!sa || !sb || !bodies) return;
+  const names = Object.keys(bodies).filter(n => !bodies[n].isCenter).sort();
+  [sa, sb].forEach((sel, idx) => {
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— pick body —</option>' +
+      names.map(n => `<option value="${n}"${n===prev?' selected':''}>${n}</option>`).join('');
+    // keep saved state
+    if(idx === 0 && _distBodyA) sel.value = _distBodyA;
+    if(idx === 1 && _distBodyB) sel.value = _distBodyB;
+  });
+}
+
+function _distSetBodyA(v){ _distBodyA = v || null; if(typeof drawViewport==='function') drawViewport(); }
+function _distSetBodyB(v){ _distBodyB = v || null; if(typeof drawViewport==='function') drawViewport(); }
+
+// Helper: compute a non-center body's world position (px) from its orbit data
+function _distBodyWorldPos(name){
+  if(!bodies || !bodies[name]) return null;
+  const b = bodies[name];
+  if(b.isCenter) return { x: 0, y: 0 };
+  const od = b.data?.ORBIT_DATA;
+  if(!od) return null;
+  if(typeof orbitGeometry !== 'function' || typeof smaToPixels !== 'function' || typeof effectiveSMA !== 'function') return null;
+  const smaPx = smaToPixels(effectiveSMA(od));
+  const ecc   = od.eccentricity || 0;
+  const aop   = od.argumentOfPeriapsis || 0;
+  let pWX = 0, pWY = 0;
+  const parentName = od.parent;
+  if(parentName && bodies[parentName] && !bodies[parentName].isCenter){
+    const pod = bodies[parentName].data?.ORBIT_DATA;
+    if(pod){
+      const pg = orbitGeometry(smaToPixels(effectiveSMA(pod)), pod.eccentricity||0, pod.argumentOfPeriapsis||0, 0, 0);
+      if(pg){ pWX = pg.bodyX; pWY = pg.bodyY; }
+    }
+  }
+  const geom = orbitGeometry(smaPx, ecc, aop, pWX, pWY);
+  return geom ? { x: geom.bodyX, y: geom.bodyY } : null;
+}
+
+// Called from _drawViewportNow right before imgDrawOverlays
+function _drawDistanceIndicators(ctx, vpZ, vpOffX, vpOffY, vpW, vpH){
+  if(!_distIndicatorsOn) return;
+  if(typeof orbitGeometry !== 'function' || typeof smaToPixels !== 'function' || typeof effectiveSMA !== 'function') return;
+
+  const toScr = (wx, wy) => ({
+    x: (wx + vpOffX) * vpZ + vpW / 2,
+    y: (wy + vpOffY) * vpZ + vpH / 2,
+  });
+
+  let ptA, ptB, distLabel1, distLabel2, lineColor, dotColor;
+
+  if(_distMode === 'center'){
+    // ── Original mode: center → selected body ─────────────────────────────
+    if(!bodies || !selectedBody || !bodies[selectedBody]) return;
+    const selBody = bodies[selectedBody];
+    if(!selBody || selBody.isCenter) return;
+    const od = selBody.data?.ORBIT_DATA;
+    if(!od) return;
+    const wp = _distBodyWorldPos(selectedBody);
+    if(!wp) return;
+
+    ptA = toScr(0, 0);
+    ptB = toScr(wp.x, wp.y);
+
+    const sma_m = od.semiMajorAxis || 0;
+    const au    = sma_m / _AU_M;
+    const ly    = sma_m / _LY_M;
+    distLabel1 = _pscFmtDist(sma_m) + ' (SMA)';
+    distLabel2 = au < 1e4 ? ly.toExponential(3) + ' ly' : '';
+    lineColor = 'rgba(100,220,180,.55)';
+    dotColor  = 'rgba(100,220,180,.7)';
+
+  } else {
+    // ── Body-body mode: _distBodyA → _distBodyB ───────────────────────────
+    if(!_distBodyA || !_distBodyB || _distBodyA === _distBodyB) return;
+    const wpA = _distBodyWorldPos(_distBodyA);
+    const wpB = _distBodyWorldPos(_distBodyB);
+    if(!wpA || !wpB) return;
+
+    ptA = toScr(wpA.x, wpA.y);
+    ptB = toScr(wpB.x, wpB.y);
+
+    // Euclidean distance between their world positions (px → metres)
+    if(typeof smaToPixels !== 'function') return;
+    // Reverse-convert: 1 px = how many metres? Use a reference SMA if possible
+    // smaToPixels(sma_m) = sma_m * vpZ * scale → we need 1/( vpZ * scale )
+    // But we don't have scale directly here. Use the ratio: measure in world-px then
+    // convert using smaToPixels(1) which equals vpZ*scale_factor.
+    const onePxInM = 1 / smaToPixels(1);   // metres per world-px
+    const dxPx = wpB.x - wpA.x;
+    const dyPx = wpB.y - wpA.y;
+    const dist_m = Math.hypot(dxPx, dyPx) * onePxInM;
+    distLabel1 = _pscFmtDist(dist_m);
+    distLabel2 = (dist_m / _AU_M).toExponential(3) + ' AU';
+    lineColor = 'rgba(140,160,255,.6)';
+    dotColor  = 'rgba(140,160,255,.8)';
+  }
+
+  // ── Shared drawing ─────────────────────────────────────────────────────
+  ctx.save();
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth   = 1.2;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.moveTo(ptA.x, ptA.y);
+  ctx.lineTo(ptB.x, ptB.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const mx = (ptA.x + ptB.x) / 2;
+  const my = (ptA.y + ptB.y) / 2;
+  const lines = [distLabel1, distLabel2].filter(Boolean);
+  const fSize = 10;
+  const boxW  = Math.max(...lines.map(l => l.length)) * fSize * 0.6 + 14;
+  const boxH  = lines.length * (fSize + 3) + 8;
+
+  ctx.fillStyle = 'rgba(4,10,24,.82)';
+  ctx.strokeStyle = lineColor.replace('.55','.35').replace('.6','.35');
+  ctx.lineWidth = 0.8;
+  _roundRect(ctx, mx - boxW/2, my - boxH/2, boxW, boxH, 4);
+  ctx.fill(); ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.font = `bold ${fSize}px "JetBrains Mono",monospace`;
+  lines.forEach((l, i) => {
+    ctx.fillStyle = i === 0 ? lineColor.replace('.55','.95').replace('.6','.95') : 'rgba(160,200,180,.6)';
+    ctx.fillText(l, mx, my - boxH/2 + 14 + i * (fSize + 3));
+  });
+
+  ctx.fillStyle = dotColor;
+  ctx.beginPath(); ctx.arc(ptA.x, ptA.y, 3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(ptB.x, ptB.y, 3, 0, Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
+
+function _roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y); ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w, y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r, y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x, y+r); ctx.arcTo(x,y,x+r,y,r);
+  ctx.closePath();
+}
 
 // ── Drawing ───────────────────────────────────────────────────────────────
 function _pscScheduleDraw(){
@@ -1097,14 +1482,27 @@ function _pscInitCanvasEvents(){
     }
   },{passive:true});
 
-  // Resize observer
+  // Resize observer — handles both size canvas and distance canvas
   const ro = new ResizeObserver(()=>{
     const par = cv.parentElement;
     cv.width = par.offsetWidth; cv.height = par.offsetHeight;
     _pscStarList = null;
     _pscScheduleDraw();
+    // Also redraw distance canvas if visible
+    if(_PSC.view === 'distance') _pscScheduleDistDraw();
   });
   ro.observe(cv.parentElement);
+
+  // Distance canvas: no extra touch handling needed — wrapper div uses
+  // overflow-y:auto / touch-action:pan-y so native scroll just works.
+  // We do need a ResizeObserver to re-render when the wrapper resizes.
+  const distCv = document.getElementById('psc-dist-canvas');
+  if(distCv && distCv.parentElement){
+    const roD = new ResizeObserver(() => {
+      if(_PSC.view === 'distance') _pscScheduleDistDraw();
+    });
+    roD.observe(distCv.parentElement);
+  }
 }
 
 // Expose init (called after DOM ready from modal onload-equivalent)

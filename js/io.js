@@ -203,10 +203,21 @@ async function loadZipFile(file){
     _savedTexAssets.forEach(e => renderAssetThumb(e));
     refreshTexPickerLists();
 
+    // Bulk mode: suppress per-texture redraws inside the decode queue.
+    // loadZipFile can contain dozens of Texture Data images; without this flag
+    // every cacheTexture() fires drawViewport+refreshTexPickerLists immediately
+    // after each decode — cascading reflows that exhaust memory on low-end devices.
+    _bulkLoadActive = true;
+
     let planetCount = 0;
     const entryKeys = Object.keys(entries);
     const entryTotal = entryKeys.length || 1;
     let entryIdx = 0;
+    // Textures whose thumbs need rendering after the main loop (deferred to avoid
+    // hammering the DOM and GC with 70+ image decodes in one synchronous burst).
+    const _deferredThumbs = [];
+    // Count of textures processed this batch, used to yield periodically.
+    let _texBatchCount = 0;
 
     for(const [path, data] of Object.entries(entries)){
       entryIdx++;
@@ -279,16 +290,35 @@ async function loadZipFile(file){
         if(!assets.textures.find(a=>a.name===filename)){
           const entry = { name: filename, url, size: data.length };
           assets.textures.push(entry);
-          renderAssetThumb(entry);
+          _deferredThumbs.push(entry);
           const texName = filename.replace(/\.[^.]+$/, '');
           cacheTexture(texName, url);
         }
+        // Yield every 4 textures so the browser can breathe and GC can run
+        // between base64 allocations — critical on memory-limited mobile devices.
+        _texBatchCount++;
+        if(_texBatchCount % 4 === 0) await _yield();
 
       } else if(filename === 'Import_Settings.txt'){
         try{ systemSettings.importSettings = JSON.parse(dec(data)); } catch(e){}
       } else if(filename === 'Space_Center_Data.txt'){
         try{ systemSettings.spaceCenterData = JSON.parse(dec(data)); } catch(e){}
       }
+    }
+
+    // Wait for decode queue to fully drain before touching the DOM further.
+    // cacheTexture() calls above enqueue async Image decodes; rendering thumbs
+    // or firing redraws before they finish causes OOM on low-end devices.
+    setLoadingMsg('Rendering textures…');
+    while(_decodeRunning || _decodeQueue.length > 0){
+      await new Promise(r => setTimeout(r, 32));
+    }
+    _bulkLoadActive = false;
+
+    // Now safe to render texture thumbs in batches of 8 (decode pressure gone).
+    for(let _ti = 0; _ti < _deferredThumbs.length; _ti++){
+      renderAssetThumb(_deferredThumbs[_ti]);
+      if((_ti + 1) % 8 === 0) await _yield();
     }
 
     if(planetCount === 0){ hideLoading(); hideLoadingBars(); setLoadingTitle('LOADING SYSTEM'); alert('No planet files found in zip. Make sure it contains a Planet Data/ folder.'); return; }
@@ -484,7 +514,9 @@ async function loadZipFromUrl(cdnUrl, displayName){
 const REMOTE_ASSETS_URLS = [
   { url: 'assets/Vanilla Presets + textures.zip',  name: 'Vanilla Presets + textures.zip' },
   { url: 'assets/Vanilla Textures 2.zip',           name: 'Vanilla Textures 2.zip' },
-  { url: 'assets/Custom and Terrain Files.zip',     name: 'Custom and Terrain Files.zip' },
+  { url: 'assets/Custom presets and Textures.zip',  name: 'Custom presets and Textures.zip' },
+  { url: 'assets/Terrain.zip',                      name: 'Terrain.zip' },
+  { url: 'assets/Terrain Custom.zip',               name: 'Terrain Custom.zip' },
 ];
 
 // Auto-fetch remote asset zip on startup (online users only).
@@ -517,23 +549,41 @@ async function _replayFromCache(record, { showUI = false, progressLabel = '' } =
     await _yieldFrame(); // let the overlay paint before we start work
   }
 
-  // Process textures in chunks — yield every 8 so the page stays responsive.
-  const CHUNK = 8;
+  // ── Bulk mode: tell the decode queue to suppress per-texture redraws ────────
+  // On low-end phones, firing drawViewport + refreshTexPickerLists for every
+  // decoded image causes cascading reflows that exhaust memory.  We collect
+  // all cacheTexture() calls first (just enqueuing them), then let the queue
+  // drain with only a single final notify at the end.
+  _bulkLoadActive = true;
+
+  // Collect entries that need adding (deduplicate against already-loaded)
+  const toAdd = [];
   for(let i = 0; i < textures.length; i++){
     const t = textures[i];
     if(!assets.textures.find(a => a.name === t.name)){
-      cacheTexture(t.name.replace(/\.[^.]+$/,''), t.url);
-      assets.textures.push(t);
-      renderAssetThumb(t);
+      cacheTexture(t.name.replace(/\.[^.]+$/,''), t.url); // enqueue decode
+      assets.textures.push(t);                             // register immediately
+      toAdd.push(t);
       totalTextures++;
     }
-    // Yield at chunk boundaries so the browser can breathe
-    if(showUI && (i + 1) % CHUNK === 0){
+    // Update progress bar periodically so the loading screen stays alive
+    if(showUI && (i + 1) % 16 === 0){
       setBar1((i + 1) / total * 100, 'CACHE REPLAY');
       await _yieldFrame();
     }
   }
   if(showUI && total > 0) setBar1(100, 'CACHE REPLAY');
+
+  // Wait for the decode queue to fully drain before touching the DOM.
+  // Poll with short yields — avoids holding a microtask chain open.
+  while(_decodeRunning || _decodeQueue.length > 0){
+    await new Promise(r => setTimeout(r, 32));
+    if(showUI) setBar1(100, 'CACHE REPLAY');
+  }
+
+  // Now it's safe to build DOM thumbnails (decode queue is idle, memory pressure gone)
+  _bulkLoadActive = false;
+  for(const t of toAdd) renderAssetThumb(t);
 
   // Presets (vanilla / custom)
   const dp = record.presets || {};
@@ -848,6 +898,13 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
   const rawEntries = parseZip(buffer);
   const entries = await decompressEntries(rawEntries, onDecompProgress);
   let totalTextures = 0, totalPresets = 0, errors = 0;
+  // Treat every file in Terrain.zip / Terrain Custom.zip as heightmap assets
+  const _zipNameLower = (zipName || '').toLowerCase();
+  const _forceHeightmap = _zipNameLower === 'terrain.zip' || _zipNameLower === 'terrain custom.zip';
+
+  // Bulk mode: suppress per-texture redraws inside the decode queue.
+  _bulkLoadActive = true;
+  const _thumbsDeferred = []; // renderAssetThumb calls deferred until queue drains
 
   // If this is a named import (e.g. BGH, ATSS), reset the bucket up-front so
   // re-importing the same system replaces it instead of accumulating duplicates.
@@ -858,7 +915,7 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
   const texTotal = allEntries.filter(([path]) => {
     const p = path.replace(/\\/g, '/').toLowerCase();
     const ext = p.split('.').pop();
-    return ['png','jpg','jpeg','webp'].includes(ext) && !_isHeightmapPath(p) && !p.includes('planet data');
+    return ['png','jpg','jpeg','webp'].includes(ext) && !_forceHeightmap && !_isHeightmapPath(p) && !p.includes('planet data');
   }).length || 1;
   let texDone = 0;
 
@@ -870,7 +927,7 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
     const filename = parts[parts.length - 1];
     if(!filename) continue;
 
-    if(_isHeightmapPath(pathLower)){
+    if(_forceHeightmap || _isHeightmapPath(pathLower)){
       // ── Heightmap Data files — load into assets.heightmaps ──
       const ext = filename.split('.').pop().toLowerCase();
       if(ext === 'txt'){
@@ -930,7 +987,7 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
         const isVanillaTex = _presetCategory(pathLower) === 'vanilla';
         const entry = { name:filename, url, size:data.length, vanilla:isVanillaTex };
         assets.textures.push(entry);
-        renderAssetThumb(entry);
+        _thumbsDeferred.push(entry); // render thumb after queue drains
         totalTextures++;
       }
 
@@ -940,6 +997,13 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
       if(texDone % 4 === 0) await _yield();
     }
   }
+
+  // Wait for decode queue to fully drain, then render thumbnails and notify.
+  while(_decodeRunning || _decodeQueue.length > 0){
+    await new Promise(r => setTimeout(r, 32));
+  }
+  _bulkLoadActive = false;
+  for(const entry of _thumbsDeferred) renderAssetThumb(entry);
 
   if(totalTextures > 0){ refreshTexPickerLists(); updateAssetEmptyState(); drawViewport(); }
   return { totalTextures, totalPresets, errors };
@@ -1004,10 +1068,11 @@ async function loadSFSAssetZips(files){
   }
 }
 
-// Init — resize on first load
-setTimeout(resizeViewport, 50);
-// Attach unit parsers to distance input fields
-setTimeout(initUnitInputs, 100);
+// Init — deferred so all scripts have loaded regardless of order
+window.addEventListener('DOMContentLoaded', function() {
+  setTimeout(function(){ if(typeof resizeViewport==='function') resizeViewport(); }, 50);
+  setTimeout(function(){ if(typeof initUnitInputs==='function') initUnitInputs(); }, 100);
+});
 // Auto-fetch remote assets if URL is configured (no-op when REMOTE_ASSETS_URL is null)
 _autoLoadPromise = autoLoadRemoteAssets();
 

@@ -218,6 +218,10 @@ let   systemPresetsName = ''; // display name of the loaded system
 function buildAllPresets(){
   const list = [];
 
+  // Guard: dynamicPresets is declared in io.js which must load before presets.js.
+  // If load order is wrong, fall back to empty so the editor still starts.
+  if(typeof dynamicPresets === 'undefined') return list;
+
   // Merge: start with baked-in, then overlay dynamic (dynamic wins on name collision)
   const vanillaSrc = Object.keys(dynamicPresets.vanilla).length > 0
     ? { ...FILE_PRESETS.vanilla, ...dynamicPresets.vanilla }

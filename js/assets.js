@@ -4,28 +4,38 @@ const textureCache  = {};
 const texPixelCache = {};
 let _sfsDbgLogged   = {}; // throttle per-body NODRAW warnings to once per load
 
-// Pending decode queue — process images in batches to avoid overwhelming mobile
+// Pending decode queue — process images one at a time to avoid overwhelming mobile
 const _decodeQueue = [];
 let   _decodeRunning = false;
+
+// Low-memory detection: deviceMemory ≤ 2 GB or unknown → conservative mode.
+// In conservative mode we yield after EVERY texture and add a small gap between
+// decodes so the GC has a chance to collect the previous data-URI string.
+const _lowMemDevice = (navigator.deviceMemory || 4) <= 2;
+const _decodeYieldMs = _lowMemDevice ? 16 : 0; // one frame gap on low-end phones
+
+// While a bulk load is in progress, suppress per-texture redraws — fire once at end.
+let _bulkLoadActive = false;
 
 function cacheTexture(name, dataUrl){
   _decodeQueue.push({ name, dataUrl });
   _processDecodeQueue();
 }
 
-// Process image decode queue with rate limiting for mobile stability
+// Process image decode queue strictly one at a time, with memory-aware yielding.
 async function _processDecodeQueue(){
   if(_decodeRunning) return;
   _decodeRunning = true;
 
+  let decoded = 0;
   while(_decodeQueue.length > 0){
     const { name, dataUrl } = _decodeQueue.shift();
-    
+
     await new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
         textureCache[name] = img;
-        // ── Fast path: 64×64 strip samples (cheap, done immediately) ───────────
+        // ── Fast path: 64×64 strip samples ──────────────────────────────────
         try {
           const c = document.createElement('canvas');
           c.width = 64; c.height = 64;
@@ -35,29 +45,38 @@ async function _processDecodeQueue(){
           texPixelCache[name + '_atmos'] = x.getImageData(0, 0, 1, 64).data;
         } catch(e) { console.warn('[SFS|CACHE] strip sample failed:', e); }
 
-        // Notify immediately so the viewport can render
-        drawViewport();
-        if(typeof refreshTexPickerLists === 'function') refreshTexPickerLists();
-        if(typeof _PSC !== 'undefined' && _PSC.open && typeof _pscScheduleDraw === 'function'){
-          _pscScheduleDraw();
+        // During bulk loads suppress per-texture redraws — the caller fires
+        // one final drawViewport/refreshTexPickerLists when the batch ends.
+        if(!_bulkLoadActive){
+          drawViewport();
+          if(typeof refreshTexPickerLists === 'function') refreshTexPickerLists();
+          if(typeof _PSC !== 'undefined' && _PSC.open && typeof _pscScheduleDraw === 'function'){
+            _pscScheduleDraw();
+          }
         }
-        
         resolve();
       };
       img.onerror = () => {
         console.warn('[SFS|CACHE] failed to decode:', name);
-        resolve(); // Continue processing queue even on error
+        resolve();
       };
       img.src = dataUrl;
     });
-    
-    // Yield every 4 textures to let the browser breathe (mobile optimization)
-    if(_decodeQueue.length % 4 === 0){
-      await new Promise(r => setTimeout(r, 0));
+
+    decoded++;
+    // Low-end: yield every texture.  High-end: yield every 8.
+    const yieldEvery = _lowMemDevice ? 1 : 8;
+    if(decoded % yieldEvery === 0){
+      await new Promise(r => setTimeout(r, _decodeYieldMs));
     }
   }
 
   _decodeRunning = false;
+
+  // Queue drained — fire deferred notifications now.
+  if(_bulkLoadActive) return; // caller will fire them
+  drawViewport();
+  if(typeof refreshTexPickerLists === 'function') refreshTexPickerLists();
 }
 
 // ════════════════════════════════ ASSETS SYSTEM ════════════════════════════════
