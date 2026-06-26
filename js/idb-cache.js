@@ -16,7 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const _IDB_NAME      = 'sfs-asset-cache';
-const _IDB_VERSION   = 1;
+const _IDB_VERSION   = 2; // bumped to match autosave.js (adds 'autosave' store)
 const _IDB_STORE     = 'assets';
 // Bump this when the cached payload schema changes so old entries are
 // automatically ignored and re-fetched on next startup.
@@ -32,6 +32,10 @@ function _openDB(){
       const db = e.target.result;
       if(!db.objectStoreNames.contains(_IDB_STORE)){
         db.createObjectStore(_IDB_STORE, { keyPath: 'url' });
+      }
+      // autosave.js shares this DB — ensure its store exists regardless of open order
+      if(!db.objectStoreNames.contains('autosave')){
+        db.createObjectStore('autosave', { keyPath: 'key' });
       }
     };
     req.onsuccess = e => { _db = e.target.result; resolve(_db); };

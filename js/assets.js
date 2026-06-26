@@ -121,6 +121,7 @@ function handleFiles(files, type){
         cacheTexture(texName, ev.target.result);
         refreshTexPickerLists();
         updateAssetEmptyState();
+        if(typeof autosaveFlush === 'function') setTimeout(autosaveFlush, 500);
       };
       reader.readAsDataURL(file);
     } else if(type==='heightmaps' && /\.(png|jpe?g)$/i.test(file.name)){
@@ -129,6 +130,7 @@ function handleFiles(files, type){
         assets.heightmaps.push(entry);
         renderAssetRow(entry, 'heightmaps');
         injectCustomHeightmap(entry.name);
+        if(typeof autosaveFlush === 'function') setTimeout(autosaveFlush, 500);
       };
       reader.readAsDataURL(file);
     } else if(type==='heightmaps' || type==='other'){
@@ -137,6 +139,7 @@ function handleFiles(files, type){
         assets[type].push(entry);
         renderAssetRow(entry, type);
         if(type==='heightmaps') injectCustomHeightmap(entry.name);
+        if(typeof autosaveFlush === 'function') setTimeout(autosaveFlush, 500);
       };
       reader.readAsText(file);
     }
