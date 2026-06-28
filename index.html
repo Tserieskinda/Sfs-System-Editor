@@ -4309,10 +4309,31 @@ document.addEventListener('keydown', function(e){
             <canvas id="htx-src-preview" style="width:100%;height:auto;display:block"></canvas>
             <!-- Hemisphere cut line overlay -->
             <canvas id="htx-cut-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:all;touch-action:none;cursor:ns-resize"></canvas>
+            <!-- Sphere remap pole-pick overlay (on top of cut-overlay) -->
+            <canvas id="htx-remap-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;touch-action:none;cursor:crosshair;z-index:2"></canvas>
             <!-- Fullscreen expand button -->
-            <button onclick="hmtOpenFullscreen('texmap')" title="Full-screen view" style="position:absolute;top:6px;right:6px;background:rgba(4,8,20,.8);border:1px solid rgba(120,160,255,.35);border-radius:3px;color:rgba(120,160,255,.8);font-size:.65rem;padding:3px 7px;cursor:pointer;z-index:2;font-family:'JetBrains Mono',monospace">⛶</button>
+            <button onclick="hmtOpenFullscreen('texmap')" title="Full-screen view" style="position:absolute;top:6px;right:6px;background:rgba(4,8,20,.8);border:1px solid rgba(120,160,255,.35);border-radius:3px;color:rgba(120,160,255,.8);font-size:.65rem;padding:3px 7px;cursor:pointer;z-index:3;font-family:'JetBrains Mono',monospace">⛶</button>
           </div>
-          <button onclick="htxReload()" style="margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:.5rem;
+          <!-- Sphere remap controls -->
+          <div id="htx-remap-bar" style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap">
+            <button id="htx-remap-pick-btn" onclick="htxToggleRemapPick()"
+              style="font-family:'JetBrains Mono',monospace;font-size:.5rem;background:rgba(255,220,80,.08);
+                border:1px solid rgba(255,220,80,.35);border-radius:3px;color:rgba(255,220,80,.85);
+                padding:4px 10px;cursor:pointer;letter-spacing:.06em;flex-shrink:0">
+              ✛ PICK POLE
+            </button>
+            <span id="htx-remap-status" style="font-family:'JetBrains Mono',monospace;font-size:.48rem;
+              color:rgba(255,220,80,.5);letter-spacing:.05em;flex:1">
+              Click to mark a point as the new pole
+            </span>
+            <button id="htx-remap-reset-btn" onclick="htxRemapReset()"
+              style="display:none;font-family:'JetBrains Mono',monospace;font-size:.5rem;background:none;
+                border:1px solid rgba(120,160,255,.2);border-radius:3px;color:rgba(120,160,255,.5);
+                padding:4px 8px;cursor:pointer;letter-spacing:.06em;flex-shrink:0">
+              ✕ RESET
+            </button>
+          </div>
+          <button onclick="htxReload()" style="margin-top:4px;font-family:'JetBrains Mono',monospace;font-size:.5rem;
             background:none;border:1px solid rgba(120,160,255,.25);border-radius:3px;
             color:rgba(120,160,255,.6);padding:3px 10px;cursor:pointer">⟳ LOAD DIFFERENT IMAGE</button>
         </div>

@@ -820,6 +820,201 @@ let _htxSrcW    = 0;
 let _htxSrcH    = 0;
 let _htxOutC    = null;   // output canvas
 
+// Sphere remap: pole in equirectangular coords (0..1 each), or null = no remap
+let _htxRemap   = null;   // { poleLon, poleLat } in 0..1 UV; null = disabled
+let _htxRemapMtx = null;  // precomputed 3×3 rotation matrix (row-major flat [9])
+
+// Precompute the rotation matrix that takes (poleLon,poleLat) to the north pole.
+// poleLon/poleLat are in [0..1] UV coords (equirectangular).
+function _htxBuildRemapMtx(poleLon, poleLat) {
+  // Convert UV to spherical angles
+  const lon  = poleLon * 2 * Math.PI;          // 0..2π
+  const lat  = (0.5 - poleLat) * Math.PI;      // π/2 (top) .. -π/2 (bottom)
+
+  // Cartesian coords of the chosen pole point on the unit sphere
+  const px = Math.cos(lat) * Math.cos(lon);
+  const py = Math.cos(lat) * Math.sin(lon);
+  const pz = Math.sin(lat);
+
+  // We want a rotation R such that R * [px,py,pz] = [0,0,1] (north pole).
+  // Decompose as: first rotate around Z by -lon to bring point into xz-plane,
+  // then rotate around Y by -(π/2 - lat) to bring it to the north pole.
+
+  // Rz(-lon): rotate around Z axis by -lon
+  const cl = Math.cos(-lon), sl = Math.sin(-lon);
+  const Rz = [cl,-sl,0,  sl,cl,0,  0,0,1];
+
+  // After Rz, point is at (cos(lat), 0, sin(lat)).
+  // Ry(-(π/2-lat)): rotate around Y by -(π/2-lat) = (lat-π/2)
+  const a = lat - Math.PI/2;
+  const ca = Math.cos(a), sa = Math.sin(a);
+  const Ry = [ca,0,sa,  0,1,0,  -sa,0,ca];
+
+  // Combined: M = Ry * Rz
+  const m = new Array(9);
+  for(let r = 0; r < 3; r++)
+    for(let c = 0; c < 3; c++) {
+      let s = 0;
+      for(let k = 0; k < 3; k++) s += Ry[r*3+k] * Rz[k*3+c];
+      m[r*3+c] = s;
+    }
+  return m;
+}
+
+// Apply sphere remap to UV coords: returns [u,v] in source space.
+// Rotates the sample direction so the chosen point becomes the pole.
+function _htxRemapUV(u, v) {
+  if(!_htxRemapMtx) return [u, v];
+  const m = _htxRemapMtx;
+
+  // Convert input (u,v) to spherical to cartesian
+  const lon  = u * 2 * Math.PI;
+  const lat  = (0.5 - v) * Math.PI;
+  const x = Math.cos(lat) * Math.cos(lon);
+  const y = Math.cos(lat) * Math.sin(lon);
+  const z = Math.sin(lat);
+
+  // Apply inverse rotation (transpose of M, since M is orthogonal)
+  const rx = m[0]*x + m[3]*y + m[6]*z;
+  const ry = m[1]*x + m[4]*y + m[7]*z;
+  const rz = m[2]*x + m[5]*y + m[8]*z;
+
+  // Back to UV
+  const rLon = Math.atan2(ry, rx);
+  const rLat = Math.asin(Math.max(-1, Math.min(1, rz)));
+  const ru   = rLon / (2 * Math.PI);   // -0.5..0.5
+  const rv   = 0.5 - rLat / Math.PI;   // 0..1
+
+  return [ru, rv];
+}
+
+// Set up click/tap on htx-remap-overlay to pick the pole point
+let _htxRemapOverlayWired = false;
+function _htxSetupRemapOverlay() {
+  if(_htxRemapOverlayWired) return;
+  _htxRemapOverlayWired = true;
+  const ov = document.getElementById('htx-remap-overlay');
+  if(!ov) return;
+
+  function _pick(clientX, clientY) {
+    const rect = ov.getBoundingClientRect();
+    const u = Math.max(0, Math.min(1, (clientX - rect.left)  / rect.width));
+    const v = Math.max(0, Math.min(1, (clientY - rect.top)   / rect.height));
+    _htxRemapSetPole(u, v);
+  }
+
+  ov.addEventListener('click', e => {
+    e.stopPropagation();
+    _pick(e.clientX, e.clientY);
+  });
+  ov.addEventListener('touchend', e => {
+    e.preventDefault(); e.stopPropagation();
+    if(e.changedTouches.length === 1) _pick(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+  }, { passive: false });
+}
+
+// Toggle pole-pick mode on/off
+let _htxRemapPickActive = false;
+function htxToggleRemapPick() {
+  _htxRemapPickActive = !_htxRemapPickActive;
+  const ov  = document.getElementById('htx-remap-overlay');
+  const btn = document.getElementById('htx-remap-pick-btn');
+  const sta = document.getElementById('htx-remap-status');
+  if(_htxRemapPickActive) {
+    ov.style.pointerEvents = 'all';
+    btn.style.background    = 'rgba(255,220,80,.2)';
+    btn.style.borderColor   = 'rgba(255,220,80,.8)';
+    btn.style.color         = 'rgba(255,220,80,1)';
+    btn.textContent         = '✛ PICKING… (tap map)';
+    if(sta) sta.textContent = 'Tap anywhere on the map to set new pole';
+  } else {
+    ov.style.pointerEvents = 'none';
+    btn.style.background   = 'rgba(255,220,80,.08)';
+    btn.style.borderColor  = 'rgba(255,220,80,.35)';
+    btn.style.color        = 'rgba(255,220,80,.85)';
+    btn.textContent        = '✛ PICK POLE';
+    if(sta) sta.textContent = _htxRemap ? 'Pole set — adjust above controls to fine-tune' : 'Click to mark a point as the new pole';
+  }
+}
+
+// Reset sphere remap
+function htxRemapReset() {
+  _htxRemap = null; _htxRemapMtx = null;
+  _htxRemapPickActive = false;
+  const ov  = document.getElementById('htx-remap-overlay');
+  const btn = document.getElementById('htx-remap-pick-btn');
+  const rst = document.getElementById('htx-remap-reset-btn');
+  const sta = document.getElementById('htx-remap-status');
+  if(ov)  { ov.style.pointerEvents = 'none'; }
+  if(btn) { btn.style.background = 'rgba(255,220,80,.08)'; btn.style.borderColor = 'rgba(255,220,80,.35)'; btn.style.color = 'rgba(255,220,80,.85)'; btn.textContent = '✛ PICK POLE'; }
+  if(rst) rst.style.display = 'none';
+  if(sta) sta.textContent = 'Click to mark a point as the new pole';
+  _htxRemapRedraw();
+  htxUpdate();
+}
+
+function _htxRemapSetPole(poleLon, poleLat) {
+  _htxRemap = { poleLon, poleLat };
+  _htxRemapMtx = _htxBuildRemapMtx(poleLon, poleLat);
+  // Deactivate pick mode
+  _htxRemapPickActive = false;
+  const ov  = document.getElementById('htx-remap-overlay');
+  const btn = document.getElementById('htx-remap-pick-btn');
+  const rst = document.getElementById('htx-remap-reset-btn');
+  const sta = document.getElementById('htx-remap-status');
+  if(ov)  ov.style.pointerEvents = 'none';
+  if(btn) { btn.style.background = 'rgba(255,220,80,.08)'; btn.style.borderColor = 'rgba(255,220,80,.35)'; btn.style.color = 'rgba(255,220,80,.85)'; btn.textContent = '✛ PICK POLE'; }
+  if(rst) rst.style.display = '';
+  if(sta) sta.textContent = 'Pole set — adjust above controls to fine-tune';
+  _htxRemapRedraw();
+  htxUpdate();
+}
+
+// Redraw the pole/equator overlay on the source preview canvas
+function _htxRemapRedraw() {
+  const ov = document.getElementById('htx-remap-overlay');
+  if(!ov) return;
+  // Size canvas to match source pixel dimensions for accurate UV -> display coords
+  const W = _htxSrcW || 512;
+  const H = _htxSrcH || 256;
+  ov.width  = W;
+  ov.height = H;
+  const ctx = ov.getContext('2d');
+  ctx.clearRect(0, 0, ov.width, ov.height);
+
+  if(!_htxRemap) return;
+
+  const px = _htxRemap.poleLon * W;
+  const py = _htxRemap.poleLat * H;
+
+  // Draw crosshair at pole point
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,220,80,1)';
+  ctx.lineWidth   = 1.5;
+  ctx.setLineDash([3,3]);
+  // Horizontal line
+  ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(W,py); ctx.stroke();
+  // Vertical line
+  ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,H); ctx.stroke();
+  ctx.setLineDash([]);
+  // Circle at the pole
+  ctx.beginPath();
+  ctx.arc(px, py, 7, 0, Math.PI*2);
+  ctx.strokeStyle = 'rgba(255,220,80,1)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,220,80,.25)';
+  ctx.fill();
+  ctx.restore();
+
+  // Label
+  ctx.save();
+  ctx.font = '500 9px "JetBrains Mono",monospace';
+  ctx.fillStyle = 'rgba(255,220,80,.9)';
+  ctx.fillText('POLE', px + 10, py - 6);
+  ctx.restore();
+}
+
 // ── Load file ────────────────────────────────────────────────
 function htxLoadFile(file) {
   if(!file || !file.type.startsWith('image/')) return;
@@ -839,6 +1034,10 @@ function htxLoadFile(file) {
       const pv = document.getElementById('htx-src-preview');
       pv.width = _htxSrcW; pv.height = _htxSrcH;
       pv.getContext('2d').drawImage(img, 0, 0);
+      // Reset any previous remap
+      _htxRemap = null; _htxRemapMtx = null;
+      // Wire up remap overlay click/tap — click to pick pole
+      _htxSetupRemapOverlay();
       // Show loaded state
       document.getElementById('htx-dropzone').style.display = 'none';
       document.getElementById('htx-loaded').style.display   = 'flex';
@@ -851,6 +1050,7 @@ function htxLoadFile(file) {
 
 function htxReload() {
   _htxSrcImg = null; _htxSrcPx = null;
+  _htxRemap = null; _htxRemapMtx = null;
   document.getElementById('htx-dropzone').style.display = '';
   document.getElementById('htx-loaded').style.display   = 'none';
   document.getElementById('htx-file-input').value = '';
@@ -859,6 +1059,8 @@ function htxReload() {
 // ── Bilinear sample from equirectangular source ──────────────
 // u,v in [0,1) — wraps horizontally, clamps vertically
 function _htxSample(u, v) {
+  // Apply sphere remap (pole/equator remap) if set
+  [u, v] = _htxRemapUV(u, v);
   // Wrap u
   u = u - Math.floor(u);
   // Clamp v
