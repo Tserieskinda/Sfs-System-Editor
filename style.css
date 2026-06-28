@@ -1733,6 +1733,42 @@ body {
 .menu-btn-create-tex:hover { border-bottom-color: var(--lilac); color: #c8a8ff; }
 .menu-btn-create-tex .mico { opacity: .7; }
 
+/* ── Autosave restore button ── */
+.menu-btn-restore {
+  display: flex; align-items: center;
+  border-color: rgba(255,180,80,.4);
+  color: rgba(255,180,80,1);
+  background: rgba(255,180,80,.05);
+}
+.menu-btn-restore:hover {
+  border-bottom-color: rgba(255,180,80,.8) !important;
+  color: #fff !important;
+  background: rgba(255,180,80,.1);
+}
+.menu-btn-restore .mico { opacity: .8; }
+.as-restore-label {
+  display: flex; flex-direction: column;
+  align-items: flex-start; gap: 2px; flex: 1;
+}
+.as-restore-sub {
+  font-size: .58em; opacity: .65; letter-spacing: .04em;
+  font-weight: 500;
+}
+.as-discard-link {
+  display: block; width: 100%; box-sizing: border-box;
+  background: transparent; border: none;
+  color: var(--ac35, #404d70);
+  font-family: inherit; font-size: .58rem;
+  cursor: pointer; padding: 4px 0 8px 36px;
+  letter-spacing: .06em; text-align: left;
+  transition: color .15s;
+}
+.as-discard-link:hover  { color: var(--ac65, #8898c0); }
+.as-discard-link:active { color: var(--ink3); }
+@media (pointer: coarse) {
+  .as-discard-link { min-height: 36px; padding-top: 8px; padding-bottom: 10px; }
+}
+
 .menu-create-header {
   display: flex; align-items: center; gap: 12px;
   padding: 6px 0 10px;
