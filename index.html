@@ -85,8 +85,8 @@
     <button class="tb-back" onclick="goStart()">← BACK</button>
     <span class="tb-title" id="tb-title">NEW SYSTEM · UNTITLED</span>
     <div class="tb-actions">
-      <button class="tb-btn" id="undo-btn" onclick="undoAction()" disabled>↩ UNDO</button>
-      <button class="tb-btn danger" onclick="confirmClearAll()">⊘ CLEAR ALL</button>
+      <button class="tb-btn" id="undo-btn" onclick="undoAction()" disabled title="Undo last action">↩</button>
+      <button class="tb-btn danger" onclick="confirmClearAll()" title="Clear all bodies">⊘ CLEAR</button>
       <!-- ── Environment dropdown ── -->
       <div id="env-dropdown-wrap" style="position:relative;display:inline-block">
         <button class="tb-btn" id="btn-env" onclick="toggleEnvDropdown()" title="Environment render toggles"
@@ -94,7 +94,7 @@
       </div>
       <div style="position:relative;display:inline-flex;align-items:stretch">
         <button class="tb-btn env-off" id="env-btn-heightmaps" onclick="toggleEnvFlag('heightmaps')" title="Toggle terrain heightmap rendering"
-          style="border-color:rgba(180,140,255,.35);color:#b48cff;font-size:.78rem;letter-spacing:.06em;padding:7px 10px;border-right:none;border-radius:4px 0 0 4px">▲ TERRAIN</button>
+          style="border-color:rgba(180,140,255,.35);color:#b48cff;font-size:.78rem;letter-spacing:.06em;padding:7px 10px;border-right:none;border-radius:4px 0 0 4px">▲ LAND</button>
         <button id="btn-terrain-detail" onclick="toggleTerrainDetailDrop()" title="Terrain detail level"
           style="border:1px solid rgba(180,140,255,.35);border-left:1px solid rgba(180,140,255,.15);color:#b48cff;background:rgba(180,140,255,.07);cursor:pointer;padding:0 7px;border-radius:0 4px 4px 0;font-family:'JetBrains Mono',monospace;font-size:.58rem;letter-spacing:.04em;display:flex;align-items:center;gap:4px;white-space:nowrap">
           <span id="terrain-detail-label">30%</span><span style="font-size:.6rem;opacity:.6">&#9662;</span>
@@ -103,7 +103,7 @@
       <button class="tb-btn" onclick="openBodySearch()" title="Search bodies in system" style="border-color:rgba(64,200,255,.3);color:var(--sky2);font-size:.85rem;padding:7px 10px">🔍</button>
       <button class="tb-btn" id="btn-difficulty" onclick="cycleDifficulty()" title="Switch orbit display difficulty" style="border-color:rgba(255,200,64,.3);color:#ffd060;min-width:96px">⚖ NORMAL</button>
       <button class="tb-btn" id="btn-dist-rings" onclick="toggleDistRings()" title="Toggle AU distance rings around selected body" style="border-color:rgba(120,200,255,.3);color:rgba(120,200,255,.75);font-size:.75rem;letter-spacing:.05em;padding:7px 10px">⊙ AU</button><button class="tb-btn" onclick="openDistRingsMenu()" title="Configure ring distances" style="border-color:rgba(120,200,255,.2);color:rgba(120,200,255,.5);font-size:.7rem;padding:7px 7px;margin-left:-6px;border-left:none;border-radius:0 5px 5px 0">⚙</button>
-      <button class="tb-btn" id="btn-add-body" onclick="addBodyPrompt()" title="Add a body to the system (requires a system center first)" style="border-color:rgba(100,220,120,.6);color:#7defa0;font-weight:700;background:rgba(100,220,120,.12);letter-spacing:.08em">＋ ADD BODY</button>
+      <button class="tb-btn" id="btn-add-body" onclick="addBodyPrompt()" title="Add a body to the system (requires a system center first)" style="border-color:rgba(100,220,120,.6);color:#7defa0;font-weight:700;background:rgba(100,220,120,.12);letter-spacing:.08em">＋ ADD</button>
       <!-- ── Tools dropdown ── -->
       <div id="tools-dropdown-wrap" style="position:relative;display:inline-block">
         <button class="tb-btn" id="btn-tools" onclick="toggleToolsDropdown()" title="Tools"
@@ -114,9 +114,9 @@
         <button class="tb-btn" id="btn-utils" onclick="toggleUtilsDropdown()" title="Utilities"
           style="border-color:rgba(100,220,180,.35);color:#64dcb4;font-size:.78rem;letter-spacing:.06em;padding:7px 11px">⊞ UTILS</button>
       </div>
-      <button class="tb-btn" onclick="openAssets()">📁 ASSETS</button>
-      <button class="tb-btn" onclick="openSysSettings()">⚙ SYSTEM</button>
-      <button class="tb-btn save" onclick="exportSystem()">⬇ EXPORT ZIP</button>
+      <button class="tb-btn" onclick="openAssets()" title="Assets">📁 ASSETS</button>
+      <button class="tb-btn" onclick="openSysSettings()" title="System settings" style="font-size:.88rem;padding:7px 11px">⚙</button>
+      <button class="tb-btn save" onclick="exportSystem()" title="Export system ZIP">⬇ EXPORT</button>
     </div>
   </div>
 
