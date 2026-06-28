@@ -525,6 +525,7 @@ let _pinchMidX = 0, _pinchMidY = 0;
 let _lastPinchDist = null; // track delta-based zoom to prevent teleport
 let _wasPinching = false;  // suppress tap-after-pinch
 let _pinchMoved  = false;  // set on first pinch movement — suppresses sidebar open
+let _hadMultiTouch = false; // set whenever 2+ fingers were down this gesture — suppresses tap on last-finger-up
 // Double-tap detection
 let _lastTapTime = 0;
 let _lastTapX = 0, _lastTapY = 0;
@@ -561,6 +562,7 @@ vp.addEventListener('touchstart', e => {
   }
   const ids = Object.keys(_touches);
   if(ids.length === 2){
+    _hadMultiTouch = true;  // remember this gesture involved 2 fingers
     const t0 = _touches[ids[0]], t1 = _touches[ids[1]];
     const dist = Math.hypot(t1.x - t0.x, t1.y - t0.y);
     // Check if both fingers land on the same image — if so, hand off to image pinch
@@ -691,12 +693,13 @@ vp.addEventListener('touchend', e => {
       dragSX = _touches[id].x; dragSY = _touches[id].y;
     }
   }
-  // Clear wasPinching only when all fingers are fully gone
-  if(remaining === 0){ _wasPinching = false; _pinchMoved = false; }
+  // Clear wasPinching only when all fingers are fully gone.
+  // Snapshot _pinchMoved BEFORE clearing — the tap-suppression check below needs it.
+  const _wasPinchGesture = _pinchMoved || _hadMultiTouch;
+  if(remaining === 0){ _wasPinching = false; _pinchMoved = false; _hadMultiTouch = false; }
 
-  // Tap detection: only when all fingers lifted, not after a pinch gesture.
-  // Use _pinchMoved (set during touchmove) — _wasPinching is already cleared above.
-  if(e.changedTouches.length === 1 && remaining === 0 && !_pinchMoved){
+  // Tap detection: only when all fingers lifted, not after a pinch/multi-touch gesture.
+  if(e.changedTouches.length === 1 && remaining === 0 && !_wasPinchGesture){
     const t = e.changedTouches[0];
     if(Math.abs(t.clientX - dragSX) < 8 && Math.abs(t.clientY - dragSY) < 8){
       const rect = vp.getBoundingClientRect();
@@ -763,7 +766,7 @@ vp.addEventListener('touchcancel', e => {
   // If all touches are gone (most common case), do a full state reset
   if(Object.keys(_touches).length === 0){
     _pinchStartDist = null; _pinchStartZ = null; _lastPinchDist = null;
-    _wasPinching = false; _pinchMoved = false;
+    _wasPinching = false; _pinchMoved = false; _hadMultiTouch = false;
     if(dragOrbitMode && _dob_active){
       _dob_active = false; _dob_body = null;
       _dob_frozenScale = null; _dob_frozenParentSP = null; _dob_frozenVpZ = null;

@@ -31,6 +31,12 @@ function goStart(){
 }
 function goNew(){
   show('s-new');
+  // Block pointer events for the duration of the screen-transition animation so
+  // a click on the start-screen (e.g. "CREATE NEW SYSTEM") can't bleed through
+  // to the #add-center-btn that appears at the same coordinates in s-new.
+  const sNew = document.getElementById('s-new');
+  sNew.style.pointerEvents = 'none';
+  setTimeout(() => { sNew.style.pointerEvents = ''; }, 500);
   document.getElementById('viewport').classList.add('active');
   vpOffX = 0; vpOffY = 0; vpZ = 1;
   document.getElementById('sb-zoom').textContent = '100%';
