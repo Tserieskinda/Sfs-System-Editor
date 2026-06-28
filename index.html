@@ -104,6 +104,11 @@
       <button class="tb-btn" id="btn-difficulty" onclick="cycleDifficulty()" title="Switch orbit display difficulty" style="border-color:rgba(255,200,64,.3);color:#ffd060;min-width:96px">⚖ NORMAL</button>
       <button class="tb-btn" id="btn-dist-rings" onclick="toggleDistRings()" title="Toggle AU distance rings around selected body" style="border-color:rgba(120,200,255,.3);color:rgba(120,200,255,.75);font-size:.75rem;letter-spacing:.05em;padding:7px 10px">⊙ AU</button><button class="tb-btn" onclick="openDistRingsMenu()" title="Configure ring distances" style="border-color:rgba(120,200,255,.2);color:rgba(120,200,255,.5);font-size:.7rem;padding:7px 7px;margin-left:-6px;border-left:none;border-radius:0 5px 5px 0">⚙</button>
       <button class="tb-btn" id="btn-add-body" onclick="addBodyPrompt()" title="Add a body to the system (requires a system center first)" style="border-color:rgba(100,220,120,.6);color:#7defa0;font-weight:700;background:rgba(100,220,120,.12);letter-spacing:.08em">＋ ADD</button>
+      <!-- ── Tag dropdown ── -->
+      <div id="tag-dropdown-wrap" style="position:relative;display:inline-block">
+        <button class="tb-btn" id="btn-tag" onclick="toggleTagDropdown()" title="Tag bodies"
+          style="border-color:rgba(255,220,80,.35);color:#ffd050;font-size:.72rem;letter-spacing:.06em;padding:7px 11px">🏷 TAG</button>
+      </div>
       <!-- ── Tools dropdown ── -->
       <div id="tools-dropdown-wrap" style="position:relative;display:inline-block">
         <button class="tb-btn" id="btn-tools" onclick="toggleToolsDropdown()" title="Tools"
@@ -1745,6 +1750,73 @@
   <button id="env-btn-water"    onclick="toggleEnvFlag('water')"   class="env-row">🌊 <span>Water</span></button>
   <button id="env-btn-surface"  onclick="toggleEnvFlag('surface')" class="env-row">🗺 <span>Surface texture</span></button>
   <button id="env-btn-postProc" onclick="toggleEnvFlag('postProc')" class="env-row">🎨 <span>Post processing</span></button>
+</div>
+
+<!-- ══ TAG DROPDOWN ══ -->
+<div id="tag-dropdown" style="display:none;position:fixed;
+  min-width:240px;background:rgba(6,10,22,.97);border:1px solid rgba(255,220,80,.22);
+  border-radius:4px;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:99999;overflow:hidden">
+  <div style="padding:5px 12px 4px;font-family:'Orbitron',sans-serif;font-size:.5rem;
+    color:rgba(255,220,80,.5);letter-spacing:.12em;border-bottom:1px solid rgba(255,220,80,.1);
+    display:flex;align-items:center;justify-content:space-between">
+    <span>TAGS</span>
+    <span id="tag-dd-status" style="font-size:.46rem;letter-spacing:.05em;color:rgba(48,224,144,.8)">—</span>
+  </div>
+
+  <!-- Status row -->
+  <div style="padding:8px 12px 6px;border-bottom:1px solid rgba(255,220,80,.08)">
+    <div id="tag-dd-summary" style="font-family:'JetBrains Mono',monospace;font-size:.58rem;
+      color:rgba(200,210,230,.7);letter-spacing:.04em">—</div>
+  </div>
+
+  <!-- Create custom tag -->
+  <div style="padding:8px 12px;border-bottom:1px solid rgba(255,220,80,.08)">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:.46rem;letter-spacing:.08em;
+      color:rgba(255,220,80,.45);margin-bottom:5px">CREATE CUSTOM TAG</div>
+    <div style="display:flex;gap:5px">
+      <input id="tag-dd-custom-input" type="text" placeholder="my-tag…" spellcheck="false"
+        onkeydown="if(event.key==='Enter') tagDdAddCustom()"
+        style="flex:1;font-family:'JetBrains Mono',monospace;font-size:.52rem;
+          background:rgba(255,255,255,.05);border:1px solid rgba(255,220,80,.25);
+          border-radius:3px;color:var(--ink3,#c8d8f0);padding:4px 8px;min-width:0">
+      <button onclick="tagDdAddCustom()"
+        style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.05em;
+          padding:4px 9px;border:1px solid rgba(255,220,80,.4);border-radius:3px;
+          background:rgba(255,220,80,.1);color:#ffd050;cursor:pointer;white-space:nowrap">
+        + ADD
+      </button>
+    </div>
+    <div id="tag-dd-add-hint" style="font-family:'JetBrains Mono',monospace;font-size:.44rem;
+      color:rgba(48,224,144,.7);margin-top:4px;display:none">✓ Tag applied to selected body</div>
+  </div>
+
+  <!-- Tag untagged bodies -->
+  <button onclick="tagDdOpenUntagged()"
+    style="display:flex;align-items:center;gap:10px;width:100%;padding:9px 14px;
+      background:none;border:none;border-bottom:1px solid rgba(255,220,80,.08);
+      cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:.62rem;
+      color:rgba(220,220,255,.85);letter-spacing:.05em;transition:background .12s;text-align:left"
+    onmouseover="this.style.background='rgba(255,220,80,.08)'" onmouseout="this.style.background='none'">
+    <span style="font-size:1rem">🔍</span>
+    <span>
+      <span style="display:block;color:rgba(255,220,80,.9)">TAG UNTAGGED BODIES</span>
+      <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Open search filtered to untagged</span>
+    </span>
+  </button>
+
+  <!-- Remove all tags -->
+  <button onclick="tagDdRemoveAll()"
+    style="display:flex;align-items:center;gap:10px;width:100%;padding:9px 14px;
+      background:none;border:none;cursor:pointer;font-family:'JetBrains Mono',monospace;
+      font-size:.62rem;color:rgba(255,100,100,.75);letter-spacing:.05em;
+      transition:background .12s;text-align:left"
+    onmouseover="this.style.background='rgba(255,64,96,.08)'" onmouseout="this.style.background='none'">
+    <span style="font-size:1rem">🗑</span>
+    <span>
+      <span style="display:block">REMOVE ALL TAGS</span>
+      <span style="display:block;font-size:.54rem;color:rgba(180,100,100,.6);margin-top:1px">Clears editor tags from all bodies</span>
+    </span>
+  </button>
 </div>
 
 <!-- ══ TOOLS DROPDOWN (body-level to escape topbar stacking context) ══ -->

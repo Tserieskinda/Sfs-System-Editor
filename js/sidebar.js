@@ -190,6 +190,134 @@ function sbTagAddCustom() {
   input.focus();
 }
 
+// ── Tag dropdown (topbar) ──────────────────────────────────────────────────
+let _tagDropOpen = false;
+
+function _tagDdCountStatus() {
+  const total    = Object.keys(bodies).length;
+  if(total === 0) return { total, untagged: 0, allTagged: true };
+  const untagged = Object.values(bodies).filter(b => !b.data.editor || !b.data.editor.trim()).length;
+  return { total, untagged, allTagged: untagged === 0 };
+}
+
+function toggleTagDropdown() {
+  _tagDropOpen = !_tagDropOpen;
+  const dd  = document.getElementById('tag-dropdown');
+  const btn = document.getElementById('btn-tag');
+  if(_tagDropOpen) {
+    const r = btn.getBoundingClientRect();
+    dd.style.top   = (r.bottom + 6) + 'px';
+    dd.style.right = (window.innerWidth - r.right) + 'px';
+    dd.style.left  = 'auto';
+    _tagDdRefreshStatus();
+    // Clear custom input / hint
+    const inp = document.getElementById('tag-dd-custom-input');
+    if(inp) inp.value = '';
+    const hint = document.getElementById('tag-dd-add-hint');
+    if(hint) hint.style.display = 'none';
+  }
+  dd.style.display = _tagDropOpen ? 'block' : 'none';
+}
+
+function _tagDdRefreshStatus() {
+  const { total, untagged, allTagged } = _tagDdCountStatus();
+  const status  = document.getElementById('tag-dd-status');
+  const summary = document.getElementById('tag-dd-summary');
+  const tbbtn   = document.getElementById('btn-tag');
+
+  if(total === 0) {
+    if(status)  { status.textContent = '—'; status.style.color = 'rgba(160,170,190,.5)'; }
+    if(summary) summary.textContent = 'No bodies in system yet';
+    if(tbbtn)   { tbbtn.style.borderColor = 'rgba(255,220,80,.35)'; tbbtn.style.color = '#ffd050'; }
+    return;
+  }
+
+  if(allTagged) {
+    if(status)  { status.textContent = '✓ All tagged'; status.style.color = 'rgba(48,224,144,.85)'; }
+    if(summary) { summary.textContent = `All ${total} ${total===1?'body':'bodies'} tagged`; summary.style.color = 'rgba(48,224,144,.8)'; }
+    if(tbbtn)   { tbbtn.style.borderColor = 'rgba(48,224,144,.4)'; tbbtn.style.color = '#30e090'; }
+  } else {
+    if(status)  { status.textContent = `⚠ ${untagged} untagged`; status.style.color = 'rgba(255,180,60,.9)'; }
+    if(summary) { summary.textContent = `${untagged} of ${total} ${total===1?'body':'bodies'} untagged!`; summary.style.color = 'rgba(255,180,60,.85)'; }
+    if(tbbtn)   { tbbtn.style.borderColor = 'rgba(255,180,60,.5)'; tbbtn.style.color = '#ffb43c'; }
+  }
+}
+
+// Called whenever bodies or tags change — updates topbar button indicator
+function tagDdSyncBtn() {
+  if(Object.keys(bodies).length === 0) return;
+  _tagDdRefreshStatus();
+}
+
+// Add custom tag to selected body from the topbar dropdown
+function tagDdAddCustom() {
+  const inp  = document.getElementById('tag-dd-custom-input');
+  const hint = document.getElementById('tag-dd-add-hint');
+  const tag  = inp?.value.trim();
+  if(!tag) return;
+  if(!selectedBody || !bodies[selectedBody]) {
+    // No body selected — show a brief note
+    if(hint) { hint.textContent = '⚠ Select a body first'; hint.style.color = 'rgba(255,120,80,.8)'; hint.style.display = ''; }
+    setTimeout(() => { if(hint) hint.style.display = 'none'; }, 2000);
+    return;
+  }
+  sbTagToggle(selectedBody, tag);
+  inp.value = '';
+  if(hint) {
+    hint.textContent  = `✓ "${tag}" applied to ${selectedBody}`;
+    hint.style.color  = 'rgba(48,224,144,.75)';
+    hint.style.display = '';
+    setTimeout(() => { hint.style.display = 'none'; }, 2000);
+  }
+  _tagDdRefreshStatus();
+}
+
+// Open search modal pre-filtered to untagged
+function tagDdOpenUntagged() {
+  _tagDropOpen = false;
+  document.getElementById('tag-dropdown').style.display = 'none';
+  // Open body search with untagged filter pre-activated
+  openBodySearch();
+  _bsearchActiveTags.add('__untagged__');
+  _bsearchBuildTagFilters();
+  _bsearchRebuildNow();
+}
+
+// Remove all tags with confirmation
+function tagDdRemoveAll() {
+  const { total, untagged } = _tagDdCountStatus();
+  const tagged = total - untagged;
+  if(tagged === 0) {
+    alert('No tags to remove — all bodies are already untagged.');
+    return;
+  }
+  const confirmed = confirm(
+    `Remove all tags from ${tagged} ${tagged===1?'body':'bodies'}?\n\n` +
+    `⚠ Warning: some features (like tag filtering in body search) won't work without tags, ` +
+    `and you'll have to tag all your bodies again manually if you remove them now.`
+  );
+  if(!confirmed) return;
+  Object.values(bodies).forEach(b => { delete b.data.editor; });
+  // Refresh sidebar tag row if a body is open
+  if(selectedBody && bodies[selectedBody]) fillTagRow(selectedBody);
+  _tagDdRefreshStatus();
+  pushUndo();
+}
+
+// Close tag dropdown on outside click
+document.addEventListener('mousedown', e => {
+  try {
+    const wrap = document.getElementById('tag-dropdown-wrap');
+    const dd   = document.getElementById('tag-dropdown');
+    if(dd && !dd.contains(e.target) && (!wrap || !wrap.contains(e.target))) {
+      _tagDropOpen = false;
+      dd.style.display = 'none';
+    }
+  } catch(_){}
+}, true);
+
+
+
 
 
 // Render a shaded sphere SVG using the body's map color into #sbb-icon
