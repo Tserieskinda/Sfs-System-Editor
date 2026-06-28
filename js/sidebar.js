@@ -1,5 +1,197 @@
 // ════════════════════════════════ SIDEBAR ════════════════════════════════
 
+// ── Tag system ────────────────────────────────────────────────────────────
+// Tags are stored as body.data.editor = "tag1, tag2, tag3" (plain string).
+// The game ignores unknown top-level keys so this is safe to leave in exports.
+
+const SB_TAG_PRESETS = [
+  // Stars
+  { label:'Star',        group:'star',   color:'#ffd060' },
+  { label:'O-type',      group:'star',   color:'#b0c8ff' },
+  { label:'B-type',      group:'star',   color:'#c8d8ff' },
+  { label:'A-type',      group:'star',   color:'#e8eeff' },
+  { label:'F-type',      group:'star',   color:'#ffffcc' },
+  { label:'G-type',      group:'star',   color:'#ffee88' },
+  { label:'K-type',      group:'star',   color:'#ffb840' },
+  { label:'M-type',      group:'star',   color:'#ff7040' },
+  { label:'Red Giant',   group:'star',   color:'#ff5020' },
+  { label:'White Dwarf', group:'star',   color:'#d0e8ff' },
+  { label:'Neutron Star',group:'star',   color:'#a0e0ff' },
+  { label:'Brown Dwarf', group:'star',   color:'#8b4010' },
+  // Black holes
+  { label:'Black Hole',      group:'bh', color:'#9060ff' },
+  { label:'Primordial BH',   group:'bh', color:'#7040e0' },
+  { label:'Stellar BH',      group:'bh', color:'#8050f0' },
+  { label:'Supermassive BH', group:'bh', color:'#b080ff' },
+  // Planets — general
+  { label:'Planet',      group:'planet', color:'#60c8ff' },
+  { label:'Earth-like',  group:'planet', color:'#40d090' },
+  { label:'Desert',      group:'planet', color:'#e0a050' },
+  { label:'Ocean',       group:'planet', color:'#2080ff' },
+  { label:'Icy',         group:'planet', color:'#a0d8f0' },
+  { label:'Lava',        group:'planet', color:'#ff4020' },
+  { label:'Hot',         group:'planet', color:'#ff8030' },
+  { label:'Cold',        group:'planet', color:'#80c0e8' },
+  { label:'Gas Giant',   group:'planet', color:'#c0a060' },
+  { label:'Ice Giant',   group:'planet', color:'#60a0e0' },
+  { label:'Super-Earth', group:'planet', color:'#50d080' },
+  { label:'Mini-Neptune',group:'planet', color:'#6080c0' },
+  { label:'Ringed',      group:'planet', color:'#d0b070' },
+  // Moons & small bodies
+  { label:'Moon',        group:'small',  color:'#a0a8b8' },
+  { label:'Asteroid',    group:'small',  color:'#907060' },
+  { label:'Comet',       group:'small',  color:'#80c8d8' },
+  { label:'Dwarf Planet',group:'small',  color:'#b0a090' },
+  // Meta
+  { label:'Real',        group:'meta',   color:'#60e0a0' },
+  { label:'Fictional',   group:'meta',   color:'#e060a0' },
+  { label:'Habitable',   group:'meta',   color:'#40e060' },
+  { label:'Tidally Locked', group:'meta',color:'#c0a0ff' },
+];
+
+const SB_TAG_GROUP_COLORS = {
+  star:   '#ffd060',
+  bh:     '#9060ff',
+  planet: '#60c8ff',
+  small:  '#a0a8b8',
+  meta:   '#60e0a0',
+};
+
+function _sbGetTags(name) {
+  const raw = bodies[name]?.data?.editor || '';
+  return raw ? raw.split(',').map(t => t.trim()).filter(Boolean) : [];
+}
+
+function _sbSetTags(name, tags) {
+  if(!bodies[name]) return;
+  const unique = [...new Set(tags.map(t => t.trim()).filter(Boolean))];
+  if(unique.length === 0) {
+    delete bodies[name].data.editor;
+  } else {
+    bodies[name].data.editor = unique.join(', ');
+  }
+}
+
+// Render chips in the tag row above the action buttons
+function fillTagRow(name) {
+  const row = document.getElementById('sbb-tag-row');
+  const addBtn = document.getElementById('sbb-tag-add-btn');
+  if(!row) return;
+
+  // Remove existing chips (keep the + TAG button)
+  Array.from(row.querySelectorAll('.sb-tag-chip')).forEach(c => c.remove());
+
+  const tags = _sbGetTags(name);
+  tags.forEach(tag => {
+    const preset = SB_TAG_PRESETS.find(p => p.label.toLowerCase() === tag.toLowerCase());
+    const col = preset ? preset.color : 'rgba(160,180,220,.8)';
+    const chip = document.createElement('span');
+    chip.className = 'sb-tag-chip';
+    chip.style.cssText = [
+      'display:inline-flex','align-items:center','gap:3px',
+      `background:${col}18`,
+      `border:1px solid ${col}55`,
+      `color:${col}`,
+      'border-radius:10px','padding:2px 8px 2px 7px',
+      'font-family:"JetBrains Mono",monospace','font-size:.45rem',
+      'letter-spacing:.06em','white-space:nowrap','cursor:default',
+    ].join(';');
+    chip.innerHTML = `<span>${tag}</span><button onclick="sbTagRemove('${CSS.escape(name)}','${tag.replace(/'/g,"\\'")}')"
+      style="background:none;border:none;color:inherit;opacity:.6;cursor:pointer;
+        padding:0 0 0 2px;font-size:.6rem;line-height:1;margin-left:1px">✕</button>`;
+    row.insertBefore(chip, addBtn);
+  });
+}
+
+// Open/close picker
+function sbTagOpenPicker() {
+  if(!selectedBody) return;
+  const picker = document.getElementById('sbb-tag-picker');
+  picker.style.display = picker.style.display === 'none' ? '' : 'none';
+  if(picker.style.display !== 'none') {
+    _sbRenderPresetChips(selectedBody);
+    document.getElementById('sbb-tag-custom-input').value = '';
+    setTimeout(() => document.getElementById('sbb-tag-custom-input').focus(), 50);
+  }
+}
+function sbTagClosePicker() {
+  document.getElementById('sbb-tag-picker').style.display = 'none';
+}
+
+// Render preset chips inside the picker, highlighting active ones
+function _sbRenderPresetChips(name) {
+  const container = document.getElementById('sbb-tag-preset-chips');
+  if(!container) return;
+  container.innerHTML = '';
+  const activeTags = _sbGetTags(name).map(t => t.toLowerCase());
+
+  // Group headers + chips
+  const groups = [...new Set(SB_TAG_PRESETS.map(p => p.group))];
+  groups.forEach(g => {
+    const groupLabel = document.createElement('div');
+    groupLabel.style.cssText = 'width:100%;font-family:"JetBrains Mono",monospace;font-size:.4rem;' +
+      `letter-spacing:.1em;color:${SB_TAG_GROUP_COLORS[g]}88;margin:4px 0 2px;`;
+    groupLabel.textContent = g.toUpperCase();
+    container.appendChild(groupLabel);
+
+    SB_TAG_PRESETS.filter(p => p.group === g).forEach(p => {
+      const active = activeTags.includes(p.label.toLowerCase());
+      const chip = document.createElement('button');
+      chip.className = 'sb-tag-picker-chip';
+      chip.style.cssText = [
+        'font-family:"JetBrains Mono",monospace','font-size:.46rem','letter-spacing:.05em',
+        'padding:3px 9px','border-radius:10px','cursor:pointer','white-space:nowrap',
+        'transition:background .12s,border-color .12s',
+        active
+          ? `background:${p.color}28;border:1px solid ${p.color}90;color:${p.color}`
+          : `background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:rgba(160,180,220,.6)`,
+      ].join(';');
+      chip.textContent = p.label;
+      chip.onclick = () => {
+        sbTagToggle(name, p.label);
+        _sbRenderPresetChips(name); // re-render to reflect new state
+      };
+      container.appendChild(chip);
+    });
+  });
+}
+
+// Toggle a tag on/off
+function sbTagToggle(name, tag) {
+  if(!bodies[name]) return;
+  const tags = _sbGetTags(name);
+  const idx  = tags.findIndex(t => t.toLowerCase() === tag.toLowerCase());
+  if(idx >= 0) tags.splice(idx, 1);
+  else tags.push(tag);
+  _sbSetTags(name, tags);
+  fillTagRow(name);
+  pushUndo();
+}
+
+// Remove a tag (called from chip ✕ button)
+function sbTagRemove(name, tag) {
+  if(!bodies[name]) return;
+  const tags = _sbGetTags(name).filter(t => t.toLowerCase() !== tag.toLowerCase());
+  _sbSetTags(name, tags);
+  fillTagRow(name);
+  if(document.getElementById('sbb-tag-picker').style.display !== 'none')
+    _sbRenderPresetChips(name);
+  pushUndo();
+}
+
+// Add custom tag from text input
+function sbTagAddCustom() {
+  if(!selectedBody) return;
+  const input = document.getElementById('sbb-tag-custom-input');
+  const tag   = input.value.trim();
+  if(!tag) return;
+  sbTagToggle(selectedBody, tag);
+  input.value = '';
+  input.focus();
+}
+
+
+
 // Render a shaded sphere SVG using the body's map color into #sbb-icon
 function updateBodyIcon(r, g, b, a){
   const cr = Math.min(1, r||0), cg = Math.min(1, g||0), cb = Math.min(1, b||0);
@@ -967,6 +1159,7 @@ function fillSidebar(name){
   nameInput.value = name;
   nameInput.classList.remove('conflict');
   document.getElementById('sbb-type').textContent = b.isCenter ? 'System Center' : '';
+  fillTagRow(name);
 
   // BASE
   const BD = d.BASE_DATA||{};

@@ -896,8 +896,10 @@ body {
 }
 .bsearch-row:hover, .bsearch-row.active { background: var(--ac12); border-color: var(--rim2); }
 .bsearch-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
-.bsearch-name { flex: 1; font-family: 'Orbitron',sans-serif; font-size: .62rem;
+.bsearch-body-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.bsearch-name { font-family: 'Orbitron',sans-serif; font-size: .62rem;
   letter-spacing: .06em; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bsearch-tags { display: flex; flex-wrap: wrap; gap: 3px; }
 .bsearch-sub  { font-size: .58rem; color: var(--ink4); font-family: 'JetBrains Mono',monospace; flex-shrink: 0; }
 .bsearch-dl   { background: rgba(48,224,144,.08); border: 1px solid rgba(48,224,144,.32);
   color: rgba(48,224,144,.85); font-family: 'JetBrains Mono',monospace; font-size: .56rem;

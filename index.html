@@ -250,18 +250,18 @@
       <!-- ── CMP ── -->
       <div class="fs-card">
         <div class="fs-card-header">
-          <span class="fs-card-title">HTSS — Astray's Solar System</span>
+          <span class="fs-card-title">ATSS — Astray's Solar System</span>
           <span class="fs-card-author">by Astray Galaxy</span>
         </div>
         <div class="fs-card-preview" style="padding:0;overflow:hidden;border-radius:6px;aspect-ratio:16/9;height:auto;min-height:unset">
-          <img src="featured/HTSS.png" alt="HTSS Preview" style="width:100%;height:100%;object-fit:cover;display:block">
+          <img src="featured/ATSS.png" alt="ATSS Preview" style="width:100%;height:100%;object-fit:cover;display:block">
         </div>
         <div class="fs-card-desc">
           This solar system contains a major enhancement to the stock solar system and also adds a few neighboring star systems.
         </div>
         <div class="fs-card-actions">
-          <button class="fs-btn fs-btn-dl" onclick="importFeatured('featured/HTSS.zip','HTSS.zip')">⬇ IMPORT</button>
-          <button class="fs-btn fs-btn-open" onclick="loadZipFromUrl('featured/HTSS.zip','HTSS.zip')">▶ OPEN IN EDITOR</button>
+          <button class="fs-btn fs-btn-dl" onclick="importFeatured('featured/ATSS.zip','ATSS.zip')">⬇ IMPORT</button>
+          <button class="fs-btn fs-btn-open" onclick="loadZipFromUrl('featured/ATSS.zip','ATSS.zip')">▶ OPEN IN EDITOR</button>
         </div>
       </div>
 
@@ -281,9 +281,11 @@
 <div id="modal-body-search">
   <div class="mpanel" id="mpanel-body-search" style="max-width:480px;width:92vw;max-height:80vh;display:flex;flex-direction:column">
     <h2 style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:var(--sky2);letter-spacing:.15em;margin-bottom:10px">🔍 FIND BODY</h2>
-    <div style="position:relative;margin-bottom:10px">
+    <div style="position:relative;margin-bottom:8px">
       <input id="bsearch-input" class="prs-search" placeholder="Search bodies…" autocomplete="off" oninput="bsearchRebuild()" style="width:100%;box-sizing:border-box">
     </div>
+    <!-- Tag filters -->
+    <div id="bsearch-tag-filters" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;min-height:0"></div>
     <div id="bsearch-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px;min-height:0;max-height:52vh"></div>
     <div class="modal-footer" style="margin-top:12px">
       <button class="mf-btn" onclick="closeBodySearch()">CLOSE</button>
@@ -398,6 +400,46 @@
         </div>
       </div>
     </div>
+
+    <!-- ── Tag row ── -->
+    <div id="sbb-tag-row" style="margin:0 0 8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-height:22px">
+      <!-- chips injected by fillTagRow() -->
+      <button id="sbb-tag-add-btn" onclick="sbTagOpenPicker()" title="Add tag"
+        style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.07em;
+          padding:2px 7px;border:1px dashed rgba(120,160,255,.3);border-radius:10px;
+          background:none;color:rgba(120,160,255,.45);cursor:pointer;white-space:nowrap">
+        + TAG
+      </button>
+    </div>
+
+    <!-- ── Tag picker ── -->
+    <div id="sbb-tag-picker" style="display:none;margin:-2px 0 10px;
+      background:var(--dp2,#12141a);border:1px solid rgba(120,160,255,.18);border-radius:6px;
+      padding:10px;z-index:10">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.44rem;letter-spacing:.1em;
+        color:rgba(120,160,255,.4);margin-bottom:8px">SELECT TAGS</div>
+      <div id="sbb-tag-preset-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:5px;margin-top:6px">
+        <input id="sbb-tag-custom-input" type="text" placeholder="custom tag…" spellcheck="false"
+          onkeydown="if(event.key==='Enter'){sbTagAddCustom();}"
+          style="flex:1;font-family:'JetBrains Mono',monospace;font-size:.5rem;
+            background:rgba(255,255,255,.04);border:1px solid rgba(120,160,255,.2);
+            border-radius:4px;color:var(--ink3,#c8d8f0);padding:4px 8px;min-width:0">
+        <button onclick="sbTagAddCustom()"
+          style="font-family:'JetBrains Mono',monospace;font-size:.48rem;letter-spacing:.05em;
+            padding:4px 8px;border:1px solid rgba(120,160,255,.3);border-radius:4px;
+            background:rgba(120,160,255,.08);color:rgba(120,160,255,.8);cursor:pointer;white-space:nowrap">
+          + ADD
+        </button>
+      </div>
+      <button onclick="sbTagClosePicker()"
+        style="margin-top:8px;width:100%;font-family:'JetBrains Mono',monospace;font-size:.44rem;
+          letter-spacing:.07em;padding:4px;border:none;border-radius:3px;
+          background:rgba(255,255,255,.04);color:rgba(120,160,255,.4);cursor:pointer">
+        DONE
+      </button>
+    </div>
+
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
       <button class="sb-close" onclick="closeSidebar()">✕</button>
       <div style="display:flex;gap:5px">
