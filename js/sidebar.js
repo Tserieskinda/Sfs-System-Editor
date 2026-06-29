@@ -93,7 +93,7 @@ function fillTagRow(name) {
       `border:1px solid ${col}55`,
       `color:${col}`,
       'border-radius:10px','padding:2px 8px 2px 7px',
-      'font-family:"JetBrains Mono",monospace','font-size:.45rem',
+      'font-family:"JetBrains Mono",monospace','font-size:.62rem',
       'letter-spacing:.06em','white-space:nowrap','cursor:default',
     ].join(';');
     chip.innerHTML = `<span>${tag}</span><button onclick="sbTagRemove('${CSS.escape(name)}','${tag.replace(/'/g,"\\'")}')"
@@ -130,8 +130,8 @@ function _sbRenderPresetChips(name) {
   const groups = [...new Set(SB_TAG_PRESETS.map(p => p.group))];
   groups.forEach(g => {
     const groupLabel = document.createElement('div');
-    groupLabel.style.cssText = 'width:100%;font-family:"JetBrains Mono",monospace;font-size:.4rem;' +
-      `letter-spacing:.1em;color:${SB_TAG_GROUP_COLORS[g]}88;margin:4px 0 2px;`;
+    groupLabel.style.cssText = 'width:100%;font-family:"JetBrains Mono",monospace;font-size:.62rem;' +
+      `letter-spacing:.08em;color:${SB_TAG_GROUP_COLORS[g]}99;margin:6px 0 3px;`;
     groupLabel.textContent = g.toUpperCase();
     container.appendChild(groupLabel);
 
@@ -140,8 +140,8 @@ function _sbRenderPresetChips(name) {
       const chip = document.createElement('button');
       chip.className = 'sb-tag-picker-chip';
       chip.style.cssText = [
-        'font-family:"JetBrains Mono",monospace','font-size:.46rem','letter-spacing:.05em',
-        'padding:3px 9px','border-radius:10px','cursor:pointer','white-space:nowrap',
+        'font-family:"JetBrains Mono",monospace','font-size:.68rem','letter-spacing:.04em',
+        'padding:5px 13px','border-radius:10px','cursor:pointer','white-space:nowrap',
         'transition:background .12s,border-color .12s',
         active
           ? `background:${p.color}28;border:1px solid ${p.color}90;color:${p.color}`
