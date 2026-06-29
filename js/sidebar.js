@@ -78,6 +78,9 @@ function fillTagRow(name) {
   const addBtn = document.getElementById('sbb-tag-add-btn');
   if(!row) return;
 
+  // Close picker whenever the active body changes — prevents stale chip state
+  sbTagClosePicker();
+
   // Remove existing chips (keep the + TAG button)
   Array.from(row.querySelectorAll('.sb-tag-chip')).forEach(c => c.remove());
 
@@ -96,7 +99,9 @@ function fillTagRow(name) {
       'font-family:"JetBrains Mono",monospace','font-size:.62rem',
       'letter-spacing:.06em','white-space:nowrap','cursor:default',
     ].join(';');
-    chip.innerHTML = `<span>${tag}</span><button onclick="sbTagRemove('${CSS.escape(name)}','${tag.replace(/'/g,"\\'")}')"
+    // Use selectedBody at click-time rather than capturing name at render-time
+    const safeTag = tag.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    chip.innerHTML = `<span>${tag}</span><button onclick="sbTagRemove(selectedBody,'${safeTag}')"
       style="background:none;border:none;color:inherit;opacity:.6;cursor:pointer;
         padding:0 0 0 2px;font-size:.6rem;line-height:1;margin-left:1px">✕</button>`;
     row.insertBefore(chip, addBtn);
@@ -159,24 +164,27 @@ function _sbRenderPresetChips(name) {
 
 // Toggle a tag on/off
 function sbTagToggle(name, tag) {
-  if(!bodies[name]) return;
-  const tags = _sbGetTags(name);
+  // Always operate on selectedBody — name may be stale if body was switched
+  const target = (name && bodies[name]) ? name : selectedBody;
+  if(!target || !bodies[target]) return;
+  const tags = _sbGetTags(target);
   const idx  = tags.findIndex(t => t.toLowerCase() === tag.toLowerCase());
   if(idx >= 0) tags.splice(idx, 1);
   else tags.push(tag);
-  _sbSetTags(name, tags);
-  fillTagRow(name);
+  _sbSetTags(target, tags);
+  fillTagRow(target);
   pushUndo();
 }
 
 // Remove a tag (called from chip ✕ button)
 function sbTagRemove(name, tag) {
-  if(!bodies[name]) return;
-  const tags = _sbGetTags(name).filter(t => t.toLowerCase() !== tag.toLowerCase());
-  _sbSetTags(name, tags);
-  fillTagRow(name);
+  const target = (name && bodies[name]) ? name : selectedBody;
+  if(!target || !bodies[target]) return;
+  const tags = _sbGetTags(target).filter(t => t.toLowerCase() !== tag.toLowerCase());
+  _sbSetTags(target, tags);
+  fillTagRow(target);
   if(document.getElementById('sbb-tag-picker').style.display !== 'none')
-    _sbRenderPresetChips(name);
+    _sbRenderPresetChips(target);
   pushUndo();
 }
 
