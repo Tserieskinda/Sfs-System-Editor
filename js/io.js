@@ -341,6 +341,7 @@ async function loadZipFile(file){
 
     updateStatusBar();
     syncAddBodyBtn();
+    if(typeof tagDdSyncBtn === 'function') tagDdSyncBtn();
     setLoadingMsg('Done!');
     refreshTexPickerLists();
     updateAssetEmptyState();
@@ -929,7 +930,7 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
   _bulkLoadActive = true;
   const _thumbsDeferred = []; // renderAssetThumb calls deferred until queue drains
 
-  // If this is a named import (e.g. BGH, ATSS), reset the bucket up-front so
+  // If this is a named import (e.g. BGH, HTSS), reset the bucket up-front so
   // re-importing the same system replaces it instead of accumulating duplicates.
   if(namedCategory) dynamicPresetSources[namedCategory] = { presets:{}, zipName };
 
@@ -1350,6 +1351,7 @@ async function importSystemZip(file){
     if(typeof fillSidebar === 'function') fillSidebar();
     updateStatusBar();
     syncAddBodyBtn();
+    if(typeof tagDdSyncBtn === 'function') tagDdSyncBtn();
     refreshTexPickerLists();
     updateAssetEmptyState();
     const hasCenter = Object.values(bodies).some(b => b.isCenter);

@@ -101,6 +101,7 @@ function fillTagRow(name) {
         padding:0 0 0 2px;font-size:.6rem;line-height:1;margin-left:1px">✕</button>`;
     row.insertBefore(chip, addBtn);
   });
+  if(typeof tagDdSyncBtn === 'function') tagDdSyncBtn();
 }
 
 // Open/close picker
@@ -401,6 +402,7 @@ function confirmDeleteBody(){
   closeSidebar();
   drawViewport();
   syncAddBodyBtn();
+  if(typeof tagDdSyncBtn === 'function') tagDdSyncBtn();
 }
 
 // ── Change system center to an existing body (re-root the orbit tree) ────
@@ -858,6 +860,7 @@ function importBodyFromTxt(input){
 
     closePreset();
     syncAddBodyBtn();
+    if(typeof tagDdSyncBtn === 'function') tagDdSyncBtn();
     updateStatusBar();
     selectBody(name);
     drawViewport();
