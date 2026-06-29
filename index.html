@@ -2328,12 +2328,93 @@
     </div><!-- /draw panel -->
 
     <!-- ── GENERATE TAB ── -->
-    <div id="ast-panel-generate" style="display:none;padding:30px 14px;text-align:center;
-      font-family:'JetBrains Mono',monospace;font-size:.58rem;color:rgba(90,90,112,.7);letter-spacing:.08em">
-      <div style="font-size:2rem;margin-bottom:12px">⚡</div>
-      <div style="color:rgba(150,150,180,.6);margin-bottom:6px">GENERATE</div>
-      <div style="font-size:.5rem;color:rgba(85,85,112,.6)">Procedural asteroid generation coming soon</div>
-    </div>
+    <div id="ast-panel-generate" style="display:none;padding:14px;display:flex;flex-direction:column;gap:12px;font-family:'JetBrains Mono',monospace">
+
+      <!-- Preview canvas -->
+      <div style="background:rgba(18,18,26,.7);border:1px solid rgba(90,240,192,.15);padding:10px;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:.5rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">PREVIEW</div>
+        <canvas id="pg-preview" width="300" height="300"
+          style="display:block;width:100%!important;height:auto!important;
+          border:1px solid rgba(90,240,192,.12);background:#060608"></canvas>
+        <div style="display:flex;gap:8px">
+          <button onclick="pgRandomize()" style="flex:1;background:transparent;border:1px solid rgba(90,90,112,.4);
+            color:rgba(180,180,200,.7);font-size:.55rem;letter-spacing:.06em;padding:9px 12px;min-height:38px;cursor:pointer">🎲 RANDOMIZE</button>
+          <button onclick="pgCommit()" style="flex:1;background:transparent;border:1px solid rgba(90,240,192,.5);
+            color:rgba(90,240,192,.9);font-size:.58rem;letter-spacing:.08em;padding:9px 12px;min-height:38px;cursor:pointer;font-weight:700">USE THIS →</button>
+        </div>
+      </div>
+
+      <!-- Base Shape -->
+      <div style="background:rgba(18,18,26,.7);border:1px solid rgba(90,240,192,.15);padding:10px;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:.5rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">BASE SHAPE</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap" id="pg-shape-btns">
+          <button class="pg-shape-btn active" data-shape="round"   onclick="pgSetShape('round')"   style="flex:1;min-width:60px;padding:7px 10px;font-size:.56rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,240,192,.6);background:rgba(90,240,192,.12);color:rgba(90,240,192,.95)">● Round</button>
+          <button class="pg-shape-btn"        data-shape="ellipse" onclick="pgSetShape('ellipse')" style="flex:1;min-width:60px;padding:7px 10px;font-size:.56rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,90,112,.35);background:none;color:rgba(180,180,200,.6)">⬭ Ellipse</button>
+          <button class="pg-shape-btn"        data-shape="long"    onclick="pgSetShape('long')"    style="flex:1;min-width:60px;padding:7px 10px;font-size:.56rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,90,112,.35);background:none;color:rgba(180,180,200,.6)">— Long</button>
+          <button class="pg-shape-btn"        data-shape="blocky"  onclick="pgSetShape('blocky')"  style="flex:1;min-width:60px;padding:7px 10px;font-size:.56rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,90,112,.35);background:none;color:rgba(180,180,200,.6)">⬜ Blocky</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:.52rem;color:rgba(85,85,112,.9)">
+          Irregularity
+          <input type="range" id="pg-irregular" min="0" max="100" value="40" style="flex:1;height:24px;accent-color:rgba(90,240,192,.8)" oninput="document.getElementById('pg-irregular-v').textContent=this.value;pgPreview()">
+          <span id="pg-irregular-v" style="color:rgba(220,220,255,.8);min-width:28px">40</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:.52rem;color:rgba(85,85,112,.9)">
+          Smoothing
+          <input type="range" id="pg-smooth" min="0" max="80" value="18" style="flex:1;height:24px;accent-color:rgba(90,240,192,.8)" oninput="document.getElementById('pg-smooth-v').textContent=this.value;pgPreview()">
+          <span id="pg-smooth-v" style="color:rgba(220,220,255,.8);min-width:28px">18</span>
+        </div>
+      </div>
+
+      <!-- Major Deformations -->
+      <div style="background:rgba(18,18,26,.7);border:1px solid rgba(90,240,192,.15);padding:10px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:.5rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">MAJOR DEFORMATIONS</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+          <input type="checkbox" id="pg-deep-craters" onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Deep Craters
+          <span style="font-size:.46rem;color:rgba(85,85,112,.7);margin-left:4px">large concave dips</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+          <input type="checkbox" id="pg-bisected" onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Bisected
+          <span style="font-size:.46rem;color:rgba(85,85,112,.7);margin-left:4px">pinched waist — two-lobed shape</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+          <input type="checkbox" id="pg-trisected" onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Trisected
+          <span style="font-size:.46rem;color:rgba(85,85,112,.7);margin-left:4px">three-lobed peanut shape</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+          <input type="checkbox" id="pg-uplifted" onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Uplifted Ridge
+          <span style="font-size:.46rem;color:rgba(85,85,112,.7);margin-left:4px">bulging spine along one side</span>
+        </label>
+        <div style="display:flex;align-items:center;gap:8px;font-size:.52rem;color:rgba(85,85,112,.9);margin-top:2px">
+          Strength
+          <input type="range" id="pg-major-str" min="10" max="100" value="55" style="flex:1;height:24px;accent-color:rgba(90,240,192,.8)" oninput="document.getElementById('pg-major-str-v').textContent=this.value;pgPreview()">
+          <span id="pg-major-str-v" style="color:rgba(220,220,255,.8);min-width:28px">55</span>
+        </div>
+      </div>
+
+      <!-- Minor Deformations -->
+      <div style="background:rgba(18,18,26,.7);border:1px solid rgba(90,240,192,.15);padding:10px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:.5rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">MINOR DEFORMATIONS</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+          <input type="checkbox" id="pg-craters-minor" onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Small Craters
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+          <input type="checkbox" id="pg-moist" onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Moist / Grooves
+          <span style="font-size:.46rem;color:rgba(85,85,112,.7);margin-left:4px">parallel surface channels</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+          <input type="checkbox" id="pg-jagged" checked onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Jaggedness
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+          <input type="checkbox" id="pg-roughness-minor" checked onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Roughness
+        </label>
+        <div style="display:flex;align-items:center;gap:8px;font-size:.52rem;color:rgba(85,85,112,.9);margin-top:2px">
+          Strength
+          <input type="range" id="pg-minor-str" min="0" max="100" value="35" style="flex:1;height:24px;accent-color:rgba(90,240,192,.8)" oninput="document.getElementById('pg-minor-str-v').textContent=this.value;pgPreview()">
+          <span id="pg-minor-str-v" style="color:rgba(220,220,255,.8);min-width:28px">35</span>
+        </div>
+      </div>
+
+    </div><!-- /ast-panel-generate -->
 
     <!-- ── BELT/RING TAB ── -->
     <div id="ast-panel-belt" style="display:none;padding:30px 14px;text-align:center;
@@ -2926,6 +3007,279 @@ function astApplyEffects(src) {
   }
   return out;
 }
+
+// ═══════════════════════ PROCEDURAL GENERATOR ═══════════════════════
+// Generates astRadii procedurally, then commits into the DRAW pipeline.
+
+let _pgShape = 'round';
+let _pgSeed  = Math.random() * 99999 | 0;
+
+function pgSetShape(s) {
+  _pgShape = s;
+  document.querySelectorAll('.pg-shape-btn').forEach(b => {
+    const on = b.dataset.shape === s;
+    b.style.borderColor  = on ? 'rgba(90,240,192,.6)' : 'rgba(90,90,112,.35)';
+    b.style.background   = on ? 'rgba(90,240,192,.12)' : 'none';
+    b.style.color        = on ? 'rgba(90,240,192,.95)' : 'rgba(180,180,200,.6)';
+  });
+  pgPreview();
+}
+
+function pgRandomize() {
+  _pgSeed = Math.random() * 99999 | 0;
+  // Randomly pick shape
+  const shapes = ['round','ellipse','long','blocky'];
+  pgSetShape(shapes[Math.floor(Math.random() * shapes.length)]);
+  // Random sliders
+  document.getElementById('pg-irregular').value  = 20 + Math.random() * 70 | 0;
+  document.getElementById('pg-irregular-v').textContent = document.getElementById('pg-irregular').value;
+  document.getElementById('pg-smooth').value     = 5  + Math.random() * 50 | 0;
+  document.getElementById('pg-smooth-v').textContent    = document.getElementById('pg-smooth').value;
+  document.getElementById('pg-major-str').value  = 20 + Math.random() * 70 | 0;
+  document.getElementById('pg-major-str-v').textContent = document.getElementById('pg-major-str').value;
+  document.getElementById('pg-minor-str').value  = 10 + Math.random() * 70 | 0;
+  document.getElementById('pg-minor-str-v').textContent = document.getElementById('pg-minor-str').value;
+  // Random deformation checkboxes
+  const majors = ['pg-deep-craters','pg-bisected','pg-trisected','pg-uplifted'];
+  const minors = ['pg-craters-minor','pg-moist','pg-jagged','pg-roughness-minor'];
+  majors.forEach(id => { document.getElementById(id).checked = Math.random() < .3; });
+  minors.forEach(id => { document.getElementById(id).checked = Math.random() < .55; });
+  pgPreview();
+}
+
+// PRNG seeded
+function _pgRng(seed) {
+  let s = seed | 0;
+  return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 4294967296; };
+}
+
+// Build radii array from current controls
+function _pgBuildRadii(N, rng) {
+  const shape      = _pgShape;
+  const irregular  = parseInt(document.getElementById('pg-irregular').value) / 100;
+  const smooth     = parseInt(document.getElementById('pg-smooth').value);
+  const majorStr   = parseInt(document.getElementById('pg-major-str').value) / 100;
+  const minorStr   = parseInt(document.getElementById('pg-minor-str').value) / 100;
+  const deepCraters  = document.getElementById('pg-deep-craters').checked;
+  const bisected     = document.getElementById('pg-bisected').checked;
+  const trisected    = document.getElementById('pg-trisected').checked;
+  const uplifted     = document.getElementById('pg-uplifted').checked;
+  const cratersMinor = document.getElementById('pg-craters-minor').checked;
+  const moist        = document.getElementById('pg-moist').checked;
+  const jagged       = document.getElementById('pg-jagged').checked;
+  const roughMin     = document.getElementById('pg-roughness-minor').checked;
+
+  const R    = new Float32Array(N);
+  const BASE = 150;
+
+  // ── Base shape ────────────────────────────────────────────────────
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    let r;
+    if (shape === 'round') {
+      r = BASE;
+    } else if (shape === 'ellipse') {
+      const aspect = 1.35 + rng() * 0.3;
+      r = BASE / Math.sqrt(Math.cos(a)**2 + (Math.sin(a)/aspect)**2);
+    } else if (shape === 'long') {
+      const aspect = 1.8 + rng() * 0.6;
+      r = BASE / Math.sqrt(Math.cos(a)**2 + (Math.sin(a)/aspect)**2);
+    } else { // blocky
+      // superellipse: |cos|^n + |sin|^n = 1
+      const n = 3.5 + rng() * 2;
+      r = BASE / Math.pow(Math.abs(Math.cos(a))**n + Math.abs(Math.sin(a))**n, 1/n);
+    }
+    R[i] = Math.max(20, r);
+  }
+
+  // ── Irregular noise (multi-octave) ───────────────────────────────
+  if (irregular > 0) {
+    const octaves = 4;
+    const noises  = [];
+    for (let o = 0; o < octaves; o++) {
+      const freq = 3 + o * 4;
+      const nl   = Math.max(4, freq);
+      const n    = new Float32Array(nl);
+      for (let k = 0; k < nl; k++) n[k] = (rng() - 0.5) * 2;
+      noises.push(n);
+    }
+    for (let i = 0; i < N; i++) {
+      let v = 0, amp = 1, tot = 0;
+      noises.forEach(n => {
+        const t  = (i / N) * n.length;
+        const i0 = Math.floor(t) % n.length, i1 = (i0 + 1) % n.length;
+        v   += (n[i0] * (1 - (t % 1)) + n[i1] * (t % 1)) * amp;
+        tot += amp; amp *= 0.55;
+      });
+      R[i] = Math.max(10, R[i] + (v / tot) * R[i] * irregular * 0.55);
+    }
+  }
+
+  // ── Major deformations ────────────────────────────────────────────
+  if (bisected || trisected) {
+    const lobes = trisected ? 3 : 2;
+    const depth = 0.28 + rng() * 0.2;
+    const str   = majorStr;
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2;
+      const pinch = Math.cos(a * lobes * 0.5) ** 2; // 0..1, min at waist
+      R[i] = Math.max(10, R[i] * (1 - str * depth * (1 - pinch)));
+    }
+  }
+  if (uplifted) {
+    const offset = Math.floor(rng() * N);
+    const width  = N * (0.15 + rng() * 0.15);
+    const bump   = 0.2 + rng() * 0.15;
+    for (let i = 0; i < N; i++) {
+      const dist = Math.min(Math.abs(i - offset), N - Math.abs(i - offset));
+      if (dist < width) {
+        const t = 1 - dist / width;
+        R[i] = R[i] * (1 + majorStr * bump * t * t);
+      }
+    }
+  }
+  if (deepCraters) {
+    const count = 2 + Math.floor(rng() * 4);
+    for (let c = 0; c < count; c++) {
+      const center = Math.floor(rng() * N);
+      const w      = Math.floor(N * (0.04 + rng() * 0.07));
+      const d      = majorStr * (0.25 + rng() * 0.35);
+      for (let k = -w; k <= w; k++) {
+        const idx = ((center + k) % N + N) % N;
+        const t   = Math.cos(Math.abs(k) / w * Math.PI * 0.5);
+        R[idx] = Math.max(10, R[idx] * (1 - d * t));
+      }
+    }
+  }
+
+  // ── Minor deformations ────────────────────────────────────────────
+  if (cratersMinor) {
+    const count = 4 + Math.floor(rng() * 8);
+    for (let c = 0; c < count; c++) {
+      const center = Math.floor(rng() * N);
+      const w      = Math.floor(N * (0.01 + rng() * 0.025));
+      const d      = minorStr * (0.1 + rng() * 0.2);
+      for (let k = -w; k <= w; k++) {
+        const idx = ((center + k) % N + N) % N;
+        const t   = Math.cos(Math.abs(k) / Math.max(w,1) * Math.PI * 0.5);
+        R[idx] = Math.max(8, R[idx] * (1 - d * t));
+      }
+    }
+  }
+  if (moist) {
+    const channels = 4 + Math.floor(rng() * 6);
+    for (let c = 0; c < channels; c++) {
+      const center = Math.floor(rng() * N);
+      const w      = 1 + Math.floor(rng() * 3);
+      const d      = minorStr * 0.06 * (0.5 + rng());
+      for (let k = -w; k <= w; k++) {
+        const idx = ((center + k) % N + N) % N;
+        R[idx] = Math.max(8, R[idx] * (1 - d));
+      }
+    }
+  }
+  if (jagged) {
+    const freq = 12 + Math.floor(rng() * 20);
+    const nl   = freq;
+    const n    = new Float32Array(nl);
+    for (let k = 0; k < nl; k++) n[k] = (rng() - 0.5) * 2;
+    for (let i = 0; i < N; i++) {
+      const t  = (i / N) * nl;
+      const i0 = Math.floor(t) % nl, i1 = (i0 + 1) % nl;
+      const v  = n[i0] * (1 - (t % 1)) + n[i1] * (t % 1);
+      R[i] = Math.max(8, R[i] + v * R[i] * minorStr * 0.08);
+    }
+  }
+  if (roughMin) {
+    for (let i = 0; i < N; i++) {
+      R[i] = Math.max(8, R[i] + (rng() - 0.5) * R[i] * minorStr * 0.07);
+    }
+  }
+
+  // ── Smooth ───────────────────────────────────────────────────────
+  if (smooth > 0) {
+    const out = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      let sum = 0;
+      for (let k = -smooth; k <= smooth; k++)
+        sum += R[((i + k) % N + N) % N];
+      out[i] = sum / (smooth * 2 + 1);
+    }
+    return out;
+  }
+  return R;
+}
+
+// Draw on the mini preview canvas
+function pgPreview() {
+  const c   = document.getElementById('pg-preview');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const CX  = c.width / 2, CY = c.height / 2;
+  const N   = 512;
+  const rng = _pgRng(_pgSeed);
+  const R   = _pgBuildRadii(N, rng);
+  const maxR = Math.max(...R);
+  const scale = (Math.min(CX, CY) - 10) / maxR;
+
+  ctx.clearRect(0, 0, c.width, c.height);
+  // Grid rings
+  ctx.strokeStyle = 'rgba(26,26,42,.7)'; ctx.lineWidth = 1;
+  [0.25, 0.5, 0.75, 1].forEach(f => {
+    ctx.beginPath(); ctx.arc(CX, CY, maxR * scale * f, 0, Math.PI * 2); ctx.stroke();
+  });
+  // Shape
+  ctx.beginPath();
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2 - Math.PI;
+    const x = CX + Math.cos(a) * R[i] * scale;
+    const y = CY + Math.sin(a) * R[i] * scale;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  const g = ctx.createRadialGradient(CX, CY, 0, CX, CY, maxR * scale);
+  g.addColorStop(0,  'rgba(90,240,192,.18)');
+  g.addColorStop(.7, 'rgba(90,240,192,.08)');
+  g.addColorStop(1,  'rgba(90,240,192,.02)');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = 'rgba(90,240,192,.9)'; ctx.lineWidth = 1.5; ctx.stroke();
+  // Centre dot
+  ctx.fillStyle = 'rgba(90,240,192,.5)';
+  ctx.beginPath(); ctx.arc(CX, CY, 2.5, 0, Math.PI * 2); ctx.fill();
+}
+
+// Commit generated radii into astRadii, then switch to DRAW tab
+function pgCommit() {
+  const N   = AST_RES;
+  const rng = _pgRng(_pgSeed);
+  const R   = _pgBuildRadii(512, rng);   // build at 512
+  // Resample to AST_RES
+  const maxR = Math.max(...R);
+  if (maxR === 0) return;
+  const c    = astGetCanvas();
+  const MAX_R = Math.min(c.width, c.height) / 2 - 10;
+  const scale = MAX_R / maxR;
+  for (let i = 0; i < N; i++) {
+    const srcIdx = Math.floor(i / N * R.length);
+    astRadii[i] = R[srcIdx] * scale;
+  }
+  // Sync draw-tab smooth slider to procgen smooth
+  document.getElementById('ast-smooth').value = document.getElementById('pg-smooth').value;
+  document.getElementById('ast-smooth-val').textContent = document.getElementById('pg-smooth').value;
+  astInvalidateCache();
+  switchAsteroidTab('draw');
+  astRedraw();
+  astGenerate();
+}
+
+// Run preview whenever the tab opens
+(function _pgInitHook(){
+  const orig = window.switchAsteroidTab;
+  window.switchAsteroidTab = function(tab) {
+    orig(tab);
+    if (tab === 'generate') setTimeout(pgPreview, 30);
+  };
+})();
 
 // Close modal on backdrop click
 document.getElementById('asteroids-modal').addEventListener('click', function(e){
