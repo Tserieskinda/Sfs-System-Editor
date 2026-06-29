@@ -47,6 +47,7 @@ const SB_TAG_PRESETS = [
   { label:'Fictional',   group:'meta',   color:'#e060a0' },
   { label:'Habitable',   group:'meta',   color:'#40e060' },
   { label:'Tidally Locked', group:'meta',color:'#c0a0ff' },
+  { label:'Barycentre',  group:'meta',   color:'#80c8ff' },
 ];
 
 const SB_TAG_GROUP_COLORS = {
