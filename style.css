@@ -2654,6 +2654,22 @@ body {
   color: var(--sky3);
 }
 
+.fs-card-stats {
+  display: flex; gap: 14px; align-items: center;
+  padding: 0 16px 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .6rem; color: var(--ink4); letter-spacing: .06em;
+}
+.fs-stat {
+  display: flex; align-items: center; gap: 5px;
+  opacity: .75;
+}
+.fs-stat-num {
+  color: var(--sky2); font-weight: 700; opacity: 1;
+  min-width: 1.5em; text-align: right;
+}
+.fs-stat-num.fs-stat-loading { opacity: .35; }
+
 .fs-card-coming {
   font-family: 'JetBrains Mono', monospace;
   font-size: .55rem; color: var(--ink4); letter-spacing: .06em;
