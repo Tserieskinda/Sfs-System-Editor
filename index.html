@@ -2019,7 +2019,7 @@
       letter-spacing:.14em;flex:1">☄️ ASTEROIDS</span>
     <button onclick="closeAsteroidsMenu()" style="background:none;border:1px solid rgba(90,240,192,.2);
       border-radius:3px;color:rgba(90,240,192,.6);font-family:'JetBrains Mono',monospace;
-      font-size:.8rem;padding:4px 10px;cursor:pointer;letter-spacing:.06em">✕ CLOSE</button>
+      font-size:.6rem;padding:4px 10px;cursor:pointer;letter-spacing:.06em">✕ CLOSE</button>
   </div>
 
   <!-- Tab bar -->
@@ -2027,17 +2027,17 @@
     border-left:1px solid rgba(90,240,192,.25);border-right:1px solid rgba(90,240,192,.25);
     flex-shrink:0">
     <button id="ast-tab-draw" onclick="switchAsteroidTab('draw')"
-      style="flex:1;padding:10px 6px;background:rgba(90,240,192,.1);border:none;border-bottom:2px solid rgba(90,240,192,.8);
-      font-family:'JetBrains Mono',monospace;font-size:.78rem;color:rgba(90,240,192,.95);
-      letter-spacing:.07em;cursor:pointer;transition:all .15s">✏ DRAW</button>
+      style="flex:1;padding:9px 6px;background:rgba(90,240,192,.1);border:none;border-bottom:2px solid rgba(90,240,192,.8);
+      font-family:'JetBrains Mono',monospace;font-size:.6rem;color:rgba(90,240,192,.95);
+      letter-spacing:.08em;cursor:pointer;transition:all .15s">✏ DRAW</button>
     <button id="ast-tab-generate" onclick="switchAsteroidTab('generate')"
-      style="flex:1;padding:10px 6px;background:none;border:none;border-bottom:2px solid transparent;
-      font-family:'JetBrains Mono',monospace;font-size:.78rem;color:rgba(150,150,180,.6);
-      letter-spacing:.07em;cursor:pointer;transition:all .15s">⚡ GENERATE</button>
+      style="flex:1;padding:9px 6px;background:none;border:none;border-bottom:2px solid transparent;
+      font-family:'JetBrains Mono',monospace;font-size:.6rem;color:rgba(150,150,180,.6);
+      letter-spacing:.08em;cursor:pointer;transition:all .15s">⚡ GENERATE</button>
     <button id="ast-tab-belt" onclick="switchAsteroidTab('belt')"
-      style="flex:1;padding:10px 6px;background:none;border:none;border-bottom:2px solid transparent;
-      font-family:'JetBrains Mono',monospace;font-size:.78rem;color:rgba(150,150,180,.6);
-      letter-spacing:.07em;cursor:pointer;transition:all .15s">🪐 BELT / RING</button>
+      style="flex:1;padding:9px 6px;background:none;border:none;border-bottom:2px solid transparent;
+      font-family:'JetBrains Mono',monospace;font-size:.6rem;color:rgba(150,150,180,.6);
+      letter-spacing:.08em;cursor:pointer;transition:all .15s">🪐 BELT / RING</button>
   </div>
 
   <!-- Content area -->
@@ -2049,7 +2049,7 @@
 
       <!-- Draw canvas panel -->
       <div style="background:rgba(18,18,26,.7);border:1px solid rgba(90,240,192,.15);padding:10px;display:flex;flex-direction:column;gap:8px">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.14em;color:rgba(90,240,192,.45);text-transform:uppercase">Draw Shape</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.5rem;letter-spacing:.14em;color:rgba(90,240,192,.45);text-transform:uppercase">Draw Shape</div>
         <div style="width:100%;position:relative">
           <canvas id="ast-polar" width="420" height="420"
             style="display:block;width:100%!important;height:auto!important;
@@ -2057,13 +2057,13 @@
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button onclick="astClearCanvas()" style="flex:1;background:transparent;border:1px solid rgba(240,90,122,.4);
-            color:rgba(240,90,122,.8);font-family:'JetBrains Mono',monospace;font-size:.78rem;
+            color:rgba(240,90,122,.8);font-family:'JetBrains Mono',monospace;font-size:.58rem;
             letter-spacing:.08em;padding:10px 12px;min-height:40px;cursor:pointer;text-transform:uppercase">Clear</button>
           <button onclick="astGenerate()" style="flex:1;background:transparent;border:1px solid rgba(90,240,192,.5);
-            color:rgba(90,240,192,.9);font-family:'JetBrains Mono',monospace;font-size:.78rem;
+            color:rgba(90,240,192,.9);font-family:'JetBrains Mono',monospace;font-size:.58rem;
             letter-spacing:.08em;padding:10px 12px;min-height:40px;cursor:pointer;text-transform:uppercase">Generate →</button>
         </div>
-        <div style="display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:rgba(90,90,112,.9);letter-spacing:.05em">
+        <div style="display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(90,90,112,.9);letter-spacing:.05em">
           Smooth:
           <input type="range" id="ast-smooth" min="0" max="60" value="12"
             style="accent-color:rgba(90,240,192,.8);flex:1;height:28px"
@@ -2071,19 +2071,19 @@
           <span id="ast-smooth-val" style="color:rgba(220,220,255,.8);min-width:22px">12</span>
         </div>
         <!-- Trace image -->
-        <div style="font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.14em;color:rgba(90,240,192,.45);margin-top:2px">Trace Image</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.5rem;letter-spacing:.14em;color:rgba(90,240,192,.45);margin-top:2px">Trace Image</div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <button id="ast-trace-btn" onclick="document.getElementById('ast-trace-file').click()"
             style="flex:1;background:transparent;border:1px dashed rgba(90,90,112,.5);
-            color:rgba(90,90,112,.8);font-family:'JetBrains Mono',monospace;font-size:.74rem;
+            color:rgba(90,90,112,.8);font-family:'JetBrains Mono',monospace;font-size:.54rem;
             letter-spacing:.06em;padding:10px 12px;min-height:38px;cursor:pointer;text-align:center">+ Upload Reference Image</button>
           <button id="ast-trace-clear" onclick="astClearTrace()" style="display:none;flex:0;background:transparent;
             border:1px solid rgba(90,90,112,.4);color:rgba(180,180,200,.6);
-            font-family:'JetBrains Mono',monospace;font-size:.8rem;padding:10px 12px;min-height:38px;cursor:pointer">✕</button>
+            font-family:'JetBrains Mono',monospace;font-size:.6rem;padding:10px 12px;min-height:38px;cursor:pointer">✕</button>
         </div>
         <input type="file" id="ast-trace-file" accept="image/*" style="display:none" onchange="astLoadTrace(this)">
         <div id="ast-trace-opacity-row" style="display:none;align-items:center;gap:10px;
-          font-family:'JetBrains Mono',monospace;font-size:.72rem;color:rgba(90,90,112,.9)">
+          font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(90,90,112,.9)">
           Opacity:
           <input type="range" id="ast-trace-opacity" min="5" max="80" value="35"
             style="accent-color:rgba(90,240,192,.8);flex:1;height:28px"
@@ -2093,17 +2093,17 @@
         <div id="ast-pan-controls" style="display:none">
           <button id="ast-pan-btn" onclick="astTogglePan()"
             style="background:transparent;border:1px solid rgba(90,90,112,.4);color:rgba(180,180,200,.6);
-            font-family:'JetBrains Mono',monospace;font-size:.72rem;letter-spacing:.06em;
+            font-family:'JetBrains Mono',monospace;font-size:.52rem;letter-spacing:.06em;
             padding:8px 12px;min-height:34px;cursor:pointer;white-space:nowrap">⤢ Pan / Zoom Image</button>
         </div>
-        <div id="ast-draw-hint" style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:rgba(85,85,112,.8);letter-spacing:.04em">Drag to paint the asteroid silhouette</div>
+        <div id="ast-draw-hint" style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(85,85,112,.8);letter-spacing:.04em">Drag to paint the asteroid silhouette</div>
 
 
       </div>
 
       <!-- Effects panel -->
       <div style="background:rgba(18,18,26,.7);border:1px solid rgba(90,240,192,.15);padding:10px;display:flex;flex-direction:column;gap:8px">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">Add-On Effects</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.5rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">Add-On Effects</div>
         <div style="display:flex;flex-direction:column;gap:8px" id="ast-effects-list">
 
           <!-- Craters -->
@@ -2111,23 +2111,23 @@
             style="border:1px solid rgba(42,42,58,.8);padding:10px;cursor:pointer;position:relative;transition:border-color .15s">
             <div style="position:absolute;top:10px;right:10px;width:6px;height:6px;border-radius:50%;
               border:1px solid rgba(42,42,58,.8)" id="ast-dot-craters"></div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.76rem;letter-spacing:.1em;color:rgba(220,220,255,.8);text-transform:uppercase">Craters</div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.68rem;color:rgba(85,85,112,.8);margin-top:3px">Punch circular impact dips into the silhouette edge</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.56rem;letter-spacing:.1em;color:rgba(220,220,255,.8);text-transform:uppercase">Craters</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;color:rgba(85,85,112,.8);margin-top:3px">Punch circular impact dips into the silhouette edge</div>
             <div id="ast-fx-sliders-craters" style="display:none;flex-direction:column;gap:4px;margin-top:8px">
-              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:rgba(85,85,112,.9)">Count
+              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(85,85,112,.9)">Count
                 <input type="range" id="ast-craters-count" min="1" max="30" value="8" style="flex:1;height:22px;accent-color:rgba(90,240,192,.8)"
                   oninput="document.getElementById('ast-craters-count-v').textContent=this.value;astInvalidateCache();astRedraw();astGenerate()" onclick="event.stopPropagation()">
-                <span id="ast-craters-count-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.7rem">8</span>
+                <span id="ast-craters-count-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.5rem">8</span>
               </div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:rgba(85,85,112,.9)">Depth
+              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(85,85,112,.9)">Depth
                 <input type="range" id="ast-craters-depth" min="1" max="100" value="40" style="flex:1;height:22px;accent-color:rgba(90,240,192,.8)"
                   oninput="document.getElementById('ast-craters-depth-v').textContent=this.value;astInvalidateCache();astRedraw();astGenerate()" onclick="event.stopPropagation()">
-                <span id="ast-craters-depth-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.7rem">40</span>
+                <span id="ast-craters-depth-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.5rem">40</span>
               </div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:rgba(85,85,112,.9)">Width
+              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(85,85,112,.9)">Width
                 <input type="range" id="ast-craters-width" min="2" max="80" value="20" style="flex:1;height:22px;accent-color:rgba(90,240,192,.8)"
                   oninput="document.getElementById('ast-craters-width-v').textContent=this.value;astInvalidateCache();astRedraw();astGenerate()" onclick="event.stopPropagation()">
-                <span id="ast-craters-width-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.7rem">20</span>
+                <span id="ast-craters-width-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.5rem">20</span>
               </div>
             </div>
           </div>
@@ -2137,18 +2137,18 @@
             style="border:1px solid rgba(42,42,58,.8);padding:10px;cursor:pointer;position:relative;transition:border-color .15s">
             <div style="position:absolute;top:10px;right:10px;width:6px;height:6px;border-radius:50%;
               border:1px solid rgba(42,42,58,.8)" id="ast-dot-roughness"></div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.76rem;letter-spacing:.1em;color:rgba(220,220,255,.8);text-transform:uppercase">Roughness</div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.68rem;color:rgba(85,85,112,.8);margin-top:3px">Add high-frequency jagged noise to the outline</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.56rem;letter-spacing:.1em;color:rgba(220,220,255,.8);text-transform:uppercase">Roughness</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;color:rgba(85,85,112,.8);margin-top:3px">Add high-frequency jagged noise to the outline</div>
             <div id="ast-fx-sliders-roughness" style="display:none;flex-direction:column;gap:4px;margin-top:8px">
-              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:rgba(85,85,112,.9)">Amount
+              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(85,85,112,.9)">Amount
                 <input type="range" id="ast-roughness-amt" min="1" max="100" value="30" style="flex:1;height:22px;accent-color:rgba(90,240,192,.8)"
                   oninput="document.getElementById('ast-roughness-amt-v').textContent=this.value;astInvalidateCache();astRedraw();astGenerate()" onclick="event.stopPropagation()">
-                <span id="ast-roughness-amt-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.7rem">30</span>
+                <span id="ast-roughness-amt-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.5rem">30</span>
               </div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:rgba(85,85,112,.9)">Scale
+              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(85,85,112,.9)">Scale
                 <input type="range" id="ast-roughness-scale" min="1" max="60" value="12" style="flex:1;height:22px;accent-color:rgba(90,240,192,.8)"
                   oninput="document.getElementById('ast-roughness-scale-v').textContent=this.value;astInvalidateCache();astRedraw();astGenerate()" onclick="event.stopPropagation()">
-                <span id="ast-roughness-scale-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.7rem">12</span>
+                <span id="ast-roughness-scale-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.5rem">12</span>
               </div>
             </div>
           </div>
@@ -2158,18 +2158,18 @@
             style="border:1px solid rgba(42,42,58,.8);padding:10px;cursor:pointer;position:relative;transition:border-color .15s">
             <div style="position:absolute;top:10px;right:10px;width:6px;height:6px;border-radius:50%;
               border:1px solid rgba(42,42,58,.8)" id="ast-dot-flats"></div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.76rem;letter-spacing:.1em;color:rgba(220,220,255,.8);text-transform:uppercase">Flat Zones</div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.68rem;color:rgba(85,85,112,.8);margin-top:3px">Carve flat plateaus into the heightmap profile</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.56rem;letter-spacing:.1em;color:rgba(220,220,255,.8);text-transform:uppercase">Flat Zones</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;color:rgba(85,85,112,.8);margin-top:3px">Carve flat plateaus into the heightmap profile</div>
             <div id="ast-fx-sliders-flats" style="display:none;flex-direction:column;gap:4px;margin-top:8px">
-              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:rgba(85,85,112,.9)">Count
+              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(85,85,112,.9)">Count
                 <input type="range" id="ast-flats-count" min="1" max="12" value="3" style="flex:1;height:22px;accent-color:rgba(90,240,192,.8)"
                   oninput="document.getElementById('ast-flats-count-v').textContent=this.value;astInvalidateCache();astRedraw();astGenerate()" onclick="event.stopPropagation()">
-                <span id="ast-flats-count-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.7rem">3</span>
+                <span id="ast-flats-count-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.5rem">3</span>
               </div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:rgba(85,85,112,.9)">Width
+              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(85,85,112,.9)">Width
                 <input type="range" id="ast-flats-width" min="5" max="80" value="20" style="flex:1;height:22px;accent-color:rgba(90,240,192,.8)"
                   oninput="document.getElementById('ast-flats-width-v').textContent=this.value;astInvalidateCache();astRedraw();astGenerate()" onclick="event.stopPropagation()">
-                <span id="ast-flats-width-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.7rem">20</span>
+                <span id="ast-flats-width-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.5rem">20</span>
               </div>
             </div>
           </div>
@@ -2179,48 +2179,48 @@
             style="border:1px solid rgba(42,42,58,.8);padding:10px;cursor:pointer;position:relative;transition:border-color .15s">
             <div style="position:absolute;top:10px;right:10px;width:6px;height:6px;border-radius:50%;
               border:1px solid rgba(42,42,58,.8)" id="ast-dot-boulders"></div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.76rem;letter-spacing:.1em;color:rgba(220,220,255,.8);text-transform:uppercase">Boulders</div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.68rem;color:rgba(85,85,112,.8);margin-top:3px">Add protruding bumps along the surface edge</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.56rem;letter-spacing:.1em;color:rgba(220,220,255,.8);text-transform:uppercase">Boulders</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.48rem;color:rgba(85,85,112,.8);margin-top:3px">Add protruding bumps along the surface edge</div>
             <div id="ast-fx-sliders-boulders" style="display:none;flex-direction:column;gap:4px;margin-top:8px">
-              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:rgba(85,85,112,.9)">Count
+              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(85,85,112,.9)">Count
                 <input type="range" id="ast-boulders-count" min="1" max="20" value="6" style="flex:1;height:22px;accent-color:rgba(90,240,192,.8)"
                   oninput="document.getElementById('ast-boulders-count-v').textContent=this.value;astInvalidateCache();astRedraw();astGenerate()" onclick="event.stopPropagation()">
-                <span id="ast-boulders-count-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.7rem">6</span>
+                <span id="ast-boulders-count-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.5rem">6</span>
               </div>
-              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:rgba(85,85,112,.9)">Size
+              <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(85,85,112,.9)">Size
                 <input type="range" id="ast-boulders-size" min="1" max="100" value="35" style="flex:1;height:22px;accent-color:rgba(90,240,192,.8)"
                   oninput="document.getElementById('ast-boulders-size-v').textContent=this.value;astInvalidateCache();astRedraw();astGenerate()" onclick="event.stopPropagation()">
-                <span id="ast-boulders-size-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.7rem">35</span>
+                <span id="ast-boulders-size-v" style="color:rgba(220,220,255,.8);min-width:22px;font-size:.5rem">35</span>
               </div>
             </div>
           </div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px">
           <button onclick="astFxRandomize()" style="flex:1;background:transparent;border:1px solid rgba(90,90,112,.4);
-            color:rgba(180,180,200,.7);font-family:'JetBrains Mono',monospace;font-size:.75rem;
+            color:rgba(180,180,200,.7);font-family:'JetBrains Mono',monospace;font-size:.55rem;
             letter-spacing:.06em;padding:10px 12px;min-height:38px;cursor:pointer;text-transform:uppercase">Randomize</button>
           <button onclick="astGenerate()" style="flex:1;background:transparent;border:1px solid rgba(90,240,192,.4);
-            color:rgba(90,240,192,.8);font-family:'JetBrains Mono',monospace;font-size:.75rem;
+            color:rgba(90,240,192,.8);font-family:'JetBrains Mono',monospace;font-size:.55rem;
             letter-spacing:.06em;padding:10px 12px;min-height:38px;cursor:pointer;text-transform:uppercase">Apply + Generate</button>
         </div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:rgba(85,85,112,.7);letter-spacing:.04em">Tap a card to toggle. Effects apply on generate.</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(85,85,112,.7);letter-spacing:.04em">Tap a card to toggle. Effects apply on generate.</div>
       </div>
 
       <!-- Heightmap output -->
       <div style="background:rgba(18,18,26,.7);border:1px solid rgba(90,240,192,.15);padding:10px;display:flex;flex-direction:column;gap:8px">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">Heightmap Output</div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:rgba(85,85,112,.9);letter-spacing:.04em">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.5rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">Heightmap Output</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(85,85,112,.9);letter-spacing:.04em">
           <span>Resolution:</span>
-          <span style="color:rgba(220,220,255,.7);font-size:.7rem">W</span>
+          <span style="color:rgba(220,220,255,.7);font-size:.5rem">W</span>
           <input type="text" inputmode="decimal" id="ast-res-w" value="512" min="64" max="4096"
             style="width:68px;background:rgba(6,10,22,.9);border:1px solid rgba(90,90,112,.4);color:rgba(220,220,255,.8);
-            font-family:'JetBrains Mono',monospace;font-size:.76rem;padding:4px 6px;text-align:center">
-          <span style="color:rgba(220,220,255,.7);font-size:.7rem">H</span>
+            font-family:'JetBrains Mono',monospace;font-size:.56rem;padding:4px 6px;text-align:center">
+          <span style="color:rgba(220,220,255,.7);font-size:.5rem">H</span>
           <input type="text" inputmode="decimal" id="ast-res-h" value="160" min="32" max="4096"
             style="width:68px;background:rgba(6,10,22,.9);border:1px solid rgba(90,90,112,.4);color:rgba(220,220,255,.8);
-            font-family:'JetBrains Mono',monospace;font-size:.76rem;padding:4px 6px;text-align:center">
+            font-family:'JetBrains Mono',monospace;font-size:.56rem;padding:4px 6px;text-align:center">
           <button onclick="astApplyRes()" style="flex:0;background:transparent;border:1px solid rgba(90,90,112,.4);
-            color:rgba(180,180,200,.7);font-family:'JetBrains Mono',monospace;font-size:.72rem;
+            color:rgba(180,180,200,.7);font-family:'JetBrains Mono',monospace;font-size:.52rem;
             padding:5px 10px;min-height:28px;cursor:pointer;letter-spacing:.04em">Apply</button>
         </div>
         <div style="width:100%">
@@ -2229,7 +2229,7 @@
             background:repeating-conic-gradient(#1a1a2a 0% 25%,#0a0a14 0% 50%) 0 0/12px 12px"></canvas>
         </div>
         <canvas id="ast-graph" height="50" style="width:100%;display:block;border:1px solid rgba(90,90,112,.3);background:#060608"></canvas>
-        <div style="display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:rgba(85,85,112,.9)">
+        <div style="display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(85,85,112,.9)">
           <span>V-Shift:</span>
           <input type="range" id="ast-vshift" min="-100" max="100" value="0"
             style="flex:1;accent-color:rgba(90,240,192,.8);height:28px"
@@ -2237,80 +2237,80 @@
           <span id="ast-vshift-val" style="color:rgba(220,220,255,.8);min-width:28px">0</span>px
           <button onclick="document.getElementById('ast-vshift').value=0;document.getElementById('ast-vshift-val').textContent=0;astApplyVShift()"
             style="flex:0;background:transparent;border:1px solid rgba(90,90,112,.3);color:rgba(150,150,180,.6);
-            font-family:'JetBrains Mono',monospace;font-size:.7rem;padding:3px 8px;min-height:24px;cursor:pointer">Reset</button>
+            font-family:'JetBrains Mono',monospace;font-size:.5rem;padding:3px 8px;min-height:24px;cursor:pointer">Reset</button>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button onclick="astDownload()" style="flex:1;background:transparent;border:1px solid rgba(90,240,192,.4);
-            color:rgba(90,240,192,.8);font-family:'JetBrains Mono',monospace;font-size:.75rem;
+            color:rgba(90,240,192,.8);font-family:'JetBrains Mono',monospace;font-size:.55rem;
             letter-spacing:.06em;padding:10px 12px;min-height:38px;cursor:pointer;text-transform:uppercase">Download PNG</button>
           <button onclick="astExportTxt()" style="flex:1;background:transparent;border:1px solid rgba(90,240,192,.4);
-            color:rgba(90,240,192,.8);font-family:'JetBrains Mono',monospace;font-size:.75rem;
+            color:rgba(90,240,192,.8);font-family:'JetBrains Mono',monospace;font-size:.55rem;
             letter-spacing:.06em;padding:10px 12px;min-height:38px;cursor:pointer;text-transform:uppercase">Export TXT</button>
           <button onclick="astGenerate()" style="flex:1;background:transparent;border:1px solid rgba(90,90,112,.4);
-            color:rgba(180,180,200,.7);font-family:'JetBrains Mono',monospace;font-size:.75rem;
+            color:rgba(180,180,200,.7);font-family:'JetBrains Mono',monospace;font-size:.55rem;
             letter-spacing:.06em;padding:10px 12px;min-height:38px;cursor:pointer;text-transform:uppercase">Refresh</button>
         </div>
-        <div id="ast-map-info" style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:rgba(85,85,112,.7);letter-spacing:.04em">Generate to see output</div>
+        <div id="ast-map-info" style="font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(85,85,112,.7);letter-spacing:.04em">Generate to see output</div>
       </div>
 
       <!-- ── APPLY TO BODY PANEL ── -->
       <div id="ast-apply-panel" style="background:rgba(18,18,26,.7);border:1px solid rgba(90,240,192,.15);padding:10px;display:flex;flex-direction:column;gap:10px">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">Apply to Body</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.5rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">Apply to Body</div>
 
         <!-- PNG name -->
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:rgba(85,85,112,.9);white-space:nowrap">PNG name:</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(85,85,112,.9);white-space:nowrap">PNG name:</span>
           <input type="text" id="ast-png-name" value="asteroid_heightmap"
             style="flex:1;min-width:120px;background:rgba(6,10,22,.9);border:1px solid rgba(90,90,112,.4);
-            color:rgba(220,220,255,.8);font-family:'JetBrains Mono',monospace;font-size:.76rem;
+            color:rgba(220,220,255,.8);font-family:'JetBrains Mono',monospace;font-size:.56rem;
             padding:5px 8px;border-radius:2px">
-          <span style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:rgba(85,85,112,.6)">.png</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(85,85,112,.6)">.png</span>
         </div>
 
         <!-- Body selector -->
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:rgba(85,85,112,.9);white-space:nowrap">Target body:</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(85,85,112,.9);white-space:nowrap">Target body:</span>
           <select id="ast-body-select"
             style="flex:1;min-width:120px;background:rgba(6,10,22,.9);border:1px solid rgba(90,90,112,.4);
-            color:rgba(220,220,255,.8);font-family:'JetBrains Mono',monospace;font-size:.74rem;
+            color:rgba(220,220,255,.8);font-family:'JetBrains Mono',monospace;font-size:.54rem;
             padding:5px 8px;border-radius:2px;appearance:auto">
             <option value="">— select body —</option>
           </select>
           <button onclick="astRefreshBodyList()" title="Refresh body list"
             style="flex:0;background:transparent;border:1px solid rgba(90,90,112,.3);color:rgba(150,150,180,.6);
-            font-family:'JetBrains Mono',monospace;font-size:.8rem;padding:5px 9px;min-height:28px;cursor:pointer">↺</button>
+            font-family:'JetBrains Mono',monospace;font-size:.6rem;padding:5px 9px;min-height:28px;cursor:pointer">↺</button>
         </div>
 
         <!-- Height slider -->
         <div style="display:flex;flex-direction:column;gap:6px">
           <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:rgba(85,85,112,.9);white-space:nowrap">Height:</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(85,85,112,.9);white-space:nowrap">Height:</span>
             <input type="range" id="ast-hmap-height" min="0" max="50000" value="5000"
               style="flex:1;accent-color:rgba(90,240,192,.8);height:28px"
               oninput="document.getElementById('ast-hmap-height-val').value=this.value;astUpdateApplyPreview()">
             <input type="text" inputmode="decimal" id="ast-hmap-height-val" value="5000"
               style="width:78px;background:rgba(6,10,22,.9);border:1px solid rgba(90,90,112,.4);
-              color:rgba(220,220,255,.8);font-family:'JetBrains Mono',monospace;font-size:.74rem;
+              color:rgba(220,220,255,.8);font-family:'JetBrains Mono',monospace;font-size:.54rem;
               padding:4px 6px;text-align:right;border-radius:2px"
               oninput="let _v=parseFloat(this.value)||0;if(_v&lt;0){_v=0;this.value=0;}document.getElementById('ast-hmap-height').value=_v;astUpdateApplyPreview()">
-            <span style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:rgba(85,85,112,.6)">m</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(85,85,112,.6)">m</span>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:rgba(85,85,112,.7)">
+          <div style="display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(85,85,112,.7)">
             <span>Range:</span>
             <input type="text" inputmode="decimal" id="ast-height-min" value="0" placeholder="min"
               style="width:70px;background:rgba(6,10,22,.9);border:1px solid rgba(90,90,112,.3);
-              color:rgba(180,180,200,.7);font-family:'JetBrains Mono',monospace;font-size:.7rem;
+              color:rgba(180,180,200,.7);font-family:'JetBrains Mono',monospace;font-size:.5rem;
               padding:3px 5px;text-align:center;border-radius:2px"
               oninput="astClampHeightRange()">
             <span>to</span>
             <input type="text" inputmode="decimal" id="ast-height-max" value="50000" placeholder="max"
               style="width:70px;background:rgba(6,10,22,.9);border:1px solid rgba(90,90,112,.3);
-              color:rgba(180,180,200,.7);font-family:'JetBrains Mono',monospace;font-size:.7rem;
+              color:rgba(180,180,200,.7);font-family:'JetBrains Mono',monospace;font-size:.5rem;
               padding:3px 5px;text-align:center;border-radius:2px"
               oninput="astClampHeightRange()">
             <button onclick="astSetHeightRange()"
               style="background:transparent;border:1px solid rgba(90,90,112,.3);color:rgba(150,150,180,.6);
-              font-family:'JetBrains Mono',monospace;font-size:.7rem;padding:3px 8px;cursor:pointer;border-radius:2px">Set</button>
+              font-family:'JetBrains Mono',monospace;font-size:.5rem;padding:3px 8px;cursor:pointer;border-radius:2px">Set</button>
           </div>
         </div>
 
@@ -2318,13 +2318,13 @@
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none">
           <input type="checkbox" id="ast-replace-formula" checked
             style="accent-color:rgba(90,240,192,.9);width:14px;height:14px;flex-shrink:0;cursor:pointer">
-          <span style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:rgba(200,200,240,.75)">Replace existing heightmap / terrain formula</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(200,200,240,.75)">Replace existing heightmap / terrain formula</span>
         </label>
 
         <!-- Formula preview -->
         <div style="background:rgba(6,10,22,.9);border:1px solid rgba(90,90,112,.3);padding:8px;border-radius:2px">
           <div id="ast-apply-mode-label" style="font-family:'JetBrains Mono',monospace;font-size:.45rem;letter-spacing:.1em;color:rgba(90,240,192,.35);margin-bottom:4px">WILL REPLACE TERRAIN FORMULA (Normal)</div>
-          <div id="ast-apply-preview" style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:rgba(200,200,240,.7);word-break:break-all;line-height:1.5">
+          <div id="ast-apply-preview" style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(200,200,240,.7);word-break:break-all;line-height:1.5">
             <span style="color:rgba(85,85,112,.5)">— generate heightmap first —</span>
           </div>
         </div>
@@ -2337,7 +2337,7 @@
           text-transform:uppercase;transition:all .2s;border-radius:2px">
           ✦ APPLY HEIGHTMAP TO BODY
         </button>
-        <div id="ast-apply-status" style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:rgba(85,85,112,.6);text-align:center;min-height:14px"></div>
+        <div id="ast-apply-status" style="font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(85,85,112,.6);text-align:center;min-height:14px"></div>
       </div>
 
     </div><!-- /draw panel -->
@@ -2347,33 +2347,33 @@
 
       <!-- Preview canvas -->
       <div style="background:rgba(18,18,26,.7);border:1px solid rgba(90,240,192,.15);padding:10px;display:flex;flex-direction:column;gap:8px">
-        <div style="font-size:.7rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">PREVIEW</div>
+        <div style="font-size:.5rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">PREVIEW</div>
         <canvas id="pg-preview" width="300" height="300"
           style="display:block;width:100%!important;height:auto!important;
           border:1px solid rgba(90,240,192,.12);background:#060608"></canvas>
         <div style="display:flex;gap:8px">
           <button onclick="pgRandomize()" style="flex:1;background:transparent;border:1px solid rgba(90,90,112,.4);
-            color:rgba(180,180,200,.7);font-size:.75rem;letter-spacing:.06em;padding:9px 12px;min-height:38px;cursor:pointer">🎲 RANDOMIZE</button>
+            color:rgba(180,180,200,.7);font-size:.55rem;letter-spacing:.06em;padding:9px 12px;min-height:38px;cursor:pointer">🎲 RANDOMIZE</button>
           <button onclick="pgCommit()" style="flex:1;background:transparent;border:1px solid rgba(90,240,192,.5);
-            color:rgba(90,240,192,.9);font-size:.78rem;letter-spacing:.08em;padding:9px 12px;min-height:38px;cursor:pointer;font-weight:700">USE THIS →</button>
+            color:rgba(90,240,192,.9);font-size:.58rem;letter-spacing:.08em;padding:9px 12px;min-height:38px;cursor:pointer;font-weight:700">USE THIS →</button>
         </div>
       </div>
 
       <!-- Base Shape -->
       <div style="background:rgba(18,18,26,.7);border:1px solid rgba(90,240,192,.15);padding:10px;display:flex;flex-direction:column;gap:8px">
-        <div style="font-size:.7rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">BASE SHAPE</div>
+        <div style="font-size:.5rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">BASE SHAPE</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap" id="pg-shape-btns">
-          <button class="pg-shape-btn active" data-shape="round"   onclick="pgSetShape('round')"   style="flex:1;min-width:60px;padding:7px 10px;font-size:.76rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,240,192,.6);background:rgba(90,240,192,.12);color:rgba(90,240,192,.95)">● Round</button>
-          <button class="pg-shape-btn"        data-shape="ellipse" onclick="pgSetShape('ellipse')" style="flex:1;min-width:60px;padding:7px 10px;font-size:.76rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,90,112,.35);background:none;color:rgba(180,180,200,.6)">⬭ Ellipse</button>
-          <button class="pg-shape-btn"        data-shape="long"    onclick="pgSetShape('long')"    style="flex:1;min-width:60px;padding:7px 10px;font-size:.76rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,90,112,.35);background:none;color:rgba(180,180,200,.6)">— Long</button>
-          <button class="pg-shape-btn"        data-shape="blocky"  onclick="pgSetShape('blocky')"  style="flex:1;min-width:60px;padding:7px 10px;font-size:.76rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,90,112,.35);background:none;color:rgba(180,180,200,.6)">⬜ Blocky</button>
+          <button class="pg-shape-btn active" data-shape="round"   onclick="pgSetShape('round')"   style="flex:1;min-width:60px;padding:7px 10px;font-size:.56rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,240,192,.6);background:rgba(90,240,192,.12);color:rgba(90,240,192,.95)">● Round</button>
+          <button class="pg-shape-btn"        data-shape="ellipse" onclick="pgSetShape('ellipse')" style="flex:1;min-width:60px;padding:7px 10px;font-size:.56rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,90,112,.35);background:none;color:rgba(180,180,200,.6)">⬭ Ellipse</button>
+          <button class="pg-shape-btn"        data-shape="long"    onclick="pgSetShape('long')"    style="flex:1;min-width:60px;padding:7px 10px;font-size:.56rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,90,112,.35);background:none;color:rgba(180,180,200,.6)">— Long</button>
+          <button class="pg-shape-btn"        data-shape="blocky"  onclick="pgSetShape('blocky')"  style="flex:1;min-width:60px;padding:7px 10px;font-size:.56rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,90,112,.35);background:none;color:rgba(180,180,200,.6)">⬜ Blocky</button>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;font-size:.72rem;color:rgba(85,85,112,.9)">
+        <div style="display:flex;align-items:center;gap:8px;font-size:.52rem;color:rgba(85,85,112,.9)">
           Irregularity
           <input type="range" id="pg-irregular" min="0" max="100" value="40" style="flex:1;height:24px;accent-color:rgba(90,240,192,.8)" oninput="document.getElementById('pg-irregular-v').textContent=this.value;pgPreview()">
           <span id="pg-irregular-v" style="color:rgba(220,220,255,.8);min-width:28px">40</span>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;font-size:.72rem;color:rgba(85,85,112,.9)">
+        <div style="display:flex;align-items:center;gap:8px;font-size:.52rem;color:rgba(85,85,112,.9)">
           Smoothing
           <input type="range" id="pg-smooth" min="0" max="80" value="18" style="flex:1;height:24px;accent-color:rgba(90,240,192,.8)" oninput="document.getElementById('pg-smooth-v').textContent=this.value;pgPreview()">
           <span id="pg-smooth-v" style="color:rgba(220,220,255,.8);min-width:28px">18</span>
@@ -2382,24 +2382,24 @@
 
       <!-- Major Deformations -->
       <div style="background:rgba(18,18,26,.7);border:1px solid rgba(90,240,192,.15);padding:10px;display:flex;flex-direction:column;gap:6px">
-        <div style="font-size:.7rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">MAJOR DEFORMATIONS</div>
-        <label style="display:flex;align-items:center;gap:8px;font-size:.74rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+        <div style="font-size:.5rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">MAJOR DEFORMATIONS</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
           <input type="checkbox" id="pg-deep-craters" onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Deep Craters
-          <span style="font-size:.66rem;color:rgba(85,85,112,.7);margin-left:4px">large concave dips</span>
+          <span style="font-size:.46rem;color:rgba(85,85,112,.7);margin-left:4px">large concave dips</span>
         </label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:.74rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
           <input type="checkbox" id="pg-bisected" onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Bisected
-          <span style="font-size:.66rem;color:rgba(85,85,112,.7);margin-left:4px">pinched waist — two-lobed shape</span>
+          <span style="font-size:.46rem;color:rgba(85,85,112,.7);margin-left:4px">pinched waist — two-lobed shape</span>
         </label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:.74rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
           <input type="checkbox" id="pg-trisected" onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Trisected
-          <span style="font-size:.66rem;color:rgba(85,85,112,.7);margin-left:4px">three-lobed peanut shape</span>
+          <span style="font-size:.46rem;color:rgba(85,85,112,.7);margin-left:4px">three-lobed peanut shape</span>
         </label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:.74rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
           <input type="checkbox" id="pg-uplifted" onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Uplifted Ridge
-          <span style="font-size:.66rem;color:rgba(85,85,112,.7);margin-left:4px">bulging spine along one side</span>
+          <span style="font-size:.46rem;color:rgba(85,85,112,.7);margin-left:4px">bulging spine along one side</span>
         </label>
-        <div style="display:flex;align-items:center;gap:8px;font-size:.72rem;color:rgba(85,85,112,.9);margin-top:2px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:.52rem;color:rgba(85,85,112,.9);margin-top:2px">
           Strength
           <input type="range" id="pg-major-str" min="10" max="100" value="55" style="flex:1;height:24px;accent-color:rgba(90,240,192,.8)" oninput="document.getElementById('pg-major-str-v').textContent=this.value;pgPreview()">
           <span id="pg-major-str-v" style="color:rgba(220,220,255,.8);min-width:28px">55</span>
@@ -2408,21 +2408,21 @@
 
       <!-- Minor Deformations -->
       <div style="background:rgba(18,18,26,.7);border:1px solid rgba(90,240,192,.15);padding:10px;display:flex;flex-direction:column;gap:6px">
-        <div style="font-size:.7rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">MINOR DEFORMATIONS</div>
-        <label style="display:flex;align-items:center;gap:8px;font-size:.74rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+        <div style="font-size:.5rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">MINOR DEFORMATIONS</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
           <input type="checkbox" id="pg-craters-minor" onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Small Craters
         </label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:.74rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
           <input type="checkbox" id="pg-moist" onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Moist / Grooves
-          <span style="font-size:.66rem;color:rgba(85,85,112,.7);margin-left:4px">parallel surface channels</span>
+          <span style="font-size:.46rem;color:rgba(85,85,112,.7);margin-left:4px">parallel surface channels</span>
         </label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:.74rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
           <input type="checkbox" id="pg-jagged" checked onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Jaggedness
         </label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:.74rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
+        <label style="display:flex;align-items:center;gap:8px;font-size:.54rem;color:rgba(180,180,200,.75);cursor:pointer;padding:3px 0">
           <input type="checkbox" id="pg-roughness-minor" checked onchange="pgPreview()" style="accent-color:rgba(90,240,192,.9);width:14px;height:14px"> Roughness
         </label>
-        <div style="display:flex;align-items:center;gap:8px;font-size:.72rem;color:rgba(85,85,112,.9);margin-top:2px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:.52rem;color:rgba(85,85,112,.9);margin-top:2px">
           Strength
           <input type="range" id="pg-minor-str" min="0" max="100" value="35" style="flex:1;height:24px;accent-color:rgba(90,240,192,.8)" oninput="document.getElementById('pg-minor-str-v').textContent=this.value;pgPreview()">
           <span id="pg-minor-str-v" style="color:rgba(220,220,255,.8);min-width:28px">35</span>
@@ -2433,10 +2433,10 @@
 
     <!-- ── BELT/RING TAB ── -->
     <div id="ast-panel-belt" style="display:none;padding:30px 14px;text-align:center;
-      font-family:'JetBrains Mono',monospace;font-size:.78rem;color:rgba(90,90,112,.7);letter-spacing:.08em">
+      font-family:'JetBrains Mono',monospace;font-size:.58rem;color:rgba(90,90,112,.7);letter-spacing:.08em">
       <div style="font-size:2rem;margin-bottom:12px">🪐</div>
       <div style="color:rgba(150,150,180,.6);margin-bottom:6px">BELT / RING</div>
-      <div style="font-size:.7rem;color:rgba(85,85,112,.6)">Asteroid belt & ring placement coming soon</div>
+      <div style="font-size:.5rem;color:rgba(85,85,112,.6)">Asteroid belt & ring placement coming soon</div>
     </div>
 
   </div><!-- /content -->
@@ -6394,7 +6394,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <script>
 (function(){
   const SB_URL = 'https://cfekaefzttkurvqfwdep.supabase.co';
-  const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNmZWthZWZ6dHRrdXJ2cWZ3ZGVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3NjA0MzAsImV4cCI6MjA5ODMzNjQzMH0.81TNN3H7KCBCRPZ0ZhnxvQLpdObLV-2Xeif2QPd8-h8';
+  const SB_KEY = 'sb_publishable_7UarYndVEPrKEg3qFrfevQ_jbMh3dbI';
   const HEADERS = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
 
   const KEYS = ['sfs-default', 'bgh', 'htss'];
