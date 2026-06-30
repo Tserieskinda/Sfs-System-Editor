@@ -229,8 +229,13 @@
           The vanilla SFS solar system — Sun, Mercury, Venus, Earth &amp; Moon, Mars &amp; Phobos, and more.
         </div>
         <div class="fs-card-actions">
-          <button class="fs-btn fs-btn-dl" onclick="importFeatured('featured/Example.zip','SFS Default System.zip')">⬇ IMPORT</button>
-          <button class="fs-btn fs-btn-open" onclick="loadZipFromUrl('featured/Example.zip','SFS Default System.zip')">▶ OPEN IN EDITOR</button>
+          <button class="fs-btn fs-btn-dl" onclick="trackFeatured('sfs-default','import');importFeatured('featured/Example.zip','SFS Default System.zip')">⬇ IMPORT</button>
+          <button class="fs-btn fs-btn-open" onclick="trackFeatured('sfs-default','open');loadZipFromUrl('featured/Example.zip','SFS Default System.zip')">▶ OPEN IN EDITOR</button>
+        </div>
+        <div class="fs-card-stats" id="fsstats-sfs-default">
+          <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-sfs-default-import">…</span> imports</span>
+          <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-sfs-default-open">…</span> opens</span>
+          <span class="fs-stat fs-stat-size">📦 <span class="fs-stat-num fs-stat-loading" id="fssz-sfs-default">…</span> MB</span>
         </div>
       </div>
 
@@ -247,8 +252,13 @@
           A huge galaxy pack with real and fictional systems :3
         </div>
         <div class="fs-card-actions">
-          <button class="fs-btn fs-btn-dl" onclick="importFeatured('featured/BGH Full Release-1.2.1.zip','BGH Full Release-1.2.1.zip')">⬇ IMPORT</button>
-          <button class="fs-btn fs-btn-open" onclick="loadZipFromUrl('featured/BGH Full Release-1.2.1.zip','BGH Full Release-1.2.1.zip')">▶ OPEN IN EDITOR</button>
+          <button class="fs-btn fs-btn-dl" onclick="trackFeatured('bgh','import');importFeatured('featured/BGH Full Release-1.2.1.zip','BGH Full Release-1.2.1.zip')">⬇ IMPORT</button>
+          <button class="fs-btn fs-btn-open" onclick="trackFeatured('bgh','open');loadZipFromUrl('featured/BGH Full Release-1.2.1.zip','BGH Full Release-1.2.1.zip')">▶ OPEN IN EDITOR</button>
+        </div>
+        <div class="fs-card-stats" id="fsstats-bgh">
+          <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-bgh-import">…</span> imports</span>
+          <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-bgh-open">…</span> opens</span>
+          <span class="fs-stat fs-stat-size">📦 <span class="fs-stat-num fs-stat-loading" id="fssz-bgh">…</span> MB</span>
         </div>
       </div>
 
@@ -265,8 +275,13 @@
           This solar system contains a major enhancement to the stock solar system and also adds a few neighboring star systems.
         </div>
         <div class="fs-card-actions">
-          <button class="fs-btn fs-btn-dl" onclick="importFeatured('featured/HTSS.zip','HTSS.zip')">⬇ IMPORT</button>
-          <button class="fs-btn fs-btn-open" onclick="loadZipFromUrl('featured/HTSS.zip','HTSS.zip')">▶ OPEN IN EDITOR</button>
+          <button class="fs-btn fs-btn-dl" onclick="trackFeatured('htss','import');importFeatured('featured/HTSS.zip','HTSS.zip')">⬇ IMPORT</button>
+          <button class="fs-btn fs-btn-open" onclick="trackFeatured('htss','open');loadZipFromUrl('featured/HTSS.zip','HTSS.zip')">▶ OPEN IN EDITOR</button>
+        </div>
+        <div class="fs-card-stats" id="fsstats-htss">
+          <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-htss-import">…</span> imports</span>
+          <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-htss-open">…</span> opens</span>
+          <span class="fs-stat fs-stat-size">📦 <span class="fs-stat-num fs-stat-loading" id="fssz-htss">…</span> MB</span>
         </div>
       </div>
 
@@ -6372,6 +6387,91 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     off.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='sea-map.png';a.click();});
   };
+})();
+</script>
+
+<!-- ── Featured Systems: Supabase tracking ───────────────────────────────── -->
+<script>
+(function(){
+  const SB_URL = 'https://cfekaefzttkurvqfwdep.supabase.co';
+  const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNmZWthZWZ6dHRrdXJ2cWZ3ZGVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3NjA0MzAsImV4cCI6MjA5ODMzNjQzMH0.81TNN3H7KCBCRPZ0ZhnxvQLpdObLV-2Xeif2QPd8-h8';
+  const HEADERS = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
+
+  const KEYS = ['sfs-default', 'bgh', 'htss'];
+  const ACTS = ['import', 'open'];
+
+  const ZIP_URLS = {
+    'sfs-default': 'featured/Example.zip',
+    'bgh':         'featured/BGH Full Release-1.2.1.zip',
+    'htss':        'featured/HTSS.zip',
+  };
+
+  // ── Increment via RPC and update display ──
+  window.trackFeatured = async function(systemKey, action) {
+    const key = `${systemKey}-${action}`;
+    try {
+      const r = await fetch(`${SB_URL}/rest/v1/rpc/increment_stat`, {
+        method: 'POST',
+        headers: HEADERS,
+        body: JSON.stringify({ stat_key: key })
+      });
+      if (!r.ok) return;
+      const newCount = await r.json();
+      const el = document.getElementById(`fsn-${key}`);
+      if (el) { el.textContent = newCount; el.classList.remove('fs-stat-loading'); }
+    } catch(_) {}
+  };
+
+  // ── Fetch zip size via HEAD ──
+  async function loadSize(sysKey) {
+    const el = document.getElementById(`fssz-${sysKey}`);
+    if (!el) return;
+    try {
+      const r = await fetch(ZIP_URLS[sysKey], { method: 'HEAD' });
+      const len = r.headers.get('Content-Length');
+      el.textContent = len ? (parseInt(len, 10) / 1048576).toFixed(1) : '?';
+    } catch(_) { el.textContent = '?'; }
+    el.classList.remove('fs-stat-loading');
+  }
+
+  // ── Load all counts in one query ──
+  async function loadAllCounts() {
+    // Fetch sizes in parallel
+    KEYS.forEach(loadSize);
+
+    try {
+      const r = await fetch(`${SB_URL}/rest/v1/featured_stats?select=key,count`, { headers: HEADERS });
+      if (!r.ok) throw new Error();
+      const rows = await r.json();
+      const map = {};
+      rows.forEach(row => map[row.key] = row.count);
+
+      KEYS.forEach(sys => ACTS.forEach(act => {
+        const key = `${sys}-${act}`;
+        const el  = document.getElementById(`fsn-${key}`);
+        if (!el) return;
+        el.textContent = map[key] ?? 0;
+        el.classList.remove('fs-stat-loading');
+      }));
+    } catch(_) {
+      KEYS.forEach(sys => ACTS.forEach(act => {
+        const el = document.getElementById(`fsn-${sys}-${act}`);
+        if (el) { el.textContent = '?'; el.classList.remove('fs-stat-loading'); }
+      }));
+    }
+  }
+
+  // Trigger when Featured screen opens
+  const featuredScreen = document.getElementById('s-featured');
+  if (featuredScreen) {
+    new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === 'attributes' && m.attributeName === 'class') {
+          if (!featuredScreen.classList.contains('hide')) loadAllCounts();
+        }
+      }
+    }).observe(featuredScreen, { attributes: true });
+  }
 })();
 </script>
 </body>
