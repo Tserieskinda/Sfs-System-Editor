@@ -1670,8 +1670,13 @@ function makeLandmark(l, i){
 
   const sa = typeof l.startAngle === 'number' ? l.startAngle : 0;
   const ea = typeof l.endAngle   === 'number' ? l.endAngle   : 10;
-  const centre = (sa + ea) / 2;
-  const width  = Math.abs(ea - sa) || 10;
+  // Match game's Math_Utility formulas exactly:
+  // AngularWidth = NormalizeAngleDegrees(endAngle - startAngle)  -> (-180, 180]
+  // Center       = NormalizePositiveAngleDegrees(startAngle + AngularWidth/2) -> [0, 360)
+  function normalizeAngleDeg(a){ while(a>180) a-=360; while(a<=-180) a+=360; return a; }
+  function normalizePosAngleDeg(a){ while(a>360) a-=360; while(a<0) a+=360; return a; }
+  const width  = normalizeAngleDeg(ea - sa) || 10;
+  const centre = normalizePosAngleDeg(sa + width / 2);
 
   const prefixVal = (l.prefix || '').trim();
 
