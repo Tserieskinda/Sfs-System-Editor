@@ -2,7 +2,7 @@
 
 **A browser-based solar system editor for Spaceflight Simulator (1.5+)**
 
-🌐 **[Open in Browser — https://tserieskinda.github.io/Sfs-System-Editor/](https://tserieskinda.github.io/Sfs-System-Editor/)**
+# 🌐 **[Open in Browser — https://tserieskinda.github.io/Sfs-System-Editor/](https://tserieskinda.github.io/Sfs-System-Editor/)**
 > Always up to date. No installation required. Works on PC and mobile.
 
 ---
@@ -60,13 +60,14 @@ Opens when you click a planet. Tabs include:
 - Upload custom textures, heightmaps, and presets via the Assets button
 - Textures are cached in IndexedDB and persist between sessions
 
-### Procedural Tools
+### Procedural Tools (in Utils and Tools)
+- - **Procedural Asteroids** — Procedural asteorid generator
 - **Procedural Landmark Generator** — auto-place named landmarks based on terrain scan
 - **Procgen System** — generate randomised solar systems with configurable star type, planet count, and distribution
 
 ### Featured Systems
 - Load curated community systems directly from the Featured tab — no zip hunting required
-- Includes SFS Default, BGH, HTSS, and more
+- Includes SFS Default System by Team Curiosity, BGH by Cyn/Athlea Lyrae, HTSS by Hexastream, and more later
 
 ### Import & Export
 - **Open Existing System** — load any SFS 1.5+ system by zipping its folder and uploading
@@ -75,27 +76,25 @@ Opens when you click a planet. Tabs include:
 
 ### Extra Tools
 - **Polar → Equirectangular transformer** — convert polar-projection textures for use as planet surfaces
-- **Day Cycle texture generator**
-- **Bump map / heightmap converter**
+- **Bump map / heightmap converter** Convert image to hieghtmap with matched planet texture at high resolution 
 - **Asteroid drawing → heightmap tool**
-
+Draw an asteroid, add add-on effects and applynto a body
 ---
 
 ## Performance Tips
 
 - Disable post-processing and fog in the Environments toggle (globe icon) on weak devices
 - Lower the terrain resolution percentage (next to the terrain button) when editing heightmaps
-- Lock the sidebar open on mobile to avoid re-rendering on every open
+- Lock the sidebar on mobile while viewing planet terrain up close (opening the editing sidebar causes lag)
 - Use a Chromium-based browser for best canvas performance
 
 ---
 
 ## Known Issues
 
-- SOI display is approximate (cosmetic only, does not affect export)
-- Some cloud edge cases render incorrectly
-- Heightmap rendering has minor inaccuracies at extreme values
+- Heightmap rendering has some inaccuracies
 - Water/land interaction is approximate
+- Clouds are broken (persistent issue, help would be appreciated)
 - Systems from SFS 1.4 and below are not supported
 
 ---
@@ -107,21 +106,28 @@ Opens when you click a planet. Tabs include:
 3. Extract it
 4. Place the `.txt` file in `Custom Presets/Planet Data/`
 5. Place textures and heightmaps in their respective folders
-6. Re-zip and load in the editor — your preset will appear in the list
+6. Clear asset cache button in main menu, then reload site and Cancel the auto downloading, then upload manually in step 7.
+7. Re-zip and load in the editor — your preset will appear in the list
 
 ---
 
-## Offline / Local Setup
+## Offline / Local Setup (technical)
 
 Only needed if you want to run without internet access. The online version at the link above is always preferred.
 
 ### Android
-- Use **Simple HTTP Server** (Play Store) and point it at the extracted editor folder, or use Speck editor
-- Copy the local address shown into your browser
+- Download project files drom github
+- Either Use **Simple HTTP Server** (Play Store) and Enter the extracted editor folder,
+- Copy paste the local address shown into your browser.
+  ---
+- Or use Speck editor, download code zip from github and open it in speck editor, then click run.
 
 ### PC
+- Download project files from github and extract in a folder.
+- Download python and type these two one by one in terminal.
 ```
 cd "path\to\SFS Editor"
+
 python -m http.server 8000
 ```
 Then open `http://localhost:8000` in your browser and upload the assets zip.
@@ -133,12 +139,13 @@ Any app that can host a local web server. Exact steps vary by app.
 
 ## Credits
 
-Thanks to **Astray Galaxy** and **Neverger** (creator of TTS) and the Celestia community for the zip assets.
+Thanks to **Hexastream** and **Neverger** (creator of TTS) and the Celestia community for the zip assets.
 
-**Initial beta testers & contributors:** Krameter, Mistiy, ReoreyBoi, Akselajin, Cyn, Cresign, Razan T3, Astray  
+**Initial beta testers & contributors:** Krameter, Mistiy, ReoreyBoi, Akselajin, Cyn, Cresign, Razan T3, Hexastream  
 **Promoter:** JJC Aerospace on YouTube  
-**Heightmap code:** Floating Fuel, SFS Forums community  
+**Code help:** Floating Fuel on forums (hieghtmap visualizer), SFS Forums community Advice and explanations on forums 
 **Community:** [SFS Forums thread](https://sfsforum.com/index.php?threads/sfs-system-editor-beta.18444/)
 
 > *Not responsible for unauthorised redistribution of someone else's system or the provided SFS assets.*  
-> It is **99% vibecoded.** enjoy :)
+> It is **99% vibecoded.**
+> enjoy :)
