@@ -2,7 +2,7 @@
 
 **A browser-based solar system editor for Spaceflight Simulator (1.5+)**
 
-# 🌐 **[Open in Browser — https://tserieskinda.github.io/Sfs-System-Editor/](https://tserieskinda.github.io/Sfs-System-Editor/)**
+🌐 **[Open in Browser — https://tserieskinda.github.io/Sfs-System-Editor/](https://tserieskinda.github.io/Sfs-System-Editor/)**
 > Always up to date. No installation required. Works on PC and mobile.
 
 ---
@@ -142,42 +142,3 @@ Thanks to **Astray Galaxy** and **Neverger** (creator of TTS) and the Celestia c
 
 > *Not responsible for unauthorised redistribution of someone else's system or the provided SFS assets.*  
 > It is **99% vibecoded.** enjoy :)
-6) Compress the Zip and load it in the editor, your custom preset will appear.
-
-# Terrain
-Press terrain button at the topbar to show terrain
-Live hieghtmap updating in Hmap Tab
-Water land interactions(approximate)
-
-# Known Bugs
-Innacurate SOI
-Cloud related bugs
-Hieghtmap Related bugs
-Minor UI Issues
-4 Million solar mass black hole preset is broken, Do not use it
-Landmarks are a bit Broken
-- Innacurate SOI
-- Cloud related bugs
-- Hieghtmap Related bugs
-- Minor UI Issues
-- Water-land Interaction inconsistencies
-
-## Warning
-Any unsaved progress will be deleted and progress will be lost if you exit the program. Save progess by clicking Export.zip, and you can load the same zip later
-
-# Credits
-***(Im not responsible if you steal and edit someone's system without their given permission OR steal and provide the SFS assets that i provided.)***
-
-
-things may break, bugs may appear, so i do not reccomend you to make a giant system witht this.
-Its still beta and has limited support for clouds and hieghtmaps, also it does not support 1.4~ and below systems.
-Its aimed to support both pc and mobile.
-
-Before you say, it is **99% vibecoded.**
-
-Thanks to Hexastream and Neverger (creator of tts) and the Celestia community for the Zip assets.
-Initial Beta testers and contributors- Krameter, Mistiy, ReoreyBoi, Akselajin, Cyn, Cresign, Razan T3, Hexastream
-Promoter- (none yet)
-Hieghtmap code learning- Floating Fuel's help, SFS Forums community
-And everyone on this [**SFS Forums Page**](https://sfsforum.com/index.php?threads/sfs-system-editor-beta.18444/)! 
-enjoy :)
