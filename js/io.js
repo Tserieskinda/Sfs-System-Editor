@@ -1,5 +1,26 @@
 // ════════════════════════════════ LOAD FILES ════════════════════════════════
 // ════════════════════════════════ LOAD FILES ════════════════════════════════
+
+// Lenient fixups applied to every Planet Data / preset .txt before JSON.parse.
+// Beyond the usual Unity JsonUtility quirks (trailing commas, bare decimals,
+// NaN/Infinity), this also normalises invisible Unicode whitespace: some
+// human hand-edited or copy-pasted files end up with non-breaking spaces
+// (U+00A0), zero-width spaces, or a BOM in place of plain ASCII whitespace —
+// invisible in any text editor, but JSON.parse's whitespace rule is strict
+// ASCII-only (space/tab/CR/LF), so those files fail to parse with an opaque
+// "Expecting property name" error at the very first indented line.
+function _sfsLenientJsonFix(raw){
+  return raw
+    .replace(/\uFEFF/g, '')                  // BOM
+    .replace(/[\u200B-\u200D]/g, '')         // zero-width space / ZWNJ / ZWJ
+    .replace(/\p{Zs}/gu, ' ')                // any Unicode space separator (NBSP, thin space, em space, ideographic space, etc.) → regular space
+    .replace(/,\s*([}\]])/g, '$1')           // trailing commas
+    .replace(/(\d)\.(?=[,\s}\]])/g, '$10')   // bare decimals: 0. → 0.0
+    .replace(/:\s*Infinity\b/g,  ': 1e38')   // Unity JsonUtility Infinity
+    .replace(/:\s*-Infinity\b/g, ': -1e38')  // Unity JsonUtility -Infinity
+    .replace(/:\s*NaN\b/g,       ': 0');     // Unity JsonUtility NaN
+}
+
 // ════════════════════════════════ ZIP READER ════════════════════════════════
 // Parses a ZIP file (stored or deflated entries) and returns
 // { "path/in/zip": Uint8Array } for every file entry.
@@ -234,16 +255,12 @@ async function loadZipFile(file){
         try{
           const raw = dec(data);
           const name = filename.replace('.txt','');
-          if(name === 'Import_Settings'){ systemSettings.importSettings = JSON.parse(raw); continue; }
-          if(name === 'Space_Center_Data'){ systemSettings.spaceCenterData = JSON.parse(raw); continue; }
+          if(name === 'Import_Settings'){ systemSettings.importSettings = JSON.parse(_sfsLenientJsonFix(raw)); continue; }
+          if(name === 'Space_Center_Data'){ systemSettings.spaceCenterData = JSON.parse(_sfsLenientJsonFix(raw)); continue; }
           if(name === 'Version') continue;
-          // Lenient parse: strip trailing commas, fix bare decimals, Unity Infinity/NaN
-          const _fixedRaw = raw
-            .replace(/,\s*([}\]])/g, '$1')           // trailing commas
-            .replace(/(\d)\.(?=[,\s}\]])/g, '$10')   // bare decimals: 0. → 0.0
-            .replace(/:\s*Infinity\b/g,  ': 1e38')   // Unity JsonUtility Infinity
-            .replace(/:\s*-Infinity\b/g, ': -1e38')  // Unity JsonUtility -Infinity
-            .replace(/:\s*NaN\b/g,       ': 0');      // Unity JsonUtility NaN
+          // Lenient parse: normalise invisible whitespace, strip trailing commas,
+          // fix bare decimals, Unity Infinity/NaN
+          const _fixedRaw = _sfsLenientJsonFix(raw);
           const bodyData = normalizeDiffScaleKeys(JSON.parse(_fixedRaw));
           // isCenter determined later — first pass just stores data
           const lacksOrbit = !bodyData.ORBIT_DATA;
@@ -300,9 +317,9 @@ async function loadZipFile(file){
         if(_texBatchCount % 4 === 0) await _yield();
 
       } else if(filename === 'Import_Settings.txt'){
-        try{ systemSettings.importSettings = JSON.parse(dec(data)); } catch(e){}
+        try{ systemSettings.importSettings = JSON.parse(_sfsLenientJsonFix(dec(data))); } catch(e){}
       } else if(filename === 'Space_Center_Data.txt'){
-        try{ systemSettings.spaceCenterData = JSON.parse(dec(data)); } catch(e){}
+        try{ systemSettings.spaceCenterData = JSON.parse(_sfsLenientJsonFix(dec(data))); } catch(e){}
       }
     }
 
@@ -901,12 +918,7 @@ function _presetCategory(pathLower){
 // Parse a preset .txt file leniently (same approach as the zip importer)
 function _parsePresetTxt(raw, filename){
   try{
-    let fixed = raw
-      .replace(/,(\s*[}\]])/g, '$1')            // trailing commas
-      .replace(/(\d)\.(?=[,\s}\]])/g, '$10')    // bare decimal: 0. → 0.0
-      .replace(/:\s*Infinity\b/g,  ': 1e38')    // Unity JsonUtility Infinity
-      .replace(/:\s*-Infinity\b/g, ': -1e38')   // Unity JsonUtility -Infinity
-      .replace(/:\s*NaN\b/g,       ': 0');       // Unity JsonUtility NaN
+    let fixed = _sfsLenientJsonFix(raw);
     return normalizeDiffScaleKeys(JSON.parse(fixed));
   } catch(e){
     console.warn('[SFS|IO] Preset parse error' + (filename ? ` in "${filename}"` : '') + ':', e.message);
@@ -1186,12 +1198,7 @@ async function importSystemZip(file){
           const raw = dec(data);
           const name = filename.replace('.txt','');
           if(['Import_Settings','Space_Center_Data','Version'].includes(name)) continue;
-          const fixedRaw = raw
-            .replace(/,\s*([}\]])/g, '$1')
-            .replace(/(\d)\.(?=[,\s}\]])/g, '$10')
-            .replace(/:\s*Infinity\b/g,  ': 1e38')
-            .replace(/:\s*-Infinity\b/g, ': -1e38')
-            .replace(/:\s*NaN\b/g,       ': 0');
+          const fixedRaw = _sfsLenientJsonFix(raw);
           const bodyData = normalizeDiffScaleKeys(JSON.parse(fixedRaw));
           const lacksOrbit = !bodyData.ORBIT_DATA;
           const _meta = inferPresetMeta(name, bodyData);
