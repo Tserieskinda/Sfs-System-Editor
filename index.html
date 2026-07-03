@@ -35,11 +35,14 @@
       <span class="mico">🎨</span>CREATE TEXTURES
       <span class="arr">›</span>
     </button>
-    <button class="menu-btn" onclick="openAppSettings()" title="Settings">
-      <span class="mico">⚙</span>SETTINGS
+    <button class="menu-btn" style="border-color:var(--sky)" onclick="goFeatured()">
+      <span class="mico">⭐</span>FEATURED SYSTEMS
       <span class="arr">›</span>
     </button>
   </nav>
+
+  <!-- ── Settings: small cog icon box, pinned top-right ── -->
+  <button class="menu-cog-btn" onclick="openAppSettings()" title="Settings">⚙</button>
 
   <!-- ── Create Textures sub-menu ── -->
   <nav class="menu-list" id="s-start-create-nav" style="display:none">
@@ -178,9 +181,6 @@
     <button class="mf-btn" style="width:100%;margin-top:8px;border-color:rgba(160,100,255,.45);color:rgba(190,140,255,.9);background:rgba(160,100,255,.07)" onclick="openImportSystemModal()" id="btn-import-system">
       <span style="margin-right:6px">🔀</span>IMPORT SYSTEM
     </button>
-    <button class="mf-btn" style="width:100%;margin-top:8px;border-color:var(--sky);color:var(--sky2);background:rgba(85,136,204,.08)" onclick="goFeatured()">
-      <span style="margin-right:6px">⭐</span>FEATURED SYSTEMS
-    </button>
   </div>
 </div>
 <input type="file" id="fi-zip" accept=".zip" style="display:none" onchange="loadZipFile(this.files[0]);this.value=''">
@@ -189,7 +189,7 @@
 <!-- ══════════════ FEATURED SYSTEMS SCREEN ══════════════ -->
 <div class="screen hide" id="s-featured">
   <div class="topbar">
-    <button class="tb-back" onclick="show('s-open')">← BACK</button>
+    <button class="tb-back" onclick="goStart()">← BACK</button>
     <span class="tb-title">FEATURED SYSTEMS</span>
   </div>
 
