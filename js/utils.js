@@ -2,6 +2,26 @@
 //  utils.js  —  UTILS topbar dropdown + Calculator modal
 // ════════════════════════════════════════════════════════════
 
+// ── Shared toolbar-dropdown positioning ─────────────────────
+// Anchors a fixed-position dropdown below a toolbar button, then clamps it
+// horizontally so it never runs off either edge of the viewport (this
+// matters most on mobile, where the toolbar scrolls and buttons can end up
+// right at the screen edge). Call AFTER setting dd.style.display = 'block'.
+function positionToolbarDropdown(dd, btn, opts) {
+  opts = opts || {};
+  const margin = opts.margin != null ? opts.margin : 8;
+  const r = btn.getBoundingClientRect();
+  dd.style.top = (r.bottom + 6) + 'px';
+  // Measure real rendered width (dd must already be display:block for this to be non-zero)
+  const dw = dd.offsetWidth || 0;
+  let left = r.right - dw; // default: right-align dropdown to button's right edge
+  const maxLeft = window.innerWidth - dw - margin;
+  if (left > maxLeft) left = maxLeft;
+  if (left < margin) left = margin;
+  dd.style.left  = left + 'px';
+  dd.style.right = 'auto';
+}
+
 // ── Dropdown ─────────────────────────────────────────────────
 let _utilsDropOpen = false;
 
@@ -9,13 +29,12 @@ function toggleUtilsDropdown() {
   _utilsDropOpen = !_utilsDropOpen;
   const dd = document.getElementById('utils-dropdown');
   if (_utilsDropOpen) {
+    dd.style.display = 'block';
     const btn = document.getElementById('btn-utils');
-    const r = btn.getBoundingClientRect();
-    dd.style.top   = (r.bottom + 6) + 'px';
-    dd.style.right = (window.innerWidth - r.right) + 'px';
-    dd.style.left  = 'auto';
+    positionToolbarDropdown(dd, btn);
+  } else {
+    dd.style.display = 'none';
   }
-  dd.style.display = _utilsDropOpen ? 'block' : 'none';
 }
 
 // Close when clicking outside

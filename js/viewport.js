@@ -314,13 +314,12 @@ function toggleEnvDropdown(){
   _envDropOpen = !_envDropOpen;
   const dd = document.getElementById('env-dropdown');
   if(_envDropOpen){
+    dd.style.display = 'block';
     const btn = document.getElementById('btn-env');
-    const r = btn.getBoundingClientRect();
-    dd.style.top  = (r.bottom + 6) + 'px';
-    dd.style.right = (window.innerWidth - r.right) + 'px';
-    dd.style.left  = 'auto';
+    positionToolbarDropdown(dd, btn);
+  } else {
+    dd.style.display = 'none';
   }
-  dd.style.display = _envDropOpen ? 'block' : 'none';
 }
 
 // Legacy stubs — referenced by any surviving onclick attrs

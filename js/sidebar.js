@@ -215,10 +215,8 @@ function toggleTagDropdown() {
   const dd  = document.getElementById('tag-dropdown');
   const btn = document.getElementById('btn-tag');
   if(_tagDropOpen) {
-    const r = btn.getBoundingClientRect();
-    dd.style.top   = (r.bottom + 6) + 'px';
-    dd.style.right = (window.innerWidth - r.right) + 'px';
-    dd.style.left  = 'auto';
+    dd.style.display = 'block';
+    positionToolbarDropdown(dd, btn);
     _tagDdRefreshStatus();
     // Clear custom input / hint
     const inp = document.getElementById('tag-dd-custom-input');

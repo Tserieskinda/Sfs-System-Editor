@@ -9,20 +9,12 @@ function toggleTerrainDetailDrop(){
   _terrainDetailDropOpen = !_terrainDetailDropOpen;
   const dd = document.getElementById('terrain-detail-dropdown');
   if(_terrainDetailDropOpen){
+    dd.style.display = 'block';
     const btn = document.getElementById('btn-terrain-detail');
-    const r = btn.getBoundingClientRect();
-    const ddW = 200; // min-width from inline style
-    dd.style.top = (r.bottom + 6) + 'px';
-    // If the dropdown would overflow the right edge, right-anchor it to the button's right edge
-    if(r.left + ddW + 8 > window.innerWidth){
-      dd.style.left  = 'auto';
-      dd.style.right = (window.innerWidth - r.right) + 'px';
-    } else {
-      dd.style.left  = r.left + 'px';
-      dd.style.right = 'auto';
-    }
+    positionToolbarDropdown(dd, btn);
+  } else {
+    dd.style.display = 'none';
   }
-  dd.style.display = _terrainDetailDropOpen ? 'block' : 'none';
 }
 
 function setTerrainDetail(val){
@@ -117,11 +109,9 @@ function toggleToolsDropdown(){
   _toolsDropOpen = !_toolsDropOpen;
   const dd = document.getElementById('tools-dropdown');
   if(_toolsDropOpen){
+    dd.style.display = 'block';
     const btn = document.getElementById('btn-tools');
-    const r = btn.getBoundingClientRect();
-    dd.style.top  = (r.bottom + 6) + 'px';
-    dd.style.right = (window.innerWidth - r.right) + 'px';
-    dd.style.left  = 'auto';
+    positionToolbarDropdown(dd, btn);
     // Sync badge to current state on open
     const badge = document.getElementById('disable-planet-selection-badge');
     if(badge){
