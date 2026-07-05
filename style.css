@@ -2571,6 +2571,7 @@ body {
 
 /* Card */
 .fs-card {
+  position: relative;
   background: var(--panel2);
   border: 1px solid var(--rim2);
   border-radius: 12px;
@@ -2581,6 +2582,16 @@ body {
 .fs-card:hover {
   border-color: var(--sky);
   box-shadow: 0 0 0 1px var(--ac15), 0 4px 28px rgba(0,0,0,.5), 0 0 16px var(--ac10);
+}
+
+.fs-card-new-badge {
+  position: absolute; top: 10px; right: 10px; z-index: 3;
+  background: var(--rose); color: #fff;
+  font-family: 'Orbitron', sans-serif;
+  font-size: .58rem; font-weight: 700; letter-spacing: .1em;
+  padding: 3px 8px; border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(255,60,80,.5);
+  pointer-events: none;
 }
 
 .fs-card-header {
