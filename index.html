@@ -1829,6 +1829,46 @@
       color:rgba(48,224,144,.7);margin-top:4px;display:none">✓ Tag applied to selected body</div>
   </div>
 
+  <!-- Quick-add preset tags -->
+  <div style="padding:8px 12px 9px;border-bottom:1px solid rgba(255,220,80,.08);max-height:220px;overflow-y:auto">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:.46rem;letter-spacing:.08em;
+      color:rgba(255,220,80,.45);margin-bottom:6px">QUICK ADD</div>
+
+    <div class="tqrow-label">Surface</div>
+    <div class="tqrow">
+      <button class="tq-chip" onclick="tagDdQuickAdd('volcanic')">volcanic</button>
+      <button class="tq-chip" onclick="tagDdQuickAdd('cryo volcanic')">cryo volcanic</button>
+      <button class="tq-chip" onclick="tagDdQuickAdd('barren rock')">barren rock</button>
+      <button class="tq-chip" onclick="tagDdQuickAdd('cratered')">cratered</button>
+      <button class="tq-chip" onclick="tagDdQuickAdd('smooth')">smooth</button>
+    </div>
+
+    <div class="tqrow-label">Ocean</div>
+    <div class="tqrow">
+      <button class="tq-chip" onclick="tagDdQuickAdd('ocean (surface)')">ocean (surface)</button>
+      <button class="tq-chip" onclick="tagDdQuickAdd('ocean (subsurface)')">ocean (subsurface)</button>
+    </div>
+
+    <div class="tqrow-label">Size</div>
+    <div class="tqrow">
+      <button class="tq-chip" onclick="tagDdQuickAdd('small')">small</button>
+      <button class="tq-chip" onclick="tagDdQuickAdd('medium')">medium</button>
+      <button class="tq-chip" onclick="tagDdQuickAdd('big')">big</button>
+    </div>
+
+    <div class="tqrow-label">Atmosphere</div>
+    <div class="tqrow">
+      <button class="tq-chip" onclick="tagDdQuickAdd('thick atmosphere')">thick</button>
+      <button class="tq-chip" onclick="tagDdQuickAdd('thin atmosphere')">thin</button>
+      <button class="tq-chip" onclick="tagDdQuickAdd('no atmosphere')">none</button>
+    </div>
+
+    <div class="tqrow-label">Misc</div>
+    <div class="tqrow">
+      <button class="tq-chip" onclick="tagDdQuickAdd('binary')">binary</button>
+    </div>
+  </div>
+
   <!-- Tag untagged bodies -->
   <button onclick="tagDdOpenUntagged()"
     style="display:flex;align-items:center;gap:10px;width:100%;padding:9px 14px;

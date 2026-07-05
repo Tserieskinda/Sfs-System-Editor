@@ -3248,3 +3248,33 @@ body {
 @media (pointer: coarse) {
   #hmt-overlay { cursor: default !important; }
 }
+
+/* ── Tag dropdown: quick-add preset chips ── */
+.tqrow-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .48rem; letter-spacing: .06em;
+  color: rgba(220,220,255,.4);
+  margin: 6px 0 4px;
+}
+.tqrow-label:first-of-type { margin-top: 0; }
+.tqrow {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  margin-bottom: 2px;
+}
+.tq-chip {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .56rem; letter-spacing: .02em;
+  padding: 4px 9px;
+  background: rgba(255,220,80,.06);
+  border: 1px solid rgba(255,220,80,.22);
+  border-radius: 12px;
+  color: rgba(255,220,80,.85);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s, border-color .12s;
+}
+.tq-chip:hover {
+  background: rgba(255,220,80,.16);
+  border-color: rgba(255,220,80,.45);
+}
+.tq-chip:active { transform: scale(.96); }

@@ -280,6 +280,25 @@ function tagDdAddCustom() {
   _tagDdRefreshStatus();
 }
 
+// Quick-add a preset tag (one click, no typing) — same underlying toggle as custom tags
+function tagDdQuickAdd(tag) {
+  const hint = document.getElementById('tag-dd-add-hint');
+  if(!selectedBody || !bodies[selectedBody]) {
+    if(hint) { hint.textContent = '⚠ Select a body first'; hint.style.color = 'rgba(255,120,80,.8)'; hint.style.display = ''; }
+    setTimeout(() => { if(hint) hint.style.display = 'none'; }, 2000);
+    return;
+  }
+  sbTagToggle(selectedBody, tag);
+  const nowOn = _sbGetTags(selectedBody).some(t => t.toLowerCase() === tag.toLowerCase());
+  if(hint) {
+    hint.textContent  = nowOn ? `✓ "${tag}" applied to ${selectedBody}` : `— "${tag}" removed from ${selectedBody}`;
+    hint.style.color  = nowOn ? 'rgba(48,224,144,.75)' : 'rgba(200,200,220,.6)';
+    hint.style.display = '';
+    setTimeout(() => { hint.style.display = 'none'; }, 2000);
+  }
+  _tagDdRefreshStatus();
+}
+
 // Open search modal pre-filtered to untagged
 function tagDdOpenUntagged() {
   _tagDropOpen = false;
