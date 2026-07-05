@@ -317,7 +317,7 @@
           <span class="fs-card-author">by CynTheSilly87</span>
         </div>
         <div class="fs-card-preview" style="padding:0;overflow:hidden;border-radius:6px;aspect-ratio:16/9;height:auto;min-height:unset">
-          <img src="featured/CS.png" alt="Celestial Horizons Preview" style="width:100%;height:100%;object-fit:cover;display:block">
+          <img src="featured/CH.png" alt="Celestial Horizons Preview" style="width:100%;height:100%;object-fit:cover;display:block">
         </div>
         <div class="fs-card-desc">
           The sequel to Beyond Gaia's Horizon, my most successful interstellar planet pack :3
@@ -330,13 +330,13 @@
           </ul>
         </div>
         <div class="fs-card-actions">
-          <button class="fs-btn fs-btn-dl" onclick="trackFeatured('cs','import');importFeatured('featured/CS.zip','CS.zip')">⬇ IMPORT</button>
-          <button class="fs-btn fs-btn-open" onclick="trackFeatured('cs','open');loadZipFromUrl('featured/CS.zip','CS.zip')">▶ OPEN IN EDITOR</button>
+          <button class="fs-btn fs-btn-dl" onclick="trackFeatured('ch','import');importFeatured('featured/CH.zip','CH.zip')">⬇ IMPORT</button>
+          <button class="fs-btn fs-btn-open" onclick="trackFeatured('ch','open');loadZipFromUrl('featured/CH.zip','CH.zip')">▶ OPEN IN EDITOR</button>
         </div>
-        <div class="fs-card-stats" id="fsstats-cs">
-          <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-cs-import">…</span> imports</span>
-          <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-cs-open">…</span> opens</span>
-          <span class="fs-stat fs-stat-size">📦 <span class="fs-stat-num fs-stat-loading" id="fssz-cs">…</span> MB</span>
+        <div class="fs-card-stats" id="fsstats-ch">
+          <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-ch-import">…</span> imports</span>
+          <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-ch-open">…</span> opens</span>
+          <span class="fs-stat fs-stat-size">📦 <span class="fs-stat-num fs-stat-loading" id="fssz-ch">…</span> MB</span>
         </div>
       </div>
 
@@ -6492,7 +6492,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const SB_KEY = 'sb_publishable_7UarYndVEPrKEg3qFrfevQ_jbMh3dbI';
   const HEADERS = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
 
-  const KEYS = ['sfs-default', 'bgh', 'htss', 'ys', 'cs'];
+  const KEYS = ['sfs-default', 'bgh', 'htss', 'ys', 'ch'];
   const ACTS = ['import', 'open'];
 
   const ZIP_URLS = {
@@ -6500,7 +6500,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'bgh':         'featured/BGH Full Release-1.2.1.zip',
     'htss':        'featured/HTSS.zip',
     'ys':          'featured/YS.zip',
-    'cs':          'featured/CS.zip',
+    'ch':          'featured/CH.zip',
   };
 
   // ── Increment via RPC and update display ──
