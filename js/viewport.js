@@ -2152,29 +2152,46 @@ function _drawViewportNow(){
             drawViewport._fcTexCache[fcTexCacheKey] = fcTexCanvas;
           }
 
-          // ── Composite onto the main canvas at native screen resolution ──
-          const fadeZone_px = fcR_px * fadeZoneFrac;
-          ctx2.save();
-          // 1. Clip to the true disc radius (vector circle — always crisp) and
-          //    draw the (cached, possibly-stretched) texture inside it.
-          ctx2.beginPath(); ctx2.arc(sp.x, sp.y, fcR_px, 0, Math.PI*2); ctx2.clip();
-          ctx2.globalAlpha = fcAlpha;
-          ctx2.drawImage(fcTexCanvas, sp.x - fcR_px, sp.y - fcR_px, fcR_px * 2, fcR_px * 2);
-          // 2. Radial edge-fade, also drawn natively so it's analytically smooth
-          //    at any resolution. globalAlpha reset to 1 here so the fade always
-          //    reaches full erasure right at the rim regardless of fcAlpha —
-          //    otherwise a partial fcAlpha would double-scale the erase amount
-          //    and leave a visible semi-opaque ring at the edge instead of a
-          //    clean fade to nothing.
-          if(fadeZone_px > 0.01){
-            ctx2.globalAlpha = 1;
-            ctx2.globalCompositeOperation = 'destination-out';
-            const fadeGrad = ctx2.createRadialGradient(sp.x, sp.y, Math.max(0, fcR_px - fadeZone_px), sp.x, sp.y, fcR_px);
+          // ── Composite: build in an isolated scratch canvas, then one normal draw ──
+          // The disc clip + edge fade must NOT be applied directly on ctx2: by the
+          // time we get here, the planet's own surface/terrain for this body has
+          // already been painted onto ctx2 earlier in this same per-body pass, and
+          // destination-out erases whatever pixels are already there — not just the
+          // cloud layer we just drew. Since the cloud disc radius (fcR_px, which
+          // includes cloud height) is larger than the planet's own visible radius,
+          // whenever the fade zone's inner edge dips inside the planet's actual
+          // surface it visibly eats a ring out of the surface itself. Building the
+          // texture + clip + fade in an isolated scratch canvas first (containing
+          // ONLY the cloud content, nothing else) and compositing that with a
+          // single normal source-over draw guarantees the fade can only ever
+          // affect the cloud layer. The scratch canvas is reused across frames and
+          // sized to the same bucketed resolution as the texture cache, so it only
+          // reallocates when crossing a bucket threshold, not every frame.
+          if(!drawViewport._fcScratch) drawViewport._fcScratch = document.createElement('canvas');
+          const fcScratch = drawViewport._fcScratch;
+          if(fcScratch.width !== fcTexSZ){ fcScratch.width = fcTexSZ; fcScratch.height = fcTexSZ; }
+          const sCtx = fcScratch.getContext('2d');
+          sCtx.clearRect(0, 0, fcTexSZ, fcTexSZ);
+          const scx = fcTexSZ / 2, scy = fcTexSZ / 2, scr = fcTexSZ / 2;
+          sCtx.save();
+          sCtx.beginPath(); sCtx.arc(scx, scy, scr, 0, Math.PI*2); sCtx.clip();
+          sCtx.drawImage(fcTexCanvas, 0, 0, fcTexSZ, fcTexSZ);
+          const fadeZone_sc = scr * fadeZoneFrac;
+          if(fadeZone_sc > 0.01){
+            sCtx.globalCompositeOperation = 'destination-out';
+            const fadeGrad = sCtx.createRadialGradient(scx, scy, Math.max(0, scr - fadeZone_sc), scx, scy, scr);
             fadeGrad.addColorStop(0, 'rgba(0,0,0,0)');
             fadeGrad.addColorStop(1, 'rgba(0,0,0,1)');
-            ctx2.fillStyle = fadeGrad;
-            ctx2.fillRect(sp.x - fcR_px, sp.y - fcR_px, fcR_px * 2, fcR_px * 2);
+            sCtx.fillStyle = fadeGrad;
+            sCtx.fillRect(0, 0, fcTexSZ, fcTexSZ);
           }
+          sCtx.restore();
+
+          // Single normal (source-over) draw onto the main canvas — can only add
+          // the cloud layer, never erase anything already drawn on ctx2.
+          ctx2.save();
+          ctx2.globalAlpha = fcAlpha;
+          ctx2.drawImage(fcScratch, sp.x - fcR_px, sp.y - fcR_px, fcR_px * 2, fcR_px * 2);
           ctx2.restore();
         }
       }
