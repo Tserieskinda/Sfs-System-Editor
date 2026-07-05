@@ -2123,22 +2123,26 @@ function _drawViewportNow(){
             : 0.08; // fallback: 8% of cloud radius if not specified
 
           // ── Front-cloud texture cache (image content only — no clip, no fade) ──
-          // Previously the disc's circular clip AND its radial edge-fade were both
-          // baked into this offscreen bitmap, then the whole thing was stretched
-          // via drawImage to the on-screen size. A photographic texture tolerates
-          // some stretching, but the perfectly-round boundary and the smooth fade
-          // do NOT — magnifying a raster circle/gradient is exactly what showed up
-          // as a pixelated/blocky edge on large clouds or at high zoom, and simply
-          // raising the bake resolution only moved the threshold, it didn't remove
-          // it. Fix: cache just the texture at a modest, bucketed resolution (fine
-          // to stretch), and draw the disc clip + fade as true vector operations
-          // directly on the main canvas below — those rasterize at native screen
-          // resolution every frame, so they stay crisp at any zoom level.
-          const fcTexCacheKey = 'fctex:' + fcTex + '|' + fcCutClamped.toFixed(3) + '|' + _surfaceSZ();
+          // The disc's circular clip AND its radial edge-fade are pure vector
+          // geometry, drawn natively on the main canvas below, so they're always
+          // crisp regardless of zoom. The texture itself is a different story:
+          // many front-cloud textures (e.g. a day/night terminator shading used
+          // for the "invisible moon" trick) bake a soft gradient INTO the image
+          // content, not just at the outer rim — and that gradient is genuine
+          // raster content, so caching it at a small fixed size (512/1024) and
+          // stretching it to a large on-screen disc (big radius, or zoomed in)
+          // pixelates that internal gradient even though the outer edge stays
+          // sharp. So: bucket the texture-cache resolution up to the nearest
+          // power of two that covers the actual on-screen diameter, same
+          // approach as the geometry fix, capped to avoid runaway memory use.
+          const _fcTexNeeded = fcR_px * 2;
+          let fcTexSZ = _surfaceSZ();
+          while (fcTexSZ < _fcTexNeeded && fcTexSZ < 2048) fcTexSZ *= 2;
+          const fcTexCacheKey = 'fctex:' + fcTex + '|' + fcCutClamped.toFixed(3) + '|' + fcTexSZ;
           if(!drawViewport._fcTexCache) drawViewport._fcTexCache = {};
           let fcTexCanvas = drawViewport._fcTexCache[fcTexCacheKey];
           if(!fcTexCanvas){
-            const SZ = _surfaceSZ();
+            const SZ = fcTexSZ;
             fcTexCanvas = document.createElement('canvas');
             fcTexCanvas.width = fcTexCanvas.height = SZ;
             const tCtx = fcTexCanvas.getContext('2d');
