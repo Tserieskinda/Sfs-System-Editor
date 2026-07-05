@@ -794,8 +794,30 @@ function _drawViewportNow(){
   const centerR_m = centerName2 ? ((bodies[centerName2].data.BASE_DATA||{}).radius || 1) : 1;
   const CENTER_PX = BODY_PX['star'];
 
+  // ── Draw order: parents before children ──
+  // Object.keys(bodies) has no meaningful order — it just reflects import/creation
+  // order — so with no sort at all, a moon that happens to come before its planet
+  // in the zip gets drawn (and thus visually painted over) first, hiding its own
+  // effects behind the planet. This matters most for the "invisible moon with
+  // front clouds" day/night trick: the moon's front-cloud disc must paint AFTER
+  // the body it's decorating, which only happens reliably if we draw the orbit
+  // hierarchy root-to-leaf. Depth is memoized fresh each frame (bodies/orbits can
+  // be edited live); Array.sort is stable, so bodies at the same depth keep their
+  // original relative order.
+  const _bodyDepth = {};
+  function _depthOf(n, guard){
+    if(_bodyDepth[n] !== undefined) return _bodyDepth[n];
+    guard = guard || 0;
+    const b = bodies[n];
+    const par = b?.data?.ORBIT_DATA?.parent;
+    if(!b || b.isCenter || !par || !bodies[par] || guard > 24) return (_bodyDepth[n] = 0);
+    return (_bodyDepth[n] = _depthOf(par, guard + 1) + 1);
+  }
+  names.forEach(n => _depthOf(n));
+  const drawOrder = names.slice().sort((a, b) => _bodyDepth[a] - _bodyDepth[b]);
+
   bodyScreenPos = {};
-  names.forEach(name => {
+  drawOrder.forEach(name => {
     try {
     const b = bodies[name];
     const wp = bodyWorldPos[name] || {x:0, y:0};
@@ -2102,15 +2124,25 @@ function _drawViewportNow(){
 
           // ── Build or retrieve front-cloud offscreen canvas ──
           // Cache key is entirely world-space: texture + cutout + fadeZone fraction.
-          // The canvas is fixed 512x512 and scaled by drawImage — zoom is NOT part of
-          // the key. Previously a new screen-sized canvas was created every frame
-          // (fcDiam = fcR_px*2 pixels, growing to thousands at high zoom), which caused
-          // massive per-frame allocations and browser crashes when zooming in.
-          const fcCacheKey = 'fc:' + fcTex + '|' + fcCutClamped.toFixed(3) + '|' + fadeZoneFrac.toFixed(4) + '|' + _surfaceSZ();
+          // Resolution: start from the normal surface-texture floor (512/1024,
+          // respects the Hi-Res Surface toggle), then bucket UP to the nearest
+          // power of two that covers the actual on-screen diameter. Large front-
+          // cloud discs (big radius, or heavily zoomed in) were previously always
+          // rasterized at the same fixed 512/1024px and then stretched via
+          // drawImage to fill a much bigger on-screen circle, which is why the
+          // disc edge (and its radial fade) looked pixelated/blocky at large
+          // sizes. Bucketing to powers of two keeps the cache effective (nearby
+          // zoom levels reuse the same canvas) while capping at 2048 avoids the
+          // per-frame giant-canvas-allocation problem this fixed-size scheme was
+          // originally introduced to solve.
+          const _fcNeeded = fcR_px * 2;
+          let fcSZ = _surfaceSZ();
+          while (fcSZ < _fcNeeded && fcSZ < 2048) fcSZ *= 2;
+          const fcCacheKey = 'fc:' + fcTex + '|' + fcCutClamped.toFixed(3) + '|' + fadeZoneFrac.toFixed(4) + '|' + fcSZ;
           if(!drawViewport._fcCache) drawViewport._fcCache = {};
           let fcOff = drawViewport._fcCache[fcCacheKey];
           if(!fcOff){
-            const SZ = _surfaceSZ();
+            const SZ = fcSZ;
             fcOff = document.createElement('canvas');
             fcOff.width = fcOff.height = SZ;
             const fcCtx = fcOff.getContext('2d');
