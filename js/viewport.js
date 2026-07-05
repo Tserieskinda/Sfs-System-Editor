@@ -2122,56 +2122,55 @@ function _drawViewportNow(){
             ? Math.min(1, fcFadeZone_m / (bodyRadius_m + fcHeight_m))
             : 0.08; // fallback: 8% of cloud radius if not specified
 
-          // ── Build or retrieve front-cloud offscreen canvas ──
-          // Cache key is entirely world-space: texture + cutout + fadeZone fraction.
-          // Resolution: start from the normal surface-texture floor (512/1024,
-          // respects the Hi-Res Surface toggle), then bucket UP to the nearest
-          // power of two that covers the actual on-screen diameter. Large front-
-          // cloud discs (big radius, or heavily zoomed in) were previously always
-          // rasterized at the same fixed 512/1024px and then stretched via
-          // drawImage to fill a much bigger on-screen circle, which is why the
-          // disc edge (and its radial fade) looked pixelated/blocky at large
-          // sizes. Bucketing to powers of two keeps the cache effective (nearby
-          // zoom levels reuse the same canvas) while capping at 2048 avoids the
-          // per-frame giant-canvas-allocation problem this fixed-size scheme was
-          // originally introduced to solve.
-          const _fcNeeded = fcR_px * 2;
-          let fcSZ = _surfaceSZ();
-          while (fcSZ < _fcNeeded && fcSZ < 2048) fcSZ *= 2;
-          const fcCacheKey = 'fc:' + fcTex + '|' + fcCutClamped.toFixed(3) + '|' + fadeZoneFrac.toFixed(4) + '|' + fcSZ;
-          if(!drawViewport._fcCache) drawViewport._fcCache = {};
-          let fcOff = drawViewport._fcCache[fcCacheKey];
-          if(!fcOff){
-            const SZ = fcSZ;
-            fcOff = document.createElement('canvas');
-            fcOff.width = fcOff.height = SZ;
-            const fcCtx = fcOff.getContext('2d');
+          // ── Front-cloud texture cache (image content only — no clip, no fade) ──
+          // Previously the disc's circular clip AND its radial edge-fade were both
+          // baked into this offscreen bitmap, then the whole thing was stretched
+          // via drawImage to the on-screen size. A photographic texture tolerates
+          // some stretching, but the perfectly-round boundary and the smooth fade
+          // do NOT — magnifying a raster circle/gradient is exactly what showed up
+          // as a pixelated/blocky edge on large clouds or at high zoom, and simply
+          // raising the bake resolution only moved the threshold, it didn't remove
+          // it. Fix: cache just the texture at a modest, bucketed resolution (fine
+          // to stretch), and draw the disc clip + fade as true vector operations
+          // directly on the main canvas below — those rasterize at native screen
+          // resolution every frame, so they stay crisp at any zoom level.
+          const fcTexCacheKey = 'fctex:' + fcTex + '|' + fcCutClamped.toFixed(3) + '|' + _surfaceSZ();
+          if(!drawViewport._fcTexCache) drawViewport._fcTexCache = {};
+          let fcTexCanvas = drawViewport._fcTexCache[fcTexCacheKey];
+          if(!fcTexCanvas){
+            const SZ = _surfaceSZ();
+            fcTexCanvas = document.createElement('canvas');
+            fcTexCanvas.width = fcTexCanvas.height = SZ;
+            const tCtx = fcTexCanvas.getContext('2d');
             const cx = SZ / 2, cy = SZ / 2;
-            const fcR_sz = SZ / 2; // disc radius in canvas coords
-
-            // 1. Draw the cloud image clipped to the cloud disc radius.
-            fcCtx.save();
-            fcCtx.beginPath(); fcCtx.arc(cx, cy, fcR_sz, 0, Math.PI*2); fcCtx.clip();
-            const dh = fcCutClamped > 0 ? fcR_sz / fcCutClamped : fcR_sz;
-            fcCtx.drawImage(fcImg, cx - dh, cy - dh, dh*2, dh*2);
-            fcCtx.restore();
-
-            // 2. Apply a destination-out radial fade at the disc edge.
-            const fadeZone_sz = fcR_sz * fadeZoneFrac;
-            fcCtx.globalCompositeOperation = 'destination-out';
-            const fadeGrad = fcCtx.createRadialGradient(cx, cy, Math.max(0, fcR_sz - fadeZone_sz), cx, cy, fcR_sz);
-            fadeGrad.addColorStop(0, 'rgba(0,0,0,0)');
-            fadeGrad.addColorStop(1, 'rgba(0,0,0,1)');
-            fcCtx.fillStyle = fadeGrad;
-            fcCtx.fillRect(0, 0, SZ, SZ);
-
-            drawViewport._fcCache[fcCacheKey] = fcOff;
+            const dh = fcCutClamped > 0 ? cx / fcCutClamped : cx;
+            tCtx.drawImage(fcImg, cx - dh, cy - dh, dh*2, dh*2);
+            drawViewport._fcTexCache[fcTexCacheKey] = fcTexCanvas;
           }
 
-          // 3. Composite the cached canvas onto the main canvas scaled to screen size.
+          // ── Composite onto the main canvas at native screen resolution ──
+          const fadeZone_px = fcR_px * fadeZoneFrac;
           ctx2.save();
+          // 1. Clip to the true disc radius (vector circle — always crisp) and
+          //    draw the (cached, possibly-stretched) texture inside it.
+          ctx2.beginPath(); ctx2.arc(sp.x, sp.y, fcR_px, 0, Math.PI*2); ctx2.clip();
           ctx2.globalAlpha = fcAlpha;
-          ctx2.drawImage(fcOff, sp.x - fcR_px, sp.y - fcR_px, fcR_px * 2, fcR_px * 2);
+          ctx2.drawImage(fcTexCanvas, sp.x - fcR_px, sp.y - fcR_px, fcR_px * 2, fcR_px * 2);
+          // 2. Radial edge-fade, also drawn natively so it's analytically smooth
+          //    at any resolution. globalAlpha reset to 1 here so the fade always
+          //    reaches full erasure right at the rim regardless of fcAlpha —
+          //    otherwise a partial fcAlpha would double-scale the erase amount
+          //    and leave a visible semi-opaque ring at the edge instead of a
+          //    clean fade to nothing.
+          if(fadeZone_px > 0.01){
+            ctx2.globalAlpha = 1;
+            ctx2.globalCompositeOperation = 'destination-out';
+            const fadeGrad = ctx2.createRadialGradient(sp.x, sp.y, Math.max(0, fcR_px - fadeZone_px), sp.x, sp.y, fcR_px);
+            fadeGrad.addColorStop(0, 'rgba(0,0,0,0)');
+            fadeGrad.addColorStop(1, 'rgba(0,0,0,1)');
+            ctx2.fillStyle = fadeGrad;
+            ctx2.fillRect(sp.x - fcR_px, sp.y - fcR_px, fcR_px * 2, fcR_px * 2);
+          }
           ctx2.restore();
         }
       }
