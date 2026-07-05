@@ -275,13 +275,14 @@ body {
 
 .menu-cog-btn {
   position: absolute; top: 20px; right: 20px; z-index: 5;
-  width: 34px; height: 34px; padding: 0;
+  width: 46px; height: 46px; padding: 0;
   display: flex; align-items: center; justify-content: center;
-  background: transparent; border: 1px solid var(--rim); border-radius: 6px;
-  color: var(--ink4); font-size: 1rem; line-height: 1; cursor: pointer;
+  background: var(--ac15); border: 1.5px solid var(--ac1); border-radius: 8px;
+  color: var(--ac1); font-size: 1.5rem; line-height: 1; cursor: pointer;
+  box-shadow: 0 0 12px var(--ac20);
   transition: all .15s;
 }
-.menu-cog-btn:hover { border-color: var(--sky); color: var(--sky2); background: var(--panel3); }
+.menu-cog-btn:hover { background: var(--ac30); box-shadow: 0 0 18px var(--ac40); transform: scale(1.06); }
 
 /* ═══════════════════════════ NEW SYSTEM SCREEN ═══════════════════════════ */
 #s-new { flex-direction: column; align-items: stretch; }
@@ -2806,11 +2807,11 @@ body {
     font-size: .55rem;
   }
 
-  /* Settings cog: smaller + tighter offset on mobile */
+  /* Settings cog: still big/bright on mobile, just tighter offset */
   .menu-cog-btn {
     top: 14px; right: 14px;
-    width: 30px; height: 30px;
-    font-size: .9rem;
+    width: 42px; height: 42px;
+    font-size: 1.35rem;
   }
 
   /* Menu buttons: full width, good tap height */
