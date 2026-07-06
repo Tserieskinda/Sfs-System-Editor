@@ -2176,7 +2176,24 @@ function _drawViewportNow(){
           sCtx.save();
           sCtx.beginPath(); sCtx.arc(scx, scy, scr, 0, Math.PI*2); sCtx.clip();
           sCtx.drawImage(fcTexCanvas, 0, 0, fcTexSZ, fcTexSZ);
-          const fadeZone_sc = scr * fadeZoneFrac;
+          // fadeZoneFrac is a FRACTION of body radius, set as an absolute km value
+          // in FRONT_CLOUDS_DATA (fadeZoneHeight). For very large bodies that
+          // fraction can be tiny (e.g. an 88km fade zone on a 76,000km-radius
+          // planet is ~0.1% of the radius) — at any normal on-screen size that
+          // converts to well under one screen pixel, and a gradient can't
+          // visually transition across less than a pixel: the rasterizer just
+          // snaps it to a hard, jagged-antialiased edge no matter how high-res
+          // the texture cache is. Convert the on-screen minimum (in real pixels)
+          // into scratch-space units via the scratch→screen stretch factor, and
+          // never let the fade go thinner than that — this is a small, deliberate
+          // deviation from literal physical accuracy, justified because a
+          // sub-pixel-wide "gradient" isn't perceivable as a gradient anyway, it
+          // just reads as noise; enforcing a visible minimum better honors the
+          // actual intent (a smooth edge) than exact-but-invisible precision.
+          const MIN_FADE_SCREEN_PX = 2.5;
+          const minFadeZone_sc = fcR_px > 0 ? MIN_FADE_SCREEN_PX * (scr / fcR_px) : 0;
+          let fadeZone_sc = Math.max(scr * fadeZoneFrac, minFadeZone_sc);
+          fadeZone_sc = Math.min(fadeZone_sc, scr);
           if(fadeZone_sc > 0.01){
             sCtx.globalCompositeOperation = 'destination-out';
             const fadeGrad = sCtx.createRadialGradient(scx, scy, Math.max(0, scr - fadeZone_sc), scx, scy, scr);
