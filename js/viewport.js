@@ -2463,21 +2463,32 @@ function _drawViewportNow(){
     bodyScreenPos[name] = sp; // always store for hit-test
   });
 
-  // ── Post-processing overlay — applied after world render, before editor overlays ──
-  // (SOI circles, physAtmo disk, labels are editor-only and must not be colour-graded)
+  // ── Post-processing: find the relevant body's PP key once ──
+  // Prefer system center PP keys; fall back to any body that has keys.
+  let _ppBody = null;
+  const _cname = Object.keys(bodies).find(n => bodies[n].isCenter);
+  if(_cname && bodies[_cname].data?.POST_PROCESSING?.keys?.length) _ppBody = bodies[_cname];
+  if(!_ppBody){
+    const _fallback = Object.keys(bodies).find(n => bodies[n].data?.POST_PROCESSING?.keys?.length);
+    if(_fallback) _ppBody = bodies[_fallback];
+  }
+  const _ppKey = _ppBody ? getPostProcessKey(_ppBody.data, 0) : null;
+
+  // Star intensity feeds the 'gamelike' background (js/background.js) so its
+  // starfield dims/brightens the same way the game's own background stars do
+  // (SFS fades stars out based on a body's authored PostProcessing curve —
+  // see PostProcessingModule.Key.starIntensity / WorldView.UpdatePostProcessing
+  // in the decompiled source). This is intentionally independent of the
+  // envFlags.postProc toggle below (that toggle is just the colour-grading
+  // overlay) — star visibility is its own concern and should track the real
+  // per-body curve regardless of whether colour tinting is enabled. Defaults
+  // to 1 (fully visible) when there's no relevant body/curve data.
+  window._sfsBgStarIntensity = (_ppKey && typeof _ppKey.starIntensity === 'number') ? _ppKey.starIntensity : 1;
+
+  // ── Post-processing colour-tint overlay — applied after world render, before
+  //    editor overlays (SOI circles, physAtmo disk, labels must not be graded) ──
   if(envFlags.postProc){
-    // Prefer system center PP keys; fall back to any body that has keys.
-    let _ppBody = null;
-    const _cname = Object.keys(bodies).find(n => bodies[n].isCenter);
-    if(_cname && bodies[_cname].data?.POST_PROCESSING?.keys?.length) _ppBody = bodies[_cname];
-    if(!_ppBody){
-      const _fallback = Object.keys(bodies).find(n => bodies[n].data?.POST_PROCESSING?.keys?.length);
-      if(_fallback) _ppBody = bodies[_fallback];
-    }
-    if(_ppBody){
-      const _ppKey = getPostProcessKey(_ppBody.data, 0);
-      if(_ppKey) _applyPostProcessingOverlay(ctx2, vp.width, vp.height, _ppKey);
-    }
+    if(_ppKey) _applyPostProcessingOverlay(ctx2, vp.width, vp.height, _ppKey);
   }
 
   // ── SOI pass — drawn on top of everything else ──
