@@ -1,5 +1,10 @@
 // ════════════════════════════════ BACKGROUND THEMES ════════════════════════════════
-const BG_THEMES = ['gamelike','stars','nebula','matrix','custom'];
+const BG_THEMES = ['gamelike','nebula','matrix','custom'];
+// Migrate anyone who had the old "Twinkling Stars" theme selected — it's been
+// removed in favour of 'gamelike' (pure black + in-game-style stars).
+if(localStorage.getItem('sfs_bg_theme') === 'stars'){
+  localStorage.setItem('sfs_bg_theme', 'gamelike');
+}
 let bgTheme = localStorage.getItem('sfs_bg_theme') || 'gamelike';
 let _customBgImg = null; // loaded Image object for custom theme
 
@@ -177,24 +182,6 @@ function perlin2D(x, y){
             x.fillStyle = s.col + a + ')'; x.fill();
           });
         }
-        animId = requestAnimationFrame(draw);
-      }
-      animId = requestAnimationFrame(draw);
-
-    } else if(bgTheme === 'stars'){
-      particles = Array.from({length:380}, () => ({
-        x: Math.random()*c.width, y: Math.random()*c.height,
-        r: Math.random()*1.6+.15, a: Math.random()*.6+.15,
-        sp: Math.random()*.004+.001, ph: Math.random()*Math.PI*2,
-        col: Math.random()>.85 ? `rgba(255,240,200,` : `rgba(180,210,255,`
-      }));
-      function draw(t){
-        x.clearRect(0,0,c.width,c.height);
-        particles.forEach(s=>{
-          const a = s.a*(0.55+0.45*Math.sin(t*.001*s.sp*1000+s.ph));
-          x.beginPath(); x.arc(s.x,s.y,s.r,0,Math.PI*2);
-          x.fillStyle = s.col+a+')'; x.fill();
-        });
         animId = requestAnimationFrame(draw);
       }
       animId = requestAnimationFrame(draw);
