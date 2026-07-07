@@ -5179,11 +5179,19 @@ document.addEventListener('keydown', function(e){
           <div style="font-family:'JetBrains Mono',monospace;font-size:.47rem;color:rgba(120,140,180,.6);
             letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">⚙ DEPTH PARAMETERS</div>
           <div style="display:flex;flex-direction:column;gap:5px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.44rem;color:rgba(120,140,180,.45);
+              letter-spacing:.03em;margin-bottom:2px">Mark the grayscale values the game should read as shallow vs. deep water</div>
             <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
               letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
-              DEPTH <span id="wmk-depth-val" style="color:rgba(180,200,255,.7)">200</span>
-              <input type="range" id="wmk-depth" min="80" max="360" value="200" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
-                oninput="document.getElementById('wmk-depth-val').textContent=this.value;wmkQueueApply()">
+              SHALLOW VALUE <span id="wmk-shallow-val" style="color:rgba(180,200,255,.7)">220</span>
+              <input type="range" id="wmk-shallow" min="150" max="255" value="220" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
+                oninput="document.getElementById('wmk-shallow-val').textContent=this.value;wmkQueueApply()">
+            </label>
+            <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
+              letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
+              DEEP VALUE <span id="wmk-deep-val" style="color:rgba(180,200,255,.7)">10</span>
+              <input type="range" id="wmk-deep" min="0" max="100" value="10" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
+                oninput="document.getElementById('wmk-deep-val').textContent=this.value;wmkQueueApply()">
             </label>
             <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
               letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
@@ -6253,10 +6261,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const img = new Image();
     img.onload = () => {
       const cv = wmkGetCanvas();
-      cv.width = img.naturalWidth;
-      cv.height = img.naturalHeight;
+      // Cap working resolution — this tool runs a per-pixel LAB colour
+      // classification AND a two-pass chamfer distance transform over the
+      // full image, potentially several times as sliders are adjusted. An
+      // uncapped 4096px+ planet texture (common elsewhere in this project)
+      // would mean multiple large typed-array buffers alive at once and a
+      // long blocking main-thread computation — exactly the class of mobile
+      // OOM/hang this project already guards against elsewhere (see
+      // js/assets.js's _lowMemDevice check and io.js's texture-decode
+      // yielding). 1024px keeps this comfortably fast and light while still
+      // being plenty of resolution for a watermask/heightmap output.
+      const WMK_MAX_DIM = 1024;
+      const scale = Math.min(1, WMK_MAX_DIM / Math.max(img.naturalWidth, img.naturalHeight));
+      cv.width  = Math.round(img.naturalWidth  * scale);
+      cv.height = Math.round(img.naturalHeight * scale);
       // Fit in panel width
-      wmkGetCtx().drawImage(img, 0, 0);
+      wmkGetCtx().drawImage(img, 0, 0, cv.width, cv.height);
       wmkBaseImage = wmkGetCtx().getImageData(0, 0, cv.width, cv.height);
       wmkLiqSamples = []; wmkLandSamples = [];
       $('wmk-water-count').textContent = $('wmk-land-count').textContent = '0';
@@ -6337,7 +6357,13 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     $('wmk-gen-status').style.display = 'flex';
-    requestAnimationFrame(() => {
+    // Double-RAF: the browser only paints the "generating…" status text
+    // between animation frames, so kicking off the (synchronous, potentially
+    // slow on a big image / weak mobile CPU) classification pass in the very
+    // same RAF callback that sets the status text means it never gets a
+    // chance to actually render before the main thread blocks. Waiting one
+    // extra frame guarantees the status is visible first.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
       const la = labAvg(wmkLiqSamples), lb = labAvg(wmkLandSamples);
       const cv = wmkGetCanvas(), w=cv.width, h=cv.height;
       wmkSeaField = new Float32Array(w*h);
@@ -6351,7 +6377,7 @@ document.addEventListener('DOMContentLoaded', () => {
       wmkComputeCoastDist();
       wmkApplyDepth();
       $('wmk-gen-status').style.display = 'none';
-    });
+    }));
   };
 
   function wmkApplyDepth() {
@@ -6362,12 +6388,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const ed = wmkEditLayer.data;
     for(let i=0;i<ed.length;i+=4){ed[i]=ed[i+1]=ed[i+2]=0;ed[i+3]=0;}
     const cw=+$('wmk-coast').value, sp=+$('wmk-spread').value;
+    const shallowV=+$('wmk-shallow').value, deepV=+$('wmk-deep').value;
     for(let i=0,p=0;i<wmkGenerated.data.length;i+=4,p++){
       if(!wmkSeaMask[p]){wmkGenerated.data[i]=wmkGenerated.data[i+1]=wmkGenerated.data[i+2]=255;}
       else{
         let t=Math.min(1,wmkCoastDist[p]/cw);
         t=Math.pow(t,sp); t=t*t*(3-2*t);
-        const v=220*(1-t)+10*t;
+        const v=shallowV*(1-t)+deepV*t;
         wmkGenerated.data[i]=wmkGenerated.data[i+1]=wmkGenerated.data[i+2]=v;
       }
       wmkGenerated.data[i+3]=255;
