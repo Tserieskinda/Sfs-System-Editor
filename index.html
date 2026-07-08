@@ -4705,10 +4705,10 @@ document.addEventListener('keydown', function(e){
       <div id="hmt-loaded" style="display:none;flex-direction:column;gap:0">
 
         <!-- Image preview canvas -->
-        <div style="position:relative;margin:0 16px 0;touch-action:none">
+        <div style="position:relative;margin:0 16px 0;touch-action:pan-y">
           <canvas id="hmt-preview" style="width:100%;height:auto;display:block;border-radius:4px"></canvas>
           <!-- Overlay canvas for the sample line + breakpoint handles -->
-          <canvas id="hmt-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:all;touch-action:none"></canvas>
+          <canvas id="hmt-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:all;touch-action:pan-y"></canvas>
           <!-- Fullscreen expand button -->
           <button onclick="hmtOpenFullscreen('bumpmap')" title="Full-screen view" style="position:absolute;top:6px;right:6px;background:rgba(4,8,20,.8);border:1px solid rgba(100,220,180,.35);border-radius:3px;color:rgba(100,220,180,.8);font-size:.65rem;padding:3px 7px;cursor:pointer;z-index:2;font-family:'JetBrains Mono',monospace">⛶</button>
         </div>
@@ -4886,9 +4886,9 @@ document.addEventListener('keydown', function(e){
           <div style="position:relative;border-radius:4px;overflow:hidden;border:1px solid rgba(120,160,255,.15)">
             <canvas id="htx-src-preview" style="width:100%;height:auto;display:block"></canvas>
             <!-- Hemisphere cut line overlay -->
-            <canvas id="htx-cut-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:all;touch-action:none;cursor:ns-resize"></canvas>
+            <canvas id="htx-cut-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:all;touch-action:pan-y;cursor:ns-resize"></canvas>
             <!-- Sphere remap pole-pick overlay (on top of cut-overlay) -->
-            <canvas id="htx-remap-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;touch-action:none;cursor:crosshair;z-index:2"></canvas>
+            <canvas id="htx-remap-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;touch-action:pan-y;cursor:crosshair;z-index:2"></canvas>
             <!-- Fullscreen expand button -->
             <button onclick="hmtOpenFullscreen('texmap')" title="Full-screen view" style="position:absolute;top:6px;right:6px;background:rgba(4,8,20,.8);border:1px solid rgba(120,160,255,.35);border-radius:3px;color:rgba(120,160,255,.8);font-size:.65rem;padding:3px 7px;cursor:pointer;z-index:3;font-family:'JetBrains Mono',monospace">⛶</button>
           </div>
@@ -6337,17 +6337,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const cv = wmkGetCanvas(), w=cv.width, h=cv.height;
     wmkCoastDist = new Float32Array(w*h);
     for(let i=0;i<w*h;i++) wmkCoastDist[i] = wmkSeaMask[i] ? Infinity : 0;
+    // 8-connected chamfer distance transform: orthogonal neighbours weight 1,
+    // diagonal neighbours weight sqrt(2). A 4-connected (orthogonal-only)
+    // transform's distance contours are diamond-shaped, which is why the
+    // coast-to-ocean falloff visibly favoured 4 axes instead of radiating
+    // smoothly outward — adding weighted diagonals gives a much closer
+    // approximation of true Euclidean distance (octagonal, near-circular
+    // contours) at the same O(w*h) cost, just 4 neighbours per pass instead of 2.
+    const SQRT2 = Math.SQRT2;
     for(let y=0;y<h;y++) for(let x=0;x<w;x++){
       const i=y*w+x;
-      const a=x>0?wmkCoastDist[i-1]+1:Infinity;
-      const b=y>0?wmkCoastDist[i-w]+1:Infinity;
-      wmkCoastDist[i]=Math.min(wmkCoastDist[i],a,b);
+      const left  = x>0        ? wmkCoastDist[i-1]   + 1     : Infinity;
+      const up    = y>0        ? wmkCoastDist[i-w]   + 1     : Infinity;
+      const ul    = (x>0&&y>0) ? wmkCoastDist[i-w-1] + SQRT2 : Infinity;
+      const ur    = (x<w-1&&y>0)?wmkCoastDist[i-w+1] + SQRT2 : Infinity;
+      wmkCoastDist[i]=Math.min(wmkCoastDist[i],left,up,ul,ur);
     }
     for(let y=h-1;y>=0;y--) for(let x=w-1;x>=0;x--){
       const i=y*w+x;
-      const a=x<w-1?wmkCoastDist[i+1]+1:Infinity;
-      const b=y<h-1?wmkCoastDist[i+w]+1:Infinity;
-      wmkCoastDist[i]=Math.min(wmkCoastDist[i],a,b);
+      const right = x<w-1        ? wmkCoastDist[i+1]   + 1     : Infinity;
+      const down  = y<h-1        ? wmkCoastDist[i+w]   + 1     : Infinity;
+      const dr    = (x<w-1&&y<h-1)?wmkCoastDist[i+w+1] + SQRT2 : Infinity;
+      const dl    = (x>0&&y<h-1)  ?wmkCoastDist[i+w-1] + SQRT2 : Infinity;
+      wmkCoastDist[i]=Math.min(wmkCoastDist[i],right,down,dr,dl);
     }
   }
 
