@@ -2046,18 +2046,16 @@ function _drawViewportNow(){
                       if(ang < 0) ang += 1;
                       const u = (ang * numTiles) % 1;
                       const sx = Math.min(tw - 1, Math.floor(u * tw));
-                      // Unity V=0 is texture BOTTOM row, V=1 is TOP row — but image-space
-                      // row index (as read out of the canvas/PNG buffer, same convention
-                      // the atmosphere polar-warp code above uses for srcD) has row 0 at
-                      // the TOP. v_frac was being used directly as a top-relative row
-                      // fraction, silently skipping the flip the comment already called
-                      // for — this is what broke the "3D ring" trick: any texture whose
-                      // rows encode concentric ring geometry (same idea as the gradient
-                      // texture the atmosphere renderer already unwraps correctly) came
-                      // out upside-down/misaligned instead of matching the atmosphere
-                      // renderer's output. Flip here, matching Planet.cs's Unity V
-                      // convention exactly.
-                      const texRowF = (1 - v_frac) * (th - 1);
+                      // Row mapping, matching the atmosphere polar-warp convention exactly.
+                      // There, t=0 at surface / t=1 at outer edge, and texRowF=(1-t)*(SH-1)
+                      // — i.e. surface samples the image's BOTTOM row (Unity V=0), outer
+                      // edge samples the TOP row (Unity V=1). Here v_disc is defined the
+                      // OPPOSITE way round (1 at surface, 0 at outer edge), so v_frac is
+                      // already the "(1-t)" quantity — no extra flip needed. The previous
+                      // attempt applied (1 - v_frac) on top of that, double-flipping and
+                      // rendering every cloud texture upside-down. v_frac directly gives
+                      // the bottom-row-at-surface mapping the game's V convention wants.
+                      const texRowF = v_frac * (th - 1);
                       // Bilinear interpolation along Y — same fix the atmosphere polar
                       // warp already applies (see _atmoPolarCache build above) and for
                       // the same reason: nearest-neighbor row sampling stairsteps hard
