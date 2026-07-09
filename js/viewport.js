@@ -1191,7 +1191,17 @@ function _drawViewportNow(){
           // Always use physR_px (true physical pixel radius) for atmosphere sizing,
           // NOT the display-clamped r — the atmosphere must stay at its real physical
           // size regardless of the icon floor or zoom level.
-          const outer_r_px = physR_px * (bodyRadius_m + gradH_m) / bodyRadius_m;
+          // Denominator MUST be the radiusMult-scaled body radius (R_eff_px), not raw
+          // bodyRadius_m: physR_px already has radiusMult baked in (physR_px =
+          // bodyRadius_m*radiusMult*scale*vpZ), so dividing by unscaled bodyRadius_m
+          // lets radiusMult leak into the atmosphere-height term too. In-game, radius
+          // and atmosphere height are scaled by two INDEPENDENT difficulty multipliers
+          // (RadiusScale vs AtmosphereScale/atmoMult) — gradH_m below is already
+          // atmoMult-scaled, so the ratio must only re-apply radiusMult to the radius
+          // part. On Normal (radiusMult=1) this was invisible; on Hard/Realistic it
+          // made the halo balloon outward past its correct outer edge.
+          const R_eff_px_atmo = bodyRadius_m * radiusMult;
+          const outer_r_px = physR_px * (R_eff_px_atmo + gradH_m) / R_eff_px_atmo;
           if(outer_r_px > 0.5){
             const hasTerrain = !!b.data.TERRAIN_DATA;
             // When the atmosphere outer edge exceeds the viewport diagonal, the planet
@@ -2036,14 +2046,35 @@ function _drawViewportNow(){
                       if(ang < 0) ang += 1;
                       const u = (ang * numTiles) % 1;
                       const sx = Math.min(tw - 1, Math.floor(u * tw));
-                      // Unity V=0 is texture bottom; Canvas2D y=0 is top — flip
-                      const sy = Math.min(th - 1, Math.floor(v_frac * th));
-                      const si = (sy * tw + sx) * 4;
+                      // Unity V=0 is texture BOTTOM row, V=1 is TOP row — but image-space
+                      // row index (as read out of the canvas/PNG buffer, same convention
+                      // the atmosphere polar-warp code above uses for srcD) has row 0 at
+                      // the TOP. v_frac was being used directly as a top-relative row
+                      // fraction, silently skipping the flip the comment already called
+                      // for — this is what broke the "3D ring" trick: any texture whose
+                      // rows encode concentric ring geometry (same idea as the gradient
+                      // texture the atmosphere renderer already unwraps correctly) came
+                      // out upside-down/misaligned instead of matching the atmosphere
+                      // renderer's output. Flip here, matching Planet.cs's Unity V
+                      // convention exactly.
+                      const texRowF = (1 - v_frac) * (th - 1);
+                      // Bilinear interpolation along Y — same fix the atmosphere polar
+                      // warp already applies (see _atmoPolarCache build above) and for
+                      // the same reason: nearest-neighbor row sampling stairsteps hard
+                      // when a texture's rows are meaningful radial/ring geometry rather
+                      // than generic tileable cloud noise, which is exactly the case the
+                      // "3D ring via clouds" trick relies on.
+                      const sy0 = Math.min(th - 1, Math.max(0, Math.floor(texRowF)));
+                      const sy1 = Math.min(th - 1, sy0 + 1);
+                      const fy  = texRowF - sy0;
+                      const si0 = (sy0 * tw + sx) * 4;
+                      const si1 = (sy1 * tw + sx) * 4;
                       const oi = (py * SZ + px2) * 4;
-                      out[oi]     = sd[si];
-                      out[oi + 1] = sd[si + 1];
-                      out[oi + 2] = sd[si + 2];
-                      out[oi + 3] = Math.round(sd[si + 3] * edgeA);
+                      out[oi]     = sd[si0]     + (sd[si1]     - sd[si0])     * fy + 0.5 | 0;
+                      out[oi + 1] = sd[si0 + 1] + (sd[si1 + 1] - sd[si0 + 1]) * fy + 0.5 | 0;
+                      out[oi + 2] = sd[si0 + 2] + (sd[si1 + 2] - sd[si0 + 2]) * fy + 0.5 | 0;
+                      const a0 = sd[si0 + 3], a1 = sd[si1 + 3];
+                      out[oi + 3] = Math.round((a0 + (a1 - a0) * fy) * edgeA);
                     }
                   }
                   wctx.putImageData(od, 0, 0);
@@ -2156,9 +2187,19 @@ function _drawViewportNow(){
         const fcCutClamped = Math.max(0, Math.min(1, fcCutout));
         const fcAlpha = fcCutClamped * atmoFade;
         if(fcAlpha > 0.01){
-          const fcHeight_m  = FCD.height || 0;
-          const fcFadeZone_m = FCD.fadeZoneHeight || 0;
-          const fcR_px      = physR_px * (bodyRadius_m + fcHeight_m) / bodyRadius_m;
+          // Difficulty.ScalePlanetData: frontClouds.height *= atmoMult;
+          // frontClouds.fadeZoneHeight *= atmoMult; — both were being read raw here,
+          // so front-cloud discs (shadow terminators, city lights, etc.) sat at the
+          // wrong altitude on anything but Normal difficulty. Apply atmoMult, and
+          // — same fix as the atmosphere halo above — use the radiusMult-scaled
+          // body radius (R_eff_px) as the ratio denominator, not raw bodyRadius_m,
+          // since physR_px already has radiusMult baked in and the two multipliers
+          // (radiusMult, atmoMult) are independent in-game.
+          const fcAtmoMult  = getAtmoDifficultyMult(b.data);
+          const fcHeight_m  = (FCD.height || 0) * fcAtmoMult;
+          const fcFadeZone_m = (FCD.fadeZoneHeight || 0) * fcAtmoMult;
+          const R_eff_px_fc = bodyRadius_m * radiusMult;
+          const fcR_px      = physR_px * (R_eff_px_fc + fcHeight_m) / R_eff_px_fc;
 
           // fadeZoneHeight is world-space — convert to a fraction of the cloud radius
           // so it's zoom-independent (used in cache key and for rendering).
