@@ -794,16 +794,34 @@ function _drawViewportNow(){
   const centerR_m = centerName2 ? ((bodies[centerName2].data.BASE_DATA||{}).radius || 1) : 1;
   const CENTER_PX = BODY_PX['star'];
 
-  // ── Draw order: parents before children ──
+  // ── Draw order: parents before children, then positionZ among siblings ──
   // Object.keys(bodies) has no meaningful order — it just reflects import/creation
   // order — so with no sort at all, a moon that happens to come before its planet
   // in the zip gets drawn (and thus visually painted over) first, hiding its own
   // effects behind the planet. This matters most for the "invisible moon with
   // front clouds" day/night trick: the moon's front-cloud disc must paint AFTER
   // the body it's decorating, which only happens reliably if we draw the orbit
-  // hierarchy root-to-leaf. Depth is memoized fresh each frame (bodies/orbits can
-  // be edited live); Array.sort is stable, so bodies at the same depth keep their
-  // original relative order.
+  // hierarchy root-to-leaf.
+  //
+  // Hierarchy depth alone isn't the whole story, though. The actual game
+  // (FrontClouds.cs) gives every front-cloud layer the exact same sortingOrder
+  // (200) on every body — the ONLY thing that ever differentiates draw order
+  // between them is each layer's own world Z, i.e. planet.data.frontClouds.
+  // positionZ (Vector3.forward * positionZ, so more-negative Z sits closer to
+  // camera and draws on top). Advanced setups stack multiple invisible moons
+  // on the SAME parent to fake e.g. clouds (positionZ +5000, further back) +
+  // a day/night terminator (positionZ ~0, middle) + city lights (positionZ
+  // -5000, frontmost) — three siblings all at the same hierarchy depth, whose
+  // correct relative order depends entirely on positionZ, not on which was
+  // imported first. So: depth is still the primary (coarse) key, but among
+  // bodies at the same depth we now break ties by positionZ — more positive
+  // sorts earlier (drawn first/behind), more negative sorts later (drawn
+  // last/in front) — matching the game exactly. Bodies without front-cloud
+  // data are treated as positionZ=0 (neutral middle), same as the engine's
+  // own convention of clouds/atmosphere/rings being local Z offsets from an
+  // implicit zero at the body's own root. Both maps are memoized fresh each
+  // frame since bodies/orbits can be edited live; Array.sort is stable, so
+  // any remaining ties keep their original relative order.
   const _bodyDepth = {};
   function _depthOf(n, guard){
     if(_bodyDepth[n] !== undefined) return _bodyDepth[n];
@@ -814,7 +832,14 @@ function _drawViewportNow(){
     return (_bodyDepth[n] = _depthOf(par, guard + 1) + 1);
   }
   names.forEach(n => _depthOf(n));
-  const drawOrder = names.slice().sort((a, b) => _bodyDepth[a] - _bodyDepth[b]);
+  const _bodyFcZ = {};
+  names.forEach(n => {
+    const fcd = bodies[n]?.data?.FRONT_CLOUDS_DATA;
+    _bodyFcZ[n] = (fcd && typeof fcd.positionZ === 'number') ? fcd.positionZ : 0;
+  });
+  const drawOrder = names.slice().sort((a, b) =>
+    (_bodyDepth[a] - _bodyDepth[b]) || (_bodyFcZ[b] - _bodyFcZ[a])
+  );
 
   bodyScreenPos = {};
   drawOrder.forEach(name => {
