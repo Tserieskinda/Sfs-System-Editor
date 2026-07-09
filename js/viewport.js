@@ -2124,7 +2124,7 @@ function _drawViewportNow(){
     // Soft edge fade: the game's FrontClouds shader uses a _FadeZoneM that fades
     // alpha toward zero at the disc edge. We replicate this with a destination-out
     // radial mask applied after drawing the image.
-    if(envFlags.fclouds && !envFlags.heightmaps && atmoFade > 0 && b.data.FRONT_CLOUDS_DATA){
+    if(envFlags.fclouds && !envFlags.heightmaps && b.data.FRONT_CLOUDS_DATA){
       const FCD = b.data.FRONT_CLOUDS_DATA;
       const fcTex = FCD.cloudsTexture;
       const fcImg = fcTex && fcTex !== 'None' && textureCache[fcTex];
@@ -2135,12 +2135,28 @@ function _drawViewportNow(){
           if(fcCutEl && fcCutEl.value !== '') fcCutout = parseFloat(fcCutEl.value) ?? fcCutout;
         }
         const fcCutClamped = Math.max(0, Math.min(1, fcCutout));
-        const fcAlpha = fcCutClamped * atmoFade;
+        const fcHeight_m  = FCD.height || 0;
+        const fcFadeZone_m = FCD.fadeZoneHeight || 0;
+        const fcR_px      = physR_px * (bodyRadius_m + fcHeight_m) / bodyRadius_m;
+        // atmoFade is computed from the CARRIER body's own bare physical
+        // radius (physR_px) — correct for atmosphere/fog, which visually
+        // scale with the body itself. Front clouds don't necessarily: the
+        // classic "invisible moon" day-night/city-lights trick deliberately
+        // gives the carrier body a tiny/near-zero physical radius, since
+        // it's meant to be invisible — but that dragged atmoFade down to
+        // ~0 regardless of how large the actual cloud DISC renders (which
+        // scales off bodyRadius_m + cloud height, not the carrier's bare
+        // radius), silencing the whole layer independent of draw order.
+        // Compute a dedicated LOD fade keyed off the disc's own physical
+        // outer size instead, using the same fade shape/thresholds as
+        // atmoFade for visual consistency.
+        const fcPhysOuter_m = bodyRadius_m + fcHeight_m;
+        const fcLod = fcPhysOuter_m > 0
+          ? Math.min(32, Math.max(2, 2 * Math.log10(Math.max(1, fcPhysOuter_m / 1e5))))
+          : 2;
+        const fcLodFade = Math.max(0, Math.min(1, (fcR_px - fcLod) / Math.max(fcLod, 0.01)));
+        const fcAlpha = fcCutClamped * fcLodFade;
         if(fcAlpha > 0.01){
-          const fcHeight_m  = FCD.height || 0;
-          const fcFadeZone_m = FCD.fadeZoneHeight || 0;
-          const fcR_px      = physR_px * (bodyRadius_m + fcHeight_m) / bodyRadius_m;
-
           // fadeZoneHeight is world-space — convert to a fraction of the cloud radius
           // so it's zoom-independent (used in cache key and for rendering).
           const fadeZoneFrac = fcFadeZone_m > 0
@@ -2221,9 +2237,20 @@ function _drawViewportNow(){
           fadeZone_sc = Math.min(fadeZone_sc, scr);
           if(fadeZone_sc > 0.01){
             sCtx.globalCompositeOperation = 'destination-out';
+            // Full erasure is placed at stop 0.94 (not 1.0) so the gradient is
+            // already saturated before reaching the true clip radius and its
+            // antialiasing fringe — the last stop repeats that same value all
+            // the way to the edge. Reaching alpha=1 exactly AT the clip
+            // boundary left a thin residual ring of partial opacity right at
+            // the rim (the clip path's own antialiasing doesn't perfectly
+            // coincide with the gradient's sampling at that exact radius),
+            // which showed up as a faint opaque line just past where the fade
+            // should have already gone fully transparent. Same fix already
+            // used for the atmosphere fog gradient elsewhere in this file.
             const fadeGrad = sCtx.createRadialGradient(scx, scy, Math.max(0, scr - fadeZone_sc), scx, scy, scr);
-            fadeGrad.addColorStop(0, 'rgba(0,0,0,0)');
-            fadeGrad.addColorStop(1, 'rgba(0,0,0,1)');
+            fadeGrad.addColorStop(0,    'rgba(0,0,0,0)');
+            fadeGrad.addColorStop(0.94, 'rgba(0,0,0,1)');
+            fadeGrad.addColorStop(1.0,  'rgba(0,0,0,1)');
             sCtx.fillStyle = fadeGrad;
             sCtx.fillRect(0, 0, fcTexSZ, fcTexSZ);
           }
