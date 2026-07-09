@@ -5183,32 +5183,32 @@ document.addEventListener('keydown', function(e){
               letter-spacing:.03em;margin-bottom:2px">Mark the grayscale values the game should read as shallow vs. deep water</div>
             <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
               letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
-              SHALLOW VALUE <span id="wmk-shallow-val" style="color:rgba(180,200,255,.7)">220</span>
-              <input type="range" id="wmk-shallow" min="150" max="255" value="220" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
+              SHALLOW VALUE <span id="wmk-shallow-val" style="color:rgba(180,200,255,.7)">150</span>
+              <input type="range" id="wmk-shallow" min="150" max="255" value="150" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
                 oninput="document.getElementById('wmk-shallow-val').textContent=this.value;wmkQueueApply()">
             </label>
             <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
               letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
-              DEEP VALUE <span id="wmk-deep-val" style="color:rgba(180,200,255,.7)">10</span>
-              <input type="range" id="wmk-deep" min="0" max="100" value="10" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
+              DEEP VALUE <span id="wmk-deep-val" style="color:rgba(180,200,255,.7)">0</span>
+              <input type="range" id="wmk-deep" min="0" max="100" value="0" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
                 oninput="document.getElementById('wmk-deep-val').textContent=this.value;wmkQueueApply()">
             </label>
             <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
               letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
-              CONTRAST <span id="wmk-contrast-val" style="color:rgba(180,200,255,.7)">110</span>
-              <input type="range" id="wmk-contrast" min="60" max="160" value="110" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
+              CONTRAST <span id="wmk-contrast-val" style="color:rgba(180,200,255,.7)">160</span>
+              <input type="range" id="wmk-contrast" min="60" max="160" value="160" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
                 oninput="document.getElementById('wmk-contrast-val').textContent=this.value;wmkQueueApply()">
             </label>
             <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
               letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
-              COAST <span id="wmk-coast-val" style="color:rgba(180,200,255,.7)">40</span>
-              <input type="range" id="wmk-coast" min="5" max="120" value="40" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
+              COAST <span id="wmk-coast-val" style="color:rgba(180,200,255,.7)">11</span>
+              <input type="range" id="wmk-coast" min="5" max="120" value="11" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
                 oninput="document.getElementById('wmk-coast-val').textContent=this.value;wmkQueueApply()">
             </label>
             <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
               letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
-              SPREAD <span id="wmk-spread-val" style="color:rgba(180,200,255,.7)">1.2</span>
-              <input type="range" id="wmk-spread" min="0.3" max="3" step="0.1" value="1.2" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
+              SPREAD <span id="wmk-spread-val" style="color:rgba(180,200,255,.7)">0.3</span>
+              <input type="range" id="wmk-spread" min="0.3" max="3" step="0.1" value="0.3" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
                 oninput="document.getElementById('wmk-spread-val').textContent=parseFloat(this.value).toFixed(1);wmkQueueApply()">
             </label>
             <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
@@ -6263,15 +6263,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const cv = wmkGetCanvas();
       // Cap working resolution — this tool runs a per-pixel LAB colour
       // classification AND a two-pass chamfer distance transform over the
-      // full image, potentially several times as sliders are adjusted. An
-      // uncapped 4096px+ planet texture (common elsewhere in this project)
-      // would mean multiple large typed-array buffers alive at once and a
-      // long blocking main-thread computation — exactly the class of mobile
-      // OOM/hang this project already guards against elsewhere (see
-      // js/assets.js's _lowMemDevice check and io.js's texture-decode
-      // yielding). 1024px keeps this comfortably fast and light while still
-      // being plenty of resolution for a watermask/heightmap output.
-      const WMK_MAX_DIM = 1024;
+      // full image. A flat, low cap made the OUTPUT watermask itself
+      // blurry/blocky once applied at a body's actual (often 2048px+)
+      // texture resolution, so instead scale the cap by device memory, the
+      // same way js/assets.js already does elsewhere in this project — full
+      // resolution on capable devices, a real (but much less aggressive)
+      // safety cap only on genuinely memory-constrained phones.
+      const WMK_MAX_DIM = _lowMemDevice ? 1536 : 4096;
       const scale = Math.min(1, WMK_MAX_DIM / Math.max(img.naturalWidth, img.naturalHeight));
       cv.width  = Math.round(img.naturalWidth  * scale);
       cv.height = Math.round(img.naturalHeight * scale);
