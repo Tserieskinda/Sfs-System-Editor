@@ -861,6 +861,28 @@ function _drawViewportNow(){
   );
 
   bodyScreenPos = {};
+  // Front-cloud composites are collected here instead of drawn immediately.
+  // Reason: each body's surface/terrain/atmosphere is painted in this same
+  // per-body pass, in drawOrder (hierarchy-depth-primary, positionZ only
+  // breaking ties among siblings at the same depth). That's correct for
+  // ordering separate decorator bodies against EACH OTHER, but it means a
+  // body whose own FRONT_CLOUDS_DATA.positionZ happens to be very negative
+  // (e.g. bioluminescence/city-lights painted directly on the planet itself,
+  // not via a separate invisible moon) gets its ENTIRE draw pass — surface
+  // included — sorted ahead of a sibling shadow body's pass, since the sort
+  // key can't tell "this body's own decorative layer" apart from "this body's
+  // solid surface". The shadow body then paints first and gets immediately
+  // painted over by the planet's own surface, so the darkening never shows.
+  // Fix: draw every body's surface/terrain/atmosphere fully in this loop as
+  // before (unchanged), but defer the front-cloud disc itself into a second,
+  // separate pass at the very end, sorted purely by positionZ across ALL
+  // bodies regardless of hierarchy depth or which body they visually sit on.
+  // That lets a shadow disc darken any surface it geometrically overlaps,
+  // while still letting a more-negative-Z layer (front clouds, city lights)
+  // paint back on top of that shadow afterward — matching the game, where
+  // FrontClouds.cs gives every layer the same sortingOrder and only
+  // positionZ (a flat, global Z) ever decides relative order.
+  const _fcDeferred = [];
   drawOrder.forEach(name => {
     try {
     const b = bodies[name];
@@ -2250,8 +2272,20 @@ function _drawViewportNow(){
           // affect the cloud layer. The scratch canvas is reused across frames and
           // sized to the same bucketed resolution as the texture cache, so it only
           // reallocates when crossing a bucket threshold, not every frame.
-          if(!drawViewport._fcScratch) drawViewport._fcScratch = document.createElement('canvas');
-          const fcScratch = drawViewport._fcScratch;
+          // Each deferred entry needs its OWN canvas that survives until the
+          // later global pass — a single shared scratch canvas would be
+          // overwritten by the next body in this same loop before the
+          // deferred draw for this body ever ran. Pool by index instead: the
+          // number of front-cloud layers per frame is small and stable, so
+          // this still reuses canvases across frames, just one per
+          // concurrent layer instead of one shared total.
+          if(!drawViewport._fcScratchPool) drawViewport._fcScratchPool = [];
+          const _fcPoolIdx = _fcDeferred.length;
+          let fcScratch = drawViewport._fcScratchPool[_fcPoolIdx];
+          if(!fcScratch){
+            fcScratch = document.createElement('canvas');
+            drawViewport._fcScratchPool[_fcPoolIdx] = fcScratch;
+          }
           if(fcScratch.width !== fcTexSZ){ fcScratch.width = fcTexSZ; fcScratch.height = fcTexSZ; }
           const sCtx = fcScratch.getContext('2d');
           sCtx.clearRect(0, 0, fcTexSZ, fcTexSZ);
@@ -2287,12 +2321,19 @@ function _drawViewportNow(){
           }
           sCtx.restore();
 
-          // Single normal (source-over) draw onto the main canvas — can only add
-          // the cloud layer, never erase anything already drawn on ctx2.
-          ctx2.save();
-          ctx2.globalAlpha = fcAlpha;
-          ctx2.drawImage(fcScratch, sp.x - fcR_px, sp.y - fcR_px, fcR_px * 2, fcR_px * 2);
-          ctx2.restore();
+          // Defer the actual paint — see _fcDeferred comment above the loop start.
+          // Everything up to this point (texture cache, scratch composite, fade)
+          // is unchanged; only the final blit onto ctx2 moves to a later, globally
+          // Z-sorted pass so this layer can correctly darken/light ANY body's
+          // surface, not just bodies drawn later than it in hierarchy order.
+          _fcDeferred.push({
+            z: (typeof FCD.positionZ === 'number') ? FCD.positionZ : 0,
+            scratch: fcScratch,
+            x: sp.x - fcR_px,
+            y: sp.y - fcR_px,
+            size: fcR_px * 2,
+            alpha: fcAlpha
+          });
         }
       }
     }
@@ -2538,6 +2579,29 @@ function _drawViewportNow(){
     }
     } catch(e) { console.error('[SFS|DRAW] Error drawing body "'+name+'": '+e.message, e); }
   });
+
+  // ── Deferred front-cloud pass — globally Z-sorted across ALL bodies ──
+  // Every body's surface/terrain/atmosphere is now fully painted (loop above).
+  // Draw the front-cloud composites collected during that loop here, sorted
+  // purely by positionZ (more-positive first/behind, more-negative last/in
+  // front) with no regard for hierarchy depth or draw order above. This is
+  // what lets a shadow body (near-zero Z) darken a planet's surface even
+  // when that planet's OWN front-cloud layer (e.g. city lights, very
+  // negative Z) was painted in the same per-body pass as its surface — the
+  // shadow now always gets a chance to composite onto that surface here,
+  // and anything with more-negative Z than the shadow still correctly
+  // layers back on top of it afterward, matching FrontClouds.cs where every
+  // layer shares one sortingOrder and only this flat Z ever decides order.
+  _fcDeferred
+    .sort((a, b) => b.z - a.z)
+    .forEach(entry => {
+      try {
+        ctx2.save();
+        ctx2.globalAlpha = entry.alpha;
+        ctx2.drawImage(entry.scratch, entry.x, entry.y, entry.size, entry.size);
+        ctx2.restore();
+      } catch(e) { console.error('[SFS|DRAW] Error compositing deferred front-clouds: '+e.message, e); }
+    });
 
   bodyScreenPos = {};
   names.forEach(name => {
