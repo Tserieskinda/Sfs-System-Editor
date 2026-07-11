@@ -2305,9 +2305,22 @@ function _drawViewportNow(){
           const sCtx = fcScratch.getContext('2d');
           sCtx.clearRect(0, 0, fcTexSZ, fcTexSZ);
           const scx = fcTexSZ / 2, scy = fcTexSZ / 2, scr = fcTexSZ / 2;
+          // The circular clip is scoped ONLY to the image draw, then ended (restore())
+          // before the erase pass below. Previously the clip stayed active through the
+          // destination-out erase too — at partially-covered clip-AA pixels (coverage
+          // c, 0<c<1) that made the erase itself only c-strong (1*c instead of 1), so
+          // result = (image_alpha*c) * (1-c), which is NON-ZERO for any c strictly
+          // between 0 and 1 (peaks at c=0.5: a full quarter of the original alpha
+          // survives). That's a faint ring baked in at exactly the clip radius,
+          // wobbling in/out of the intended edge with sub-pixel rounding — visible
+          // even in the raw (pre-blit-scale) mask. Ending the clip first means the
+          // erase gradient's alpha=1 zone (r >= fadeOuterR) applies at FULL strength,
+          // uniformly, with no coverage multiplication of its own — cleanly zeroing
+          // any residual from the draw's clip AA regardless of where exactly it sits.
           sCtx.save();
           sCtx.beginPath(); sCtx.arc(scx, scy, scr, 0, Math.PI*2); sCtx.clip();
           sCtx.drawImage(fcTexCanvas, 0, 0, fcTexSZ, fcTexSZ);
+          sCtx.restore();
           // fadeZoneFrac is a FRACTION of body radius, set as an absolute km value
           // in FRONT_CLOUDS_DATA (fadeZoneHeight). For very large bodies that
           // fraction can be tiny (e.g. an 88km fade zone on a 76,000km-radius
@@ -2331,6 +2344,7 @@ function _drawViewportNow(){
           const AA_MARGIN = 1;
           const fadeOuterR = Math.max(0, scr - AA_MARGIN);
           if(fadeZone_sc > 0.01){
+            sCtx.save();
             sCtx.globalCompositeOperation = 'destination-out';
             // Full-erase (alpha=1) must land strictly INSIDE the clip circle's edge,
             // not exactly on it. sCtx.clip() anti-aliases the disc boundary over
@@ -2341,13 +2355,17 @@ function _drawViewportNow(){
             // thin ring of leftover opacity survives right at the edge on every
             // disc. Pulling the outer stop in by 1 scratch-px guarantees erasure
             // is already complete by the time rendering reaches the AA rim.
+            // NOTE: this fillRect is intentionally UNCLIPPED (no arc/clip() active
+            // here — that clip already ended above) so the erase applies at full,
+            // uniform strength past fadeOuterR with no coverage-fraction multiplying
+            // against the image draw's own clip AA. See comment above the drawImage.
             const fadeGrad = sCtx.createRadialGradient(scx, scy, Math.max(0, fadeOuterR - fadeZone_sc), scx, scy, fadeOuterR);
             fadeGrad.addColorStop(0, 'rgba(0,0,0,0)');
             fadeGrad.addColorStop(1, 'rgba(0,0,0,1)');
             sCtx.fillStyle = fadeGrad;
             sCtx.fillRect(0, 0, fcTexSZ, fcTexSZ);
+            sCtx.restore();
           }
-          sCtx.restore();
 
           // ── Debug: log geometry once per unique parameter combo, per body ──
           if(FC_DEBUG){
