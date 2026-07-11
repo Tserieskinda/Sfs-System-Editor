@@ -2020,6 +2020,16 @@ function _drawViewportNow(){
                 if(!drawViewport._cldDbg) drawViewport._cldDbg = {};
                 if(!drawViewport._cldDbg[name]){ drawViewport._cldDbg[name]=true; console.log(`[CLD] ${name}: R=${R_eff_px}, startH=${startH_m}, cloudH=${cloudH_m}, gradH=${gradH_cld}, numTiles=${numTiles}, cloudSizeY=${cloudSizeY.toFixed(3)}, cloudStartY=${cloudStartY_val.toFixed(3)}`); }
 
+                // Bucket cache resolution to the actual on-screen diameter (same approach
+                // as the front-cloud texture cache below): a fixed _surfaceSZ() resolution
+                // means the outer edgeFade (defined in native texture px) gets stretched by
+                // drawImage's scale factor whenever outer_px is much larger than SZ/2,
+                // turning a sub-pixel-tight transition into a visible gradient ring/line
+                // right at the gradient-disc edge. Doubling up to cover the true on-screen
+                // size keeps that fade proportionally tight regardless of zoom or radius.
+                const _cldNeeded = outer_px * 2;
+                let cldSZ = _surfaceSZ();
+                while (cldSZ < _cldNeeded && cldSZ < 2048) cldSZ *= 2;
                 const cacheKey = 'cld9:' + CLD.texture
                                 + '|' + R_eff_px.toFixed(1)
                                 + '|' + gradH_cld.toFixed(1)
@@ -2027,11 +2037,11 @@ function _drawViewportNow(){
                                 + '|' + cloudH_m.toFixed(1)
                                 + '|' + numTiles
                                 + '|' + cloudSizeY.toFixed(3)
-                                + '|' + _surfaceSZ();
+                                + '|' + cldSZ;
                 if(!drawViewport._cloudCache) drawViewport._cloudCache = {};
                 let wc = drawViewport._cloudCache[cacheKey];
                 if(!wc){
-                  const SZ = _surfaceSZ();
+                  const SZ = cldSZ;
                   wc = document.createElement('canvas');
                   wc.width = wc.height = SZ;
                   const wctx = wc.getContext('2d');
