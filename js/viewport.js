@@ -269,6 +269,21 @@ let bodyTerrainPeakPx = {};
 let showFrontClouds = true; // legacy alias — kept for draw code gate
 let dbgFogOpacity = 1.0;   // kept for any legacy references (unused by new system)
 
+// ── Front-cloud edge debug ──
+// Toggle from the console with toggleFcDebug(). When on, each front-cloud
+// layer logs its geometry (once per unique parameter set) and draws overlay
+// rings on top of the planet showing: the intended outer disc edge (fcR_px),
+// where the fade math reaches full erase, and where the fade starts — plus
+// small unscaled thumbnails of the raw scratch-canvas mask (pre-blit-scaling)
+// stacked in the top-left corner, one per visible front-cloud layer.
+let FC_DEBUG = false;
+function toggleFcDebug(){
+  FC_DEBUG = !FC_DEBUG;
+  console.log('[FC_DEBUG]', FC_DEBUG ? 'ON' : 'OFF');
+  if(typeof drawViewport === 'function') drawViewport();
+}
+if(typeof window !== 'undefined') window.toggleFcDebug = toggleFcDebug;
+
 // ── Environment render flags ──
 const envFlags = {
   soi:       true,
@@ -2020,16 +2035,6 @@ function _drawViewportNow(){
                 if(!drawViewport._cldDbg) drawViewport._cldDbg = {};
                 if(!drawViewport._cldDbg[name]){ drawViewport._cldDbg[name]=true; console.log(`[CLD] ${name}: R=${R_eff_px}, startH=${startH_m}, cloudH=${cloudH_m}, gradH=${gradH_cld}, numTiles=${numTiles}, cloudSizeY=${cloudSizeY.toFixed(3)}, cloudStartY=${cloudStartY_val.toFixed(3)}`); }
 
-                // Bucket cache resolution to the actual on-screen diameter (same approach
-                // as the front-cloud texture cache below): a fixed _surfaceSZ() resolution
-                // means the outer edgeFade (defined in native texture px) gets stretched by
-                // drawImage's scale factor whenever outer_px is much larger than SZ/2,
-                // turning a sub-pixel-tight transition into a visible gradient ring/line
-                // right at the gradient-disc edge. Doubling up to cover the true on-screen
-                // size keeps that fade proportionally tight regardless of zoom or radius.
-                const _cldNeeded = outer_px * 2;
-                let cldSZ = _surfaceSZ();
-                while (cldSZ < _cldNeeded && cldSZ < 2048) cldSZ *= 2;
                 const cacheKey = 'cld9:' + CLD.texture
                                 + '|' + R_eff_px.toFixed(1)
                                 + '|' + gradH_cld.toFixed(1)
@@ -2037,11 +2042,11 @@ function _drawViewportNow(){
                                 + '|' + cloudH_m.toFixed(1)
                                 + '|' + numTiles
                                 + '|' + cloudSizeY.toFixed(3)
-                                + '|' + cldSZ;
+                                + '|' + _surfaceSZ();
                 if(!drawViewport._cloudCache) drawViewport._cloudCache = {};
                 let wc = drawViewport._cloudCache[cacheKey];
                 if(!wc){
-                  const SZ = cldSZ;
+                  const SZ = _surfaceSZ();
                   wc = document.createElement('canvas');
                   wc.width = wc.height = SZ;
                   const wctx = wc.getContext('2d');
@@ -2321,6 +2326,10 @@ function _drawViewportNow(){
           const minFadeZone_sc = fcR_px > 0 ? MIN_FADE_SCREEN_PX * (scr / fcR_px) : 0;
           let fadeZone_sc = Math.max(scr * fadeZoneFrac, minFadeZone_sc);
           fadeZone_sc = Math.min(fadeZone_sc, scr);
+          // AA_MARGIN declared here (rather than only inside the if-block below) so it's
+          // always available for the debug snapshot even when fadeZone_sc rounds to ~0.
+          const AA_MARGIN = 1;
+          const fadeOuterR = Math.max(0, scr - AA_MARGIN);
           if(fadeZone_sc > 0.01){
             sCtx.globalCompositeOperation = 'destination-out';
             // Full-erase (alpha=1) must land strictly INSIDE the clip circle's edge,
@@ -2332,8 +2341,6 @@ function _drawViewportNow(){
             // thin ring of leftover opacity survives right at the edge on every
             // disc. Pulling the outer stop in by 1 scratch-px guarantees erasure
             // is already complete by the time rendering reaches the AA rim.
-            const AA_MARGIN = 1;
-            const fadeOuterR = Math.max(0, scr - AA_MARGIN);
             const fadeGrad = sCtx.createRadialGradient(scx, scy, Math.max(0, fadeOuterR - fadeZone_sc), scx, scy, fadeOuterR);
             fadeGrad.addColorStop(0, 'rgba(0,0,0,0)');
             fadeGrad.addColorStop(1, 'rgba(0,0,0,1)');
@@ -2341,6 +2348,29 @@ function _drawViewportNow(){
             sCtx.fillRect(0, 0, fcTexSZ, fcTexSZ);
           }
           sCtx.restore();
+
+          // ── Debug: log geometry once per unique parameter combo, per body ──
+          if(FC_DEBUG){
+            if(!drawViewport._fcDbgLogged) drawViewport._fcDbgLogged = {};
+            const _dbgKey = name + '|' + fcTexCacheKey + '|' + fadeZone_sc.toFixed(3) + '|' + fcR_px.toFixed(2);
+            if(drawViewport._fcDbgLogged[_dbgKey] !== true){
+              drawViewport._fcDbgLogged[_dbgKey] = true;
+              const scaleFactor = scr > 0 ? (fcR_px / scr) : 0;
+              console.log(
+                `[FC_DEBUG] ${name}\n` +
+                `  fcR_px (on-screen cloud radius)       = ${fcR_px.toFixed(2)}\n` +
+                `  fcTexSZ (scratch canvas resolution)   = ${fcTexSZ}\n` +
+                `  scr (scratch clip radius)             = ${scr.toFixed(2)}\n` +
+                `  scale factor (screen px / scratch px) = ${scaleFactor.toFixed(4)}\n` +
+                `  AA_MARGIN (scratch px)                = ${AA_MARGIN}  →  ${(AA_MARGIN*scaleFactor).toFixed(3)} screen px\n` +
+                `  fadeOuterR (scratch px, full-erase pt) = ${fadeOuterR.toFixed(2)}  →  screen radius ${(fadeOuterR*scaleFactor).toFixed(2)}\n` +
+                `  fadeZone_sc (scratch px, fade width)   = ${fadeZone_sc.toFixed(2)}  →  ${(fadeZone_sc*scaleFactor).toFixed(2)} screen px\n` +
+                `  fadeZoneFrac (config)                  = ${fadeZoneFrac.toFixed(4)}\n` +
+                `  fade start screen radius               = ${((fadeOuterR-fadeZone_sc)*scaleFactor).toFixed(2)}\n` +
+                `  entry blit size (screen px)            = ${(fcR_px*2).toFixed(2)}  (source ${fcTexSZ}px → ${fcTexSZ===Math.round(fcR_px*2)?'1:1':'SCALED'})`
+              );
+            }
+          }
 
           // Defer the actual paint — see _fcDeferred comment above the loop start.
           // Everything up to this point (texture cache, scratch composite, fade)
@@ -2353,7 +2383,13 @@ function _drawViewportNow(){
             x: sp.x - fcR_px,
             y: sp.y - fcR_px,
             size: fcR_px * 2,
-            alpha: fcAlpha
+            alpha: fcAlpha,
+            // debug-only fields, cheap to always attach
+            _dbgName: name,
+            _dbgSpX: sp.x, _dbgSpY: sp.y,
+            _dbgFcR_px: fcR_px, _dbgScr: scr,
+            _dbgFadeOuterR: fadeOuterR, _dbgFadeZoneSc: fadeZone_sc,
+            _dbgAaMargin: AA_MARGIN, _dbgFcTexSZ: fcTexSZ
           });
         }
       }
@@ -2623,6 +2659,79 @@ function _drawViewportNow(){
         ctx2.restore();
       } catch(e) { console.error('[SFS|DRAW] Error compositing deferred front-clouds: '+e.message, e); }
     });
+
+  // ── Front-cloud debug overlay ──
+  // Draws three rings per layer directly on the main canvas, in SCREEN space,
+  // using the exact same scratch→screen scale factor the real blit uses:
+  //   RED    = fcR_px, the intended outer disc edge (== scratch clip radius scr)
+  //   ORANGE = fadeOuterR mapped to screen — where the erase gradient reaches
+  //            alpha=1 (full erase). If the visible artifact ring sits at/near
+  //            this exact radius, the erase math isn't fully zeroing the AA rim.
+  //   CYAN   = fade-start radius mapped to screen — where the fade begins.
+  // If the artifact sits OUTSIDE the red ring, it isn't coming from this scratch
+  // canvas at all (rules out this whole code path). If it sits exactly ON the
+  // red/orange ring, it's the clip/erase boundary leaking through the final
+  // scaled drawImage. Also draws an unscaled 1:1 thumbnail of each scratch
+  // canvas (the raw mask BEFORE the scaled blit) in the top-left corner —
+  // if the ring is visible in the thumbnail, it's baked into the mask itself;
+  // if the thumbnail edge looks clean but the on-screen disc still shows a
+  // ring, the artifact is introduced by drawImage's scaling/resampling.
+  if(FC_DEBUG && _fcDeferred.length){
+    ctx2.save();
+    _fcDeferred.forEach(entry => {
+      if(entry._dbgFcR_px == null) return;
+      const scaleFactor = entry._dbgScr > 0 ? (entry._dbgFcR_px / entry._dbgScr) : 0;
+      const rOuter = entry._dbgFcR_px;                                   // red
+      const rFadeOuter = entry._dbgFadeOuterR * scaleFactor;             // orange
+      const rFadeStart = (entry._dbgFadeOuterR - entry._dbgFadeZoneSc) * scaleFactor; // cyan
+
+      const ring = (radius, color) => {
+        ctx2.beginPath();
+        ctx2.arc(entry._dbgSpX, entry._dbgSpY, Math.max(0, radius), 0, Math.PI*2);
+        ctx2.strokeStyle = color;
+        ctx2.lineWidth = 1;
+        ctx2.setLineDash([3,3]);
+        ctx2.stroke();
+      };
+      ring(rOuter, 'rgba(255,0,0,0.9)');
+      ring(rFadeOuter, 'rgba(255,150,0,0.9)');
+      ring(rFadeStart, 'rgba(0,220,255,0.9)');
+      ctx2.setLineDash([]);
+
+      ctx2.font = '10px monospace';
+      ctx2.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx2.fillText(
+        `${entry._dbgName} fcR=${rOuter.toFixed(1)} tex=${entry._dbgFcTexSZ} scale=${scaleFactor.toFixed(2)}`,
+        entry._dbgSpX + rOuter + 4, entry._dbgSpY
+      );
+    });
+
+    // Unscaled raw-mask thumbnails, stacked top-left, capped at 160px so large
+    // scratch canvases (up to 2048) don't blow past the visible area — this
+    // thumbnail blit is itself a SEPARATE scale step from the real one, so
+    // don't read the on-screen thumbnail edge as identical to the real edge;
+    // it only tells you whether the ring exists in the mask's raw pixels at all.
+    const THUMB = 160;
+    let ty = 8;
+    const seenScratch = new Set();
+    _fcDeferred.forEach(entry => {
+      if(!entry.scratch || seenScratch.has(entry.scratch)) return;
+      seenScratch.add(entry.scratch);
+      ctx2.save();
+      ctx2.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx2.fillRect(8, ty, THUMB, THUMB + 14);
+      ctx2.drawImage(entry.scratch, 8, ty, THUMB, THUMB);
+      ctx2.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx2.lineWidth = 1;
+      ctx2.strokeRect(8, ty, THUMB, THUMB);
+      ctx2.font = '10px monospace';
+      ctx2.fillStyle = '#fff';
+      ctx2.fillText(`${entry._dbgName} mask (${entry._dbgFcTexSZ}px raw)`, 10, ty + THUMB + 11);
+      ctx2.restore();
+      ty += THUMB + 20;
+    });
+    ctx2.restore();
+  }
 
   bodyScreenPos = {};
   names.forEach(name => {
