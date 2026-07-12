@@ -2091,9 +2091,16 @@ function _drawViewportNow(){
                       const edgeA = Math.min(innerAlpha, outerAlpha);
                       // v_disc: 0 at atmo outer edge, 1 at planet surface — matches shader
                       const v_disc = Math.max(0, Math.min(1, (outerN - dist) / (outerN - innerN)));
-                      // shader: sample at cloudStartY + v_disc * cloudSizeY, tiled
+                      // shader: sample at cloudStartY + v_disc * cloudSizeY
                       const v_raw = cloudStartY_val + v_disc * cloudSizeY;
-                      const v_frac = v_raw - Math.floor(v_raw);
+                      // The real game shows a single, non-tiled ring even when
+                      // cloudStartY+cloudSizeY exceeds 1.0 (confirmed against a live
+                      // in-game screenshot) — so out-of-range samples aren't wrapped
+                      // (repeated) or clamped (frozen/smeared), they're just not drawn.
+                      // Whatever portion of the disc maps to v_raw outside [0,1] stays
+                      // fully transparent, same as a fragment shader `discard`.
+                      if(v_raw < 0 || v_raw > 1) continue;
+                      const v_frac = v_raw;
                       let ang = Math.atan2(dy, dx) / (2 * Math.PI);
                       if(ang < 0) ang += 1;
                       const u = (ang * numTiles) % 1;
