@@ -2091,8 +2091,12 @@ function _drawViewportNow(){
                       const edgeA = Math.min(innerAlpha, outerAlpha);
                       // v_disc: 0 at atmo outer edge, 1 at planet surface — matches shader
                       const v_disc = Math.max(0, Math.min(1, (outerN - dist) / (outerN - innerN)));
-                      // shader: sample at cloudStartY + v_disc * cloudSizeY
-                      const v_raw = cloudStartY_val + v_disc * cloudSizeY;
+                      // shader: sample at cloudStartY + (1 - v_disc) * cloudSizeY
+                      // (flipped from outer-edge-first to surface-first — the previous
+                      // version kept the segment near the outer edge, which produced a
+                      // ring floating far from the planet with a big empty gap; the
+                      // real game's ring sits close to the surface instead)
+                      const v_raw = cloudStartY_val + (1 - v_disc) * cloudSizeY;
                       // The real game shows a single, non-tiled ring even when
                       // cloudStartY+cloudSizeY exceeds 1.0 (confirmed against a live
                       // in-game screenshot) — so out-of-range samples aren't wrapped
