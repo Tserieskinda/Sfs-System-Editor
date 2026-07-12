@@ -2091,20 +2091,9 @@ function _drawViewportNow(){
                       const edgeA = Math.min(innerAlpha, outerAlpha);
                       // v_disc: 0 at atmo outer edge, 1 at planet surface — matches shader
                       const v_disc = Math.max(0, Math.min(1, (outerN - dist) / (outerN - innerN)));
-                      // shader: sample at cloudStartY + (1 - v_disc) * cloudSizeY
-                      // (flipped from outer-edge-first to surface-first — the previous
-                      // version kept the segment near the outer edge, which produced a
-                      // ring floating far from the planet with a big empty gap; the
-                      // real game's ring sits close to the surface instead)
-                      const v_raw = cloudStartY_val + (1 - v_disc) * cloudSizeY;
-                      // The real game shows a single, non-tiled ring even when
-                      // cloudStartY+cloudSizeY exceeds 1.0 (confirmed against a live
-                      // in-game screenshot) — so out-of-range samples aren't wrapped
-                      // (repeated) or clamped (frozen/smeared), they're just not drawn.
-                      // Whatever portion of the disc maps to v_raw outside [0,1] stays
-                      // fully transparent, same as a fragment shader `discard`.
-                      if(v_raw < 0 || v_raw > 1) continue;
-                      const v_frac = v_raw;
+                      // shader: sample at cloudStartY + v_disc * cloudSizeY, tiled
+                      const v_raw = cloudStartY_val + v_disc * cloudSizeY;
+                      const v_frac = v_raw - Math.floor(v_raw);
                       let ang = Math.atan2(dy, dx) / (2 * Math.PI);
                       if(ang < 0) ang += 1;
                       const u = (ang * numTiles) % 1;
@@ -2147,6 +2136,24 @@ function _drawViewportNow(){
                 ctx2.imageSmoothingQuality = 'high';
                 ctx2.drawImage(wc, sp.x - outer_px, sp.y - outer_px, outer_px * 2, outer_px * 2);
                 ctx2.restore();
+
+                // ── TEMP CALIBRATION MARKERS (remove once diagnosis is done) ──
+                // red = physR_px (planet surface, v_disc=1)
+                // yellow = atmoDisk_px (cloud disc outer edge, v_disc=0)
+                // cyan = predicted wrap-seam radius (where v_raw crosses 1.0)
+                {
+                  const seamVDisc = (Math.ceil(cloudStartY_val) - cloudStartY_val) / cloudSizeY;
+                  const seamPx = outer_px - seamVDisc * (outer_px - inner_px);
+                  ctx2.save();
+                  ctx2.lineWidth = 2;
+                  ctx2.strokeStyle = 'red';
+                  ctx2.beginPath(); ctx2.arc(sp.x, sp.y, inner_px, 0, Math.PI*2); ctx2.stroke();
+                  ctx2.strokeStyle = 'yellow';
+                  ctx2.beginPath(); ctx2.arc(sp.x, sp.y, outer_px, 0, Math.PI*2); ctx2.stroke();
+                  ctx2.strokeStyle = 'cyan';
+                  ctx2.beginPath(); ctx2.arc(sp.x, sp.y, seamPx, 0, Math.PI*2); ctx2.stroke();
+                  ctx2.restore();
+                }
               }
             }
           }
