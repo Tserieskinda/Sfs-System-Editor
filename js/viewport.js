@@ -2033,7 +2033,15 @@ function _drawViewportNow(){
                 const cloudStartY_val = (R_eff_px + startH_m + gradH_cld) / gradH_cld - 1;
 
                 if(!drawViewport._cldDbg) drawViewport._cldDbg = {};
-                if(!drawViewport._cldDbg[name]){ drawViewport._cldDbg[name]=true; console.log(`[CLD] ${name}: R=${R_eff_px}, startH=${startH_m}, cloudH=${cloudH_m}, gradH=${gradH_cld}, numTiles=${numTiles}, cloudSizeY=${cloudSizeY.toFixed(3)}, cloudStartY=${cloudStartY_val.toFixed(3)}`); }
+                if(!drawViewport._cldDbg[name]){
+                  drawViewport._cldDbg[name]=true;
+                  // Predicted seam: the on-screen radius where v_raw crosses the next
+                  // integer (wrap boundary). v_disc_seam = ceil(cloudStartY) - cloudStartY,
+                  // scaled by cloudSizeY; dist = outer - v_disc*(outer-inner).
+                  const seamVDisc = (Math.ceil(cloudStartY_val) - cloudStartY_val) / cloudSizeY;
+                  const seamPx = atmoDisk_px - seamVDisc * (atmoDisk_px - physR_px);
+                  console.log(`[CLD] ${name}: R=${R_eff_px}, startH=${startH_m}, cloudH=${cloudH_m}, gradH=${gradH_cld}, numTiles=${numTiles}, cloudSizeY=${cloudSizeY.toFixed(3)}, cloudStartY=${cloudStartY_val.toFixed(3)} | physR_px=${physR_px.toFixed(1)}, atmoDisk_px=${atmoDisk_px.toFixed(1)}, seamVDisc=${seamVDisc.toFixed(3)}, seamPx=${seamPx.toFixed(1)}`);
+                }
 
                 const cacheKey = 'cld9:' + CLD.texture
                                 + '|' + R_eff_px.toFixed(1)
