@@ -2076,9 +2076,27 @@ function _drawViewportNow(){
                       const edgeA = Math.min(innerAlpha, outerAlpha);
                       // v_disc: 0 at atmo outer edge, 1 at planet surface — matches shader
                       const v_disc = Math.max(0, Math.min(1, (outerN - dist) / (outerN - innerN)));
-                      // shader: sample at cloudStartY + v_disc * cloudSizeY, tiled
+                      // shader: sample at cloudStartY + v_disc * cloudSizeY
                       const v_raw = cloudStartY_val + v_disc * cloudSizeY;
-                      const v_frac = v_raw - Math.floor(v_raw);
+                      // cloudSizeY >= 1 means the mod author is deliberately tiling the
+                      // texture radially multiple times (e.g. a seamless noise cloud
+                      // texture stretched over a thick atmosphere) — wrap (frac) is
+                      // correct there, same as the shader's repeat-addressed sampler.
+                      //
+                      // cloudSizeY < 1 means less than one full texture cycle is being
+                      // used at all: the author is showing a FRACTION of the image
+                      // (this is exactly the "ring via clouds" trick — a single
+                      // non-tileable ring graphic positioned via cloudStartY/cloudH).
+                      // If that fractional window straddles the v=1↔0 seam, wrapping
+                      // shows the SAME texture twice — a thin sliver of the tail end
+                      // near the outer edge, plus almost the whole image again
+                      // stretched across the rest of the disc down to the surface.
+                      // That is the "more than one cloud layer" bug. Clamping instead
+                      // shows the single continuous slice the author intended, with
+                      // the out-of-range side pinned to the nearest edge texel.
+                      const v_frac = (cloudSizeY < 1)
+                        ? Math.max(0, Math.min(1, v_raw))
+                        : (v_raw - Math.floor(v_raw));
                       let ang = Math.atan2(dy, dx) / (2 * Math.PI);
                       if(ang < 0) ang += 1;
                       const u = (ang * numTiles) % 1;
