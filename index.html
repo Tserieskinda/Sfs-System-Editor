@@ -662,9 +662,9 @@
           <div class="frow"><span class="flabel">Texture</span>
             <div class="tpick-wrap" id="tpw-cl-tex"><div class="tpick-field"><div class="tpick-preview" id="tpv-cl-tex"><div class="tpick-preview-none">none</div></div><input class="tpick-input" id="cl-tex" placeholder="Search texture…" autocomplete="off"><button class="tpick-clear" id="tpc-cl-tex">✕</button></div><div class="tpick-dropdown" id="tpd-cl-tex"></div></div></div>
           <div class="frow"><span class="flabel">Start Height</span>
-            <input class="finput" style="flex:1;min-width:60px" id="cl-sh" type="text" inputmode="decimal" step="100" oninput="clWidthAutoSync();syncCloudVel()"><select class="funit-sel" id="cl-sh-unit" style="width:52px" onchange="onSimpleKmChange('cl-sh')"><option value="m">m</option><option value="km" selected>km</option></select></div>
+            <input class="finput" style="flex:1;min-width:60px" id="cl-sh" type="text" inputmode="decimal" step="100" oninput="syncCloudVel()"><select class="funit-sel" id="cl-sh-unit" style="width:52px" onchange="onSimpleKmChange('cl-sh')"><option value="m">m</option><option value="km" selected>km</option></select></div>
           <div class="frow"><span class="flabel">Width</span>
-            <input class="finput" style="flex:1;min-width:60px" id="cl-w" type="text" inputmode="decimal" step="1000" oninput="clWidthAutoSync()"><select class="funit-sel" id="cl-w-unit" style="width:52px" onchange="onSimpleKmChange('cl-w')"><option value="m">m</option><option value="km" selected>km</option></select></div>
+            <input class="finput" style="flex:1;min-width:60px" id="cl-w" type="text" inputmode="decimal" step="1000"><select class="funit-sel" id="cl-w-unit" style="width:52px" onchange="onSimpleKmChange('cl-w')"><option value="m">m</option><option value="km" selected>km</option></select></div>
           <!-- Auto-generate width from circumference -->
           <div style="background:var(--bg2);border-radius:5px;padding:6px 8px;margin-bottom:4px;border:1px solid var(--ink5)">
             <div style="font-size:.58rem;color:var(--ink4);font-family:'JetBrains Mono',monospace;margin-bottom:5px;letter-spacing:.05em">

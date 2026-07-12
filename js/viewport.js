@@ -2033,8 +2033,15 @@ function _drawViewportNow(){
                 const cloudStartY_val = (R_eff_px + startH_m + gradH_cld) / gradH_cld - 1;
 
                 if(!drawViewport._cldDbg) drawViewport._cldDbg = {};
-                if(!drawViewport._cldDbg[name]){
-                  drawViewport._cldDbg[name]=true;
+                // Log once per meaningfully-different physR_px (zoom level) instead of
+                // once-ever-per-body — the once-ever guard was firing during an early
+                // icon/thumbnail-scale draw pass (physR_px ~1px) before the user had
+                // zoomed in, so the numbers never reflected the actual view.
+                const _cldDbgKey = name;
+                const _cldDbgLast = drawViewport._cldDbg[_cldDbgKey];
+                const _cldDbgShouldLog = physR_px > 5 && (!_cldDbgLast || Math.abs(physR_px - _cldDbgLast) > _cldDbgLast * 0.2);
+                if(_cldDbgShouldLog){
+                  drawViewport._cldDbg[_cldDbgKey] = physR_px;
                   // Predicted seam: the on-screen radius where v_raw crosses the next
                   // integer (wrap boundary). v_disc_seam = ceil(cloudStartY) - cloudStartY,
                   // scaled by cloudSizeY; dist = outer - v_disc*(outer-inner).
