@@ -1902,6 +1902,26 @@ function groupSelJitterEcc(){
   drawViewport();
 }
 
+// Jitter argument of periapsis: randomise each selected body's AoP by ±bound
+// degrees, wrapping the result into [0, 360).
+function groupSelJitterAoP(){
+  if(!groupSelected.size){ alert('No bodies selected.'); return; }
+  const raw = prompt('Jitter Argument of Periapsis — enter max degree offset (e.g. 30 for ±30°):');
+  if(raw === null || raw.trim() === '') return;
+  const bound = parseFloat(raw);
+  if(isNaN(bound) || bound < 0){ alert('Invalid value.'); return; }
+  pushUndo();
+  groupSelected.forEach(name => {
+    const od = bodies[name]?.data?.ORBIT_DATA;
+    if(od != null){
+      const cur = od.argumentOfPeriapsis || 0;
+      const delta = (Math.random() * 2 - 1) * bound;
+      od.argumentOfPeriapsis = ((cur + delta) % 360 + 360) % 360;
+    }
+  });
+  drawViewport();
+}
+
 // Parse "2", "2x", "150%" → multiplicative factor; null on error
 function _gsParseFactorOrPct(s){
   s = s.trim();
