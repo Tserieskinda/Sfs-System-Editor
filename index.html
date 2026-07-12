@@ -1761,7 +1761,7 @@
      buildAllPresets() references at parse/call time. -->
 <script src="js/idb-cache.js?v=5.12"></script>
 <script src="js/assets.js?v=5.12"></script>
-<script src="js/io.js?v=5.13"></script>
+<script src="js/io.js?v=5.14"></script>
 <script src="js/presets.js?v=5.12"></script>
 <script src="js/state.js?v=5.12"></script>
 <script src="js/autosave.js?v=5.12"></script>
@@ -1770,7 +1770,7 @@
 <script src="js/viewport.js?v=5.12"></script>
 <script src="js/tools.js?v=5.12"></script>
 <script src="js/units.js?v=5.12"></script>
-<script src="js/sidebar.js?v=5.13"></script>
+<script src="js/sidebar.js?v=5.14"></script>
 <script src="js/export.js?v=5.12"></script>
 <script src="js/body-search.js?v=5.12"></script>
 <script src="js/namegen.js?v=5.12"></script>
@@ -6032,6 +6032,23 @@ document.addEventListener('keydown', function(e){
     <div class="pg-dialog-actions">
       <button class="pg-dialog-btn pg-dialog-btn--cancel" onclick="pgCloseAddJsonDialog()">Cancel</button>
       <button class="pg-dialog-btn pg-dialog-btn--ok" onclick="pgPresetsAdd()">Add Preset</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Legacy Format Detected notice ══ -->
+<div id="legacy-notice-modal" class="pg-dialog-overlay">
+  <div class="pg-dialog-box" style="max-width:460px">
+    <div class="pg-dialog-title" style="color:var(--amber)">⚠ LEGACY FORMAT DETECTED</div>
+    <div class="pg-dialog-sub" id="legacy-notice-sub">This file uses the old pre-1.5 format and was not loaded.</div>
+    <div style="font-size:.63rem;color:rgba(210,190,150,.75);line-height:1.6;margin-bottom:10px">
+      Planet files saved before update 1.5 use a different data format and can't be read directly here.
+      Click Convert to fix them up automatically — everything already loaded stays untouched.
+    </div>
+    <div id="legacy-notice-list" class="pg-dialog-body-list"></div>
+    <div class="pg-dialog-actions">
+      <button class="pg-dialog-btn pg-dialog-btn--cancel" onclick="closeLegacyFormatNotice()">Skip</button>
+      <button id="legacy-notice-convert-btn" class="pg-dialog-btn pg-dialog-btn--ok" style="border-color:var(--amber);background:rgba(204,153,68,.14);color:var(--amber)" onclick="runLegacyConversion()">Convert</button>
     </div>
   </div>
 </div>

@@ -21,6 +21,535 @@ function _sfsLenientJsonFix(raw){
     .replace(/:\s*NaN\b/g,       ': 0');     // Unity JsonUtility NaN
 }
 
+// Detects the pre-1.5 "●"-delimited legacy planet format (see the game's own
+// SFS.World.Legacy.LegacyConverter). These files don't parse as JSON at all —
+// they're a flat "BASE_DATA●{...}●ORBIT_DATA●{...}" blob — so they need to be
+// run through the separate Legacy Planet Converter tool before they can be
+// used here.
+function _isLegacyPlanetText(raw){
+  return typeof raw === 'string' && raw.indexOf('●') !== -1 && raw.indexOf('BASE_DATA') !== -1;
+}
+
+// Cheap peek at a legacy blob — just enough to know whether it has orbit
+// data and how big it is, WITHOUT running the full conversion. Used so
+// centre-election during an import can take not-yet-converted legacy files
+// into account instead of only ever picking from already-parsed files.
+function _lcPeekLegacyInfo(raw){
+  try{
+    const parts = raw.split('●');
+    const hasOrbit = parts.includes('ORBIT_DATA');
+    const bi = parts.indexOf('BASE_DATA');
+    let radius = 0;
+    if(bi !== -1 && parts[bi+1]) radius = (JSON.parse(parts[bi+1]).radius) || 0;
+    return { hasOrbit, radius };
+  } catch(e){
+    return { hasOrbit: true, radius: 0 }; // unreadable — assume it has an orbit so it's never wrongly treated as a centre candidate
+  }
+}
+
+// Holds whatever's needed to actually convert+register the file(s) currently
+// shown in the legacy-format notice, set right before showLegacyFormatNotice()
+// is called and consumed by runLegacyConversion() when the user hits Convert.
+//   { kind: 'addBody'|'zip-system'|'zip-import'|'zip-asset', items: [...], ctx: {...} }
+let _legacyPending = null;
+
+// ── Legacy-format notice modal ──────────────────────────────────────────────
+// Shown whenever Add Body or a zip upload encounters a pre-1.5 planet file.
+// The file is skipped from the normal load, and the user is told, by name,
+// which file(s) need converting — with a one-click Convert button that runs
+// them through the same conversion the game's own legacy converter does.
+function showLegacyFormatNotice(fileNames, context){
+  fileNames = (fileNames || []).filter(Boolean);
+  if(!fileNames.length) return;
+  const dlg = document.getElementById('legacy-notice-modal');
+  if(!dlg){
+    alert('Legacy (pre-1.5) planet file(s) detected — these need to be converted before they can be used:\n' + fileNames.join('\n'));
+    return;
+  }
+  const listEl = document.getElementById('legacy-notice-list');
+  const subEl  = document.getElementById('legacy-notice-sub');
+  if(listEl){
+    listEl.innerHTML = '';
+    fileNames.forEach(n => {
+      const row = document.createElement('div');
+      row.className = 'pg-dialog-body-item';
+      row.style.cursor = 'default';
+      row.innerHTML = `<span class="pg-dialog-body-name">${String(n).replace(/</g,'&lt;')}</span><span class="pg-dialog-body-type" style="color:var(--amber)">legacy</span>`;
+      listEl.appendChild(row);
+    });
+  }
+  if(subEl){
+    subEl.textContent = fileNames.length === 1
+      ? 'This file uses the old pre-1.5 format. Click Convert to fix it up and add it — everything else stays untouched.'
+      : `${fileNames.length} file${fileNames.length!==1?'s':''} used the old pre-1.5 format. Click Convert to fix them up and add them — everything already loaded stays untouched.`;
+  }
+  const convertBtn = document.getElementById('legacy-notice-convert-btn');
+  if(convertBtn) convertBtn.style.display = (_legacyPending && _legacyPending.items && _legacyPending.items.length) ? '' : 'none';
+  dlg.classList.add('open');
+}
+function closeLegacyFormatNotice(){
+  const dlg = document.getElementById('legacy-notice-modal');
+  if(dlg) dlg.classList.remove('open');
+  _legacyPending = null;
+}
+
+// ════════════════════ LEGACY PLANET FORMAT CONVERSION ════════════════════
+// Faithful port of the game's own SFS.World.Legacy.LegacyConverter (and of
+// the standalone Legacy Planet Converter tool), operating on parsed JS
+// objects instead of raw JSON text. Converts the old "●"-delimited pre-1.5
+// planet blob into the current BASE_DATA/ATMOSPHERE_.../ORBIT_DATA object
+// this app already knows how to read.
+
+// Mirrors LegacyConverter.Convert_TerrainFormula.
+// Original regex: AddHeightMap\( *\S*,(?<repeat> *\d*\.*\d*)
+function _lcConvertTerrainFormula(radius, formula){
+  const re = /AddHeightMap\( *\S*,( *\d*\.*\d*)/;
+  return (formula || []).map(line => {
+    const m = re.exec(line);
+    if(!m) return line;
+    const group = m[1];
+    const groupStart = m.index + m[0].length - group.length;
+    const groupEnd = groupStart + group.length;
+    const val = parseFloat(group.trim());
+    if(isNaN(val)) return line; // couldn't parse — left untouched, matching the original fallback
+    const num = radius * Math.PI * 2 / Math.max(val, 0.01);
+    return line.slice(0, groupStart) + _lcNumToStr(num) + line.slice(groupEnd);
+  });
+}
+// Approximates C# double.ToString(CultureInfo.InvariantCulture)
+function _lcNumToStr(n){
+  if(!isFinite(n)) return "0";
+  if(Number.isInteger(n)) return n.toString();
+  let s = n.toString();
+  if(s.includes('e') || s.includes('E')) s = n.toFixed(10).replace(/0+$/,'').replace(/\.$/,'');
+  return s;
+}
+function _lcVec2(v){ return { x: (v && v.x !== undefined) ? v.x : -1, y: (v && v.y !== undefined) ? v.y : -1 }; }
+
+function _lcConvertBasic(old){
+  if(!old) return null;
+  return {
+    radius: old.radius,
+    radiusDifficultyScale: {},
+    gravity: old.gravity,
+    gravityDifficultyScale: {},
+    timewarpHeight: old.timewarpHeight,
+    velocityArrowsHeight: null,
+    mapColor: { r: old.mapColor?.r ?? 0.5, g: old.mapColor?.g ?? 0.5, b: old.mapColor?.b ?? 0.5, a: 1 },
+    significant: true,
+    rotateCamera: true
+  };
+}
+function _lcConvertAtmospherePhysics(old){
+  if(!old || !old.PHYSICS) return null;
+  return {
+    height: old.PHYSICS.height,
+    density: old.PHYSICS.density,
+    curve: old.PHYSICS.curve,
+    curveScale: {},
+    parachuteMultiplier: 1,
+    upperAtmosphere: 0.5,
+    heightDifficultyScale: {},
+    shockwaveIntensity: 0.5,
+    minHeatingVelocityMultiplier: 1
+  };
+}
+function _lcConvertAtmosphereVisuals(old, radius){
+  if(!old) return null;
+  const g = old.GRADIENT || {};
+  const c = old.CLOUDS || {};
+  const fogKeys = (old.FOG && old.FOG.keys) ? old.FOG.keys.map(k => ({
+    color: { r: k.r, g: k.g, b: k.b, a: k.a }, distance: k.distance
+  })) : [];
+  const repeatX = c.repeatX || 1;
+  const width = (radius + (c.startHeight || 0)) * (Math.PI * 2) / repeatX / 256;
+  return {
+    GRADIENT: {
+      positionZ: g.positionZ ?? -1, height: g.gradientHeight ?? -1,
+      heightDifficultyScale: {}, texture: g.gradientTexture ?? "None"
+    },
+    CLOUDS: {
+      texture: c.cloudTexture ?? "None", startHeight: c.startHeight ?? -1,
+      width, height: c.height ?? -1, alpha: c.alpha ?? 1, velocity: c.cloudVelocity ?? 0
+    },
+    FOG: { keys: fogKeys }
+  };
+}
+function _lcConvertOrbit(old){
+  if(!old) return null;
+  return {
+    parent: old.parent,
+    semiMajorAxis: old.orbitHeight,
+    smaDifficultyScale: {},
+    eccentricity: old.eccentricity,
+    argumentOfPeriapsis: old.argumentOfPeriapsis,
+    direction: 1,
+    multiplierSOI: old.multiplierSOI ?? 1,
+    soiDifficultyScale: {}
+  };
+}
+function _lcConvertPostProcessing(old){
+  if(!old || !old.keys) return null;
+  return {
+    keys: old.keys.map(k => ({
+      height: k.height, shadowIntensity: k.shadowIntensity ?? 1.65, starIntensity: 1,
+      hueShift: k.hueShift ?? 0, saturation: k.saturation ?? 1, contrast: k.contrast ?? 1.1,
+      red: k.red ?? 1, green: k.green ?? 1, blue: k.blue ?? 1
+    }))
+  };
+}
+function _lcConvertTerrain(old, radius){
+  if(!old) return null;
+  const t = old.TERRAIN_TEXTURE_DATA || {};
+  const formula = _lcConvertTerrainFormula(radius, old.terrainFromula);
+  const textureFormula = _lcConvertTerrainFormula(radius, old.textureFormula);
+  const detailLevels = old.DETAIL_LEVELS || [];
+  const verticeSize = detailLevels.length ? detailLevels[detailLevels.length - 1].verticeSize : 0;
+  return {
+    TERRAIN_TEXTURE_DATA: {
+      planetTexture: t.planetTexture ?? "None",
+      planetTextureCutout: t.planetTextureCutout ?? -1,
+      planetTextureRotation: 0,
+      planetTextureDontDistort: false,
+      surfaceTexture_A: t.surfaceTextureA ?? "None",
+      surfaceTextureSize_A: _lcVec2(t.surfaceTextureSizeA),
+      surfaceTexture_B: t.surfaceTextureB ?? "None",
+      surfaceTextureSize_B: _lcVec2(t.surfaceTextureSizeB),
+      terrainTexture_C: t.terrainTexture ?? "None",
+      terrainTextureSize_C: _lcVec2(t.terrainTextureSize),
+      surfaceLayerSize: t.surfaceLayerSize ?? -1,
+      minFade: t.minFade ?? -1,
+      maxFade: t.maxFade ?? -1,
+      shadowIntensity: t.shadowIntensity ?? -1,
+      shadowHeight: t.shadowHeight ?? -1
+    },
+    terrainFormulaDifficulties: { "Normal": formula },
+    textureFormula,
+    verticeSize,
+    collider: true,
+    flatZones: [],
+    flatZonesDifficulties: {},
+    rocks: null
+  };
+}
+// Mirrors LegacyConverter.FromJson_Old — splits the "●"-delimited blob into
+// named JSON sections and parses each one.
+function _lcParseOldBlob(text){
+  const parts = text.split('●');
+  const grab = (marker) => {
+    const i = parts.indexOf(marker);
+    if(i === -1 || i + 1 >= parts.length) return null;
+    return JSON.parse(parts[i + 1]);
+  };
+  const old = {};
+  old.BASE_DATA = grab('BASE_DATA');
+  old.hasAtmosphere = parts.includes('ATMOSPHERE_DATA');
+  old.ATMOSPHERE_DATA = old.hasAtmosphere ? grab('ATMOSPHERE_DATA') : null;
+  old.hasPostProcessing = parts.includes('POST_PROCESSING');
+  old.POST_PROCESSING = old.hasPostProcessing ? grab('POST_PROCESSING') : null;
+  old.hasTerrain = parts.includes('TERRAIN_DATA');
+  old.TERRAIN_DATA = old.hasTerrain ? grab('TERRAIN_DATA') : null;
+  old.hasOrbitData = parts.includes('ORBIT_DATA');
+  old.ORBIT_DATA = old.hasOrbitData ? grab('ORBIT_DATA') : null;
+  if(!old.BASE_DATA) throw new Error('No BASE_DATA section found — not a recognized legacy planet file.');
+  return old;
+}
+// Mirrors LegacyConverter.Convert_Planet — top-level: raw legacy text in, a
+// current-format bodyData-shaped object out.
+function _lcConvertLegacyText(raw){
+  const old = _lcParseOldBlob(raw);
+  const radius = old.BASE_DATA.radius;
+  const hasAtmospherePhysics = old.hasAtmosphere && old.ATMOSPHERE_DATA?.PHYSICS?.height > 1.0;
+  const out = { version: "1.5", BASE_DATA: _lcConvertBasic(old.BASE_DATA) };
+  if(hasAtmospherePhysics) out.ATMOSPHERE_PHYSICS_DATA = _lcConvertAtmospherePhysics(old.ATMOSPHERE_DATA);
+  if(old.hasAtmosphere) out.ATMOSPHERE_VISUALS_DATA = _lcConvertAtmosphereVisuals(old.ATMOSPHERE_DATA, radius);
+  if(old.hasTerrain) out.TERRAIN_DATA = _lcConvertTerrain(old.TERRAIN_DATA, radius);
+  if(old.hasPostProcessing) out.POST_PROCESSING = _lcConvertPostProcessing(old.POST_PROCESSING);
+  if(old.hasOrbitData) out.ORBIT_DATA = _lcConvertOrbit(old.ORBIT_DATA);
+  out.ACHIEVEMENT_DATA = { Landed: true, Takeoff: true, Atmosphere: true, Orbit: true, Crash: true };
+  out.LANDMARKS = [];
+  return out;
+}
+
+// Converts a batch of {fileName, raw} items, resolving name collisions
+// against the currently-loaded bodies AND against each other (so two legacy
+// files that reference one another as parent, both being converted in the
+// same click, still point at the right final names).
+function _lcConvertBatch(items){
+  const results = [];
+  const failed = [];
+  const nameMap = {}; // original base name → final registered name
+  const claimed = new Set(Object.keys(bodies));
+  (items || []).forEach(item => {
+    try{
+      const bodyData = normalizeDiffScaleKeys(_lcConvertLegacyText(item.raw));
+      const baseName = (item.fileName || 'Body').replace(/\.txt$/i, '').trim() || 'Body';
+      let finalName = baseName;
+      if(claimed.has(finalName)){
+        let n = 2;
+        while(claimed.has(baseName + '_' + n)) n++;
+        finalName = baseName + '_' + n;
+      }
+      claimed.add(finalName);
+      nameMap[baseName] = finalName;
+      results.push({ fileName: item.fileName, baseName, name: finalName, bodyData, item });
+    } catch(e){
+      console.error('[SFS|LEGACY] failed to convert', item.fileName, e);
+      failed.push(item.fileName);
+    }
+  });
+  // Rewrite parent references among the converted batch itself
+  results.forEach(r => {
+    const p = r.bodyData.ORBIT_DATA?.parent;
+    if(p && nameMap[p] && nameMap[p] !== p) r.bodyData.ORBIT_DATA.parent = nameMap[p];
+  });
+  return { results, failed, nameMap };
+}
+
+// Re-elects the system centre (largest body with no orbit data) after adding
+// recovered bodies — mirrors the election loadZipFile already does once.
+function _lcReElectCenter(){
+  const noOrbitEntries = Object.entries(bodies).filter(([,b]) => !b.data.ORBIT_DATA);
+  Object.values(bodies).forEach(b => { if(!b.data.ORBIT_DATA) b.isCenter = false; });
+  if(noOrbitEntries.length > 0){
+    noOrbitEntries.sort(([,a],[,b]) => ((b.data.BASE_DATA||{}).radius||0) - ((a.data.BASE_DATA||{}).radius||0));
+    noOrbitEntries[0][1].isCenter = true;
+  }
+  const emptyState = document.getElementById('empty-state');
+  if(emptyState){
+    const hasCenter = Object.values(bodies).some(b => b.isCenter);
+    emptyState.classList.toggle('gone', hasCenter);
+  }
+}
+function _lcRefreshUiAfterBodyChange(){
+  if(typeof fillSidebar === 'function') fillSidebar();
+  if(typeof updateStatusBar === 'function') updateStatusBar();
+  if(typeof syncAddBodyBtn === 'function') syncAddBodyBtn();
+  if(typeof tagDdSyncBtn === 'function') tagDdSyncBtn();
+  if(typeof prsRefreshSystemTab === 'function') prsRefreshSystemTab();
+  if(typeof refreshTexPickerLists === 'function') refreshTexPickerLists();
+  if(typeof updateAssetEmptyState === 'function') updateAssetEmptyState();
+  if(typeof drawViewport === 'function') drawViewport();
+}
+
+// ── kind: 'addBody' — single file added through the sidebar Add Body flow ──
+function _lcApplyAddBodyConversion(pending){
+  const item = pending.items[0];
+  const bodyData = normalizeDiffScaleKeys(_lcConvertLegacyText(item.raw));
+  if(typeof _lcFinishAddBody === 'function') _lcFinishAddBody(bodyData, item.fileName);
+  return { added: [item.fileName], failed: [] };
+}
+
+// ── kind: 'zip-system' — main "Load System" zip ──
+function _lcApplyZipSystemConversion(pending){
+  const { results, failed } = _lcConvertBatch(pending.items);
+  results.forEach(r => {
+    const _meta = inferPresetMeta(r.name, r.bodyData);
+    bodies[r.name] = { data: r.bodyData, preset: _meta.id, isCenter: false, color: _meta.color, glow: _meta.glow, icon: _meta.icon };
+  });
+  if(results.length){
+    _lcReElectCenter();
+    if(typeof systemPresets !== 'undefined'){
+      Object.keys(systemPresets).forEach(k => delete systemPresets[k]);
+      Object.entries(bodies).forEach(([n,b]) => { systemPresets[n] = JSON.parse(JSON.stringify(b.data)); });
+    }
+    _lcRefreshUiAfterBodyChange();
+  }
+  return { added: results.map(r => r.name), failed };
+}
+
+// ── kind: 'zip-import' — "Import System" merge zip ──
+// Replays the same parent-rewrite + merge-mode (barycentre / orbit-existing /
+// orbit-chosen) logic importSystemZip already applied to the files that
+// parsed fine the first time, so recovered legacy bodies slot in identically.
+//
+// If the import's centre resolution was ambiguous (ctx.deferredCentreName
+// set — see importSystemZip), this also resolves which body is really the
+// centre: the withheld non-legacy body, or a newly-converted legacy one —
+// by the same "largest no-orbit body wins" rule used everywhere else.
+function _lcApplyZipImportConversion(pending){
+  const ctx = pending.ctx || {};
+  const AU_m = 1.496e11;
+  const { results, failed } = _lcConvertBatch(pending.items);
+
+  // Repoint parents at whichever names the ORIGINAL (already-committed) import
+  // resolved to, for bodies that parsed fine the first time around.
+  results.forEach(r => {
+    const p = r.bodyData.ORBIT_DATA?.parent;
+    if(p && ctx.renamed && ctx.renamed[p]) r.bodyData.ORBIT_DATA.parent = ctx.renamed[p];
+  });
+
+  // ── Resolve the true import centre among every remaining candidate ──
+  const candidates = [];
+  if(ctx.deferredCentreName && bodies[ctx.deferredCentreName] && !bodies[ctx.deferredCentreName].data.ORBIT_DATA){
+    candidates.push({
+      existing: true, name: ctx.deferredCentreName, ref: bodies[ctx.deferredCentreName].data,
+      radius: (bodies[ctx.deferredCentreName].data.BASE_DATA||{}).radius || 0
+    });
+  }
+  results.forEach(r => {
+    if(!r.bodyData.ORBIT_DATA){
+      candidates.push({ existing: false, name: r.name, ref: r.bodyData, radius: (r.bodyData.BASE_DATA||{}).radius || 0 });
+    }
+  });
+  candidates.sort((a,b) => b.radius - a.radius);
+  const winner = candidates[0] || null;
+
+  function applyMergeMode(targetRef){
+    if(ctx.opt === 'a'){
+      const baryName = _uniqueName('Barycentre', bodies);
+      const barySMA = (ctx.baryAU || 10) * AU_m;
+      if(ctx.exCentreName && bodies[ctx.exCentreName]){
+        bodies[ctx.exCentreName].isCenter = false;
+        bodies[ctx.exCentreName].data.ORBIT_DATA = {
+          parent: baryName, semiMajorAxis: barySMA * 0.5,
+          eccentricity: 0, argumentOfPeriapsis: 0, direction: 1,
+          multiplierSOI: 2.5, smaDifficultyScale: {}, soiDifficultyScale: {}
+        };
+      }
+      targetRef.ORBIT_DATA = {
+        parent: baryName, semiMajorAxis: barySMA * 0.5,
+        eccentricity: 0, argumentOfPeriapsis: 180, direction: 1,
+        multiplierSOI: 2.5, smaDifficultyScale: {}, soiDifficultyScale: {}
+      };
+      bodies[baryName] = {
+        data: { BASE_DATA: { radius: 1000, gravity: 0, gravityDifficultyScale: {}, radiusDifficultyScale: {}, bodyType: 0 } },
+        preset: 'asteroid', isCenter: true, color: '#aaaaaa', glow: false, icon: '⚫'
+      };
+    } else if(ctx.opt === 'b'){
+      targetRef.ORBIT_DATA = {
+        parent: ctx.exCentreName || Object.keys(bodies)[0] || winner.name,
+        semiMajorAxis: (ctx.bAU || 20) * AU_m,
+        eccentricity: 0, argumentOfPeriapsis: 0, direction: 1,
+        multiplierSOI: 2.5, smaDifficultyScale: {}, soiDifficultyScale: {}
+      };
+    } else if(ctx.opt === 'c'){
+      const parentName = ctx.cParent && bodies[ctx.cParent] ? ctx.cParent : (ctx.exCentreName || Object.keys(bodies)[0] || winner.name);
+      targetRef.ORBIT_DATA = {
+        parent: parentName, semiMajorAxis: (ctx.cAU || 5) * AU_m,
+        eccentricity: 0, argumentOfPeriapsis: 0, direction: 1,
+        multiplierSOI: 2.5, smaDifficultyScale: {}, soiDifficultyScale: {}
+      };
+    }
+    // opt not set (nothing to merge against, e.g. the whole zip was legacy) —
+    // leave it centre-less; it becomes the outright new system centre below.
+  }
+
+  if(winner) applyMergeMode(winner.ref);
+
+  // Any OTHER centre-less candidates beyond the winner (rare — a malformed
+  // zip with more than one star-like body) fall back to orbiting the winner
+  // rather than being left stranded with no orbit at all.
+  candidates.forEach(c => {
+    if(c === winner || c.ref.ORBIT_DATA) return;
+    c.ref.ORBIT_DATA = {
+      parent: winner ? winner.name : (Object.keys(bodies)[0] || c.name),
+      semiMajorAxis: (ctx.bAU || 20) * AU_m,
+      eccentricity: 0, argumentOfPeriapsis: 0, direction: 1,
+      multiplierSOI: 2.5, smaDifficultyScale: {}, soiDifficultyScale: {}
+    };
+  });
+
+  // Non-ambiguous case: the import already had a resolved (non-legacy) centre
+  // from the start, so any recovered legacy body lacking orbit data just
+  // needs a sane default orbit around it (no centre contest to run here).
+  if(!candidates.length && ctx.importedCentreName){
+    results.forEach(r => {
+      if(!r.bodyData.ORBIT_DATA){
+        r.bodyData.ORBIT_DATA = {
+          parent: ctx.importedCentreName, semiMajorAxis: (ctx.bAU || 20) * AU_m,
+          eccentricity: 0, argumentOfPeriapsis: 0, direction: 1,
+          multiplierSOI: 2.5, smaDifficultyScale: {}, soiDifficultyScale: {}
+        };
+      }
+    });
+  }
+
+  // ── Register newly-converted bodies ──
+  results.forEach(r => {
+    const _meta = inferPresetMeta(r.name, r.bodyData);
+    const isWinner = !!(winner && !winner.existing && winner.name === r.name);
+    bodies[r.name] = {
+      data: r.bodyData, preset: _meta.id,
+      // Winner only stays "centre" if merge mode left it without an orbit
+      // (e.g. nothing to merge against); modes a/b/c give it an orbit and
+      // hand centre duty to the barycentre / existing centre instead.
+      isCenter: isWinner && !r.bodyData.ORBIT_DATA,
+      color: _meta.color, glow: _meta.glow, icon: _meta.icon
+    };
+  });
+
+  // If the withheld non-legacy body turned out to be the real centre, mark it
+  // accordingly (same rule: only centre if it ended up without an orbit).
+  if(winner && winner.existing) bodies[winner.name].isCenter = !winner.ref.ORBIT_DATA;
+
+  if(results.length || winner){
+    _lcRefreshUiAfterBodyChange();
+    const emptyState = document.getElementById('empty-state');
+    if(emptyState && Object.values(bodies).some(b => b.isCenter)) emptyState.classList.add('gone');
+  }
+  return { added: results.map(r => r.name), failed };
+}
+
+// ── kind: 'zip-asset' — Preset Library / texture-pack asset zips ──
+function _lcApplyZipAssetConversion(pending){
+  const added = [];
+  const failed = [];
+  (pending.items || []).forEach(item => {
+    try{
+      const bodyData = normalizeDiffScaleKeys(_lcConvertLegacyText(item.raw));
+      const pname = (item.fileName || 'Body').replace(/\.txt$/i, '').trim();
+      if(item.namedCategory){
+        if(!dynamicPresetSources[item.namedCategory]) dynamicPresetSources[item.namedCategory] = { presets: {}, zipName: item.zipName };
+        dynamicPresetSources[item.namedCategory].presets[pname] = bodyData;
+      } else {
+        const cat = (typeof _presetCategory === 'function' ? _presetCategory(item.pathLower || '') : null) || 'custom';
+        dynamicPresets[cat][pname] = bodyData;
+      }
+      added.push(pname);
+    } catch(e){
+      console.error('[SFS|LEGACY] failed to convert preset', item.fileName, e);
+      failed.push(item.fileName);
+    }
+  });
+  if(added.length){
+    if(typeof refreshTexPickerLists === 'function') refreshTexPickerLists();
+    if(typeof updateAssetEmptyState === 'function') updateAssetEmptyState();
+    if(typeof prsRebuild === 'function') prsRebuild();
+    if(typeof drawViewport === 'function') drawViewport();
+  }
+  return { added, failed };
+}
+
+// Entry point wired to the notice modal's Convert button.
+function runLegacyConversion(){
+  const pending = _legacyPending;
+  if(!pending || !pending.items || !pending.items.length){ closeLegacyFormatNotice(); return; }
+
+  let outcome;
+  try{
+    if(pending.kind === 'addBody') outcome = _lcApplyAddBodyConversion(pending);
+    else if(pending.kind === 'zip-system') outcome = _lcApplyZipSystemConversion(pending);
+    else if(pending.kind === 'zip-import') outcome = _lcApplyZipImportConversion(pending);
+    else if(pending.kind === 'zip-asset') outcome = _lcApplyZipAssetConversion(pending);
+    else outcome = { added: [], failed: pending.items.map(i => i.fileName) };
+  } catch(e){
+    console.error('[SFS|LEGACY] conversion failed:', e);
+    alert('Conversion failed: ' + e.message);
+    _legacyPending = null;
+    closeLegacyFormatNotice();
+    return;
+  }
+
+  _legacyPending = null;
+  closeLegacyFormatNotice();
+
+  const addedN = outcome.added.length;
+  const failedN = outcome.failed.length;
+  if(addedN) console.log(`[SFS|LEGACY] converted and added ${addedN} file(s):`, outcome.added);
+  if(failedN) alert(`${failedN} file${failedN!==1?'s':''} could not be converted:\n` + outcome.failed.join('\n'));
+}
+
 // ════════════════════════════════ ZIP READER ════════════════════════════════
 // Parses a ZIP file (stored or deflated entries) and returns
 // { "path/in/zip": Uint8Array } for every file entry.
@@ -231,6 +760,7 @@ async function loadZipFile(file){
     _bulkLoadActive = true;
 
     let planetCount = 0;
+    const legacyFiles = []; // pre-1.5 format files found — skipped, reported at the end
     const entryKeys = Object.keys(entries);
     const entryTotal = entryKeys.length || 1;
     let entryIdx = 0;
@@ -258,6 +788,7 @@ async function loadZipFile(file){
           if(name === 'Import_Settings'){ systemSettings.importSettings = JSON.parse(_sfsLenientJsonFix(raw)); continue; }
           if(name === 'Space_Center_Data'){ systemSettings.spaceCenterData = JSON.parse(_sfsLenientJsonFix(raw)); continue; }
           if(name === 'Version') continue;
+          if(_isLegacyPlanetText(raw)){ legacyFiles.push({ fileName: filename, raw }); continue; }
           // Lenient parse: normalise invisible whitespace, strip trailing commas,
           // fix bare decimals, Unity Infinity/NaN
           const _fixedRaw = _sfsLenientJsonFix(raw);
@@ -338,7 +869,15 @@ async function loadZipFile(file){
       if((_ti + 1) % 8 === 0) await _yield();
     }
 
-    if(planetCount === 0){ hideLoading(); hideLoadingBars(); setLoadingTitle('LOADING SYSTEM'); alert('No planet files found in zip. Make sure it contains a Planet Data/ folder.'); return; }
+    if(planetCount === 0){
+      hideLoading(); hideLoadingBars(); setLoadingTitle('LOADING SYSTEM');
+      if(legacyFiles.length > 0){
+        _legacyPending = { kind: 'zip-system', items: legacyFiles, ctx: { zipFileName: file.name } };
+        showLegacyFormatNotice(legacyFiles.map(f => f.fileName), 'zip');
+      }
+      else { alert('No planet files found in zip. Make sure it contains a Planet Data/ folder.'); }
+      return;
+    }
 
     // Elect exactly one center: the no-orbit body with the largest radius.
     // All other no-orbit bodies are left as non-center (they'll sit at world origin).
@@ -382,7 +921,7 @@ async function loadZipFile(file){
     // Show/hide the SYSTEM tab in the preset modal based on whether bodies loaded
     prsRefreshSystemTab();
 
-    setTimeout(() => { hideLoading(); hideLoadingBars(); setLoadingTitle('LOADING SYSTEM'); goNew(); setTimeout(() => { console.log('[SFS|LOAD] delayed redraw, textureCache:', Object.keys(textureCache)); drawViewport(); }, 500); }, 350);
+    setTimeout(() => { hideLoading(); hideLoadingBars(); setLoadingTitle('LOADING SYSTEM'); if(legacyFiles.length > 0){ _legacyPending = { kind: 'zip-system', items: legacyFiles, ctx: { zipFileName: file.name } }; showLegacyFormatNotice(legacyFiles.map(f => f.fileName), 'zip'); } goNew(); setTimeout(() => { console.log('[SFS|LOAD] delayed redraw, textureCache:', Object.keys(textureCache)); drawViewport(); }, 500); }, 350);
 
   } catch(err){
     hideLoading(); hideLoadingBars(); setLoadingTitle('LOADING SYSTEM');
@@ -934,6 +1473,7 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
   const rawEntries = parseZip(buffer);
   const entries = await decompressEntries(rawEntries, onDecompProgress);
   let totalTextures = 0, totalPresets = 0, errors = 0;
+  const legacyFiles = []; // pre-1.5 format preset files found — skipped, reported by the caller
   // Treat every file in Terrain.zip / Terrain Custom.zip as heightmap assets
   const _zipNameLower = (zipName || '').toLowerCase();
   const _forceHeightmap = _zipNameLower === 'terrain.zip' || _zipNameLower === 'terrain custom.zip';
@@ -992,6 +1532,10 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
 
     if(ext === 'txt' && pathLower.includes('planet data')){
       const dec = new TextDecoder().decode(data);
+      if(_isLegacyPlanetText(dec)){
+        legacyFiles.push({ fileName: filename, raw: dec, pathLower, namedCategory, zipName });
+        continue;
+      }
       const parsed = _parsePresetTxt(dec);
       if(parsed){
         const pname = filename.replace(/\.txt$/i, '').trim();
@@ -1042,13 +1586,14 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
   for(const entry of _thumbsDeferred) renderAssetThumb(entry);
 
   if(totalTextures > 0){ refreshTexPickerLists(); updateAssetEmptyState(); drawViewport(); }
-  return { totalTextures, totalPresets, errors };
+  return { totalTextures, totalPresets, errors, legacyFiles };
 }
 
 async function loadSFSAssetZips(files){
   if(!files || !files.length) return;
   const statusEl = document.getElementById('default-tex-status');
   let totalTextures = 0, totalPresets = 0, errors = 0;
+  const legacyFiles = []; // pre-1.5 format preset files found across all zips — reported once at the end
 
   showLoading();
   showLoadingBars();
@@ -1069,6 +1614,7 @@ async function loadSFSAssetZips(files){
       totalTextures += res.totalTextures;
       totalPresets  += res.totalPresets;
       errors        += res.errors;
+      if(res.legacyFiles && res.legacyFiles.length) legacyFiles.push(...res.legacyFiles);
     } catch(err){
       console.error('Asset zip error:', file.name, err);
       errors++;
@@ -1083,13 +1629,14 @@ async function loadSFSAssetZips(files){
   const parts = [];
   if(totalTextures > 0) parts.push(`${totalTextures} texture${totalTextures!==1?'s':''}`);
   if(totalPresets  > 0) parts.push(`${totalPresets} preset${totalPresets!==1?'s':''}`);
+  if(legacyFiles.length > 0) parts.push(`${legacyFiles.length} legacy (needs conversion)`);
   if(errors > 0)        parts.push(`${errors} error${errors!==1?'s':''}`);
 
   if(statusEl){
     if(parts.length === 0){
       statusEl.textContent = '⚠ No assets found — check zip contains Planet Data/ or Texture Data/ folders';
       statusEl.style.color = 'var(--amber)';
-    } else if(errors > 0){
+    } else if(errors > 0 || legacyFiles.length > 0){
       statusEl.textContent = `⚠ Loaded: ${parts.join(', ')}`;
       statusEl.style.color = 'var(--amber)';
     } else {
@@ -1101,6 +1648,11 @@ async function loadSFSAssetZips(files){
   if(totalTextures > 0){ refreshTexPickerLists(); updateAssetEmptyState(); drawViewport();
     const btn = document.getElementById('btn-load-assets');
     if(btn) btn.style.display = 'none';
+  }
+
+  if(legacyFiles.length > 0){
+    _legacyPending = { kind: 'zip-asset', items: legacyFiles, ctx: {} };
+    showLegacyFormatNotice(legacyFiles.map(f => f.fileName), 'zip');
   }
 }
 
@@ -1180,6 +1732,7 @@ async function importSystemZip(file){
     // ── Parse the incoming system into a temporary bodies map ──
     const inBodies = {}; // name → { data, isCenter, _lacksOrbit, preset, color, glow, icon }
     let   planetCount = 0;
+    const legacyFiles = []; // pre-1.5 format files found — skipped, reported at the end
     setBar2(0, 'LOADING BODIES');
     const entryKeys  = Object.keys(entries);
     const entryTotal = entryKeys.length || 1;
@@ -1198,6 +1751,11 @@ async function importSystemZip(file){
           const raw = dec(data);
           const name = filename.replace('.txt','');
           if(['Import_Settings','Space_Center_Data','Version'].includes(name)) continue;
+          if(_isLegacyPlanetText(raw)){
+            const peek = _lcPeekLegacyInfo(raw);
+            legacyFiles.push({ fileName: filename, raw, _lacksOrbit: !peek.hasOrbit, _radius: peek.radius });
+            continue;
+          }
           const fixedRaw = _sfsLenientJsonFix(raw);
           const bodyData = normalizeDiffScaleKeys(JSON.parse(fixedRaw));
           const lacksOrbit = !bodyData.ORBIT_DATA;
@@ -1244,7 +1802,22 @@ async function importSystemZip(file){
 
     if(planetCount === 0){
       hideLoading(); hideLoadingBars(); setLoadingTitle('LOADING SYSTEM');
-      alert('No planet files found in the import zip.');
+      if(legacyFiles.length > 0){
+        const stemEarly = file.name.replace(/\.zip$/i,'').replace(/[^A-Za-z0-9_\- ]/g,'').trim() || 'Imported';
+        _legacyPending = {
+          kind: 'zip-import',
+          items: legacyFiles,
+          ctx: {
+            zipFileName: file.name, stem: stemEarly, renamed: {},
+            importedCentreName: null,
+            exCentreName: Object.keys(bodies).find(n => bodies[n].isCenter) || null,
+            opt, baryAU, bAU, cAU, cParent
+          }
+        };
+        showLegacyFormatNotice(legacyFiles.map(f => f.fileName), 'zip');
+      } else {
+        alert('No planet files found in the import zip.');
+      }
       return;
     }
 
@@ -1257,6 +1830,26 @@ async function importSystemZip(file){
       inCentreName = noOrbit[0][0];
     }
     Object.values(inBodies).forEach(b => delete b._lacksOrbit);
+
+    // If an unconverted legacy file also looks like a centre candidate (no
+    // orbit data) — and either no non-legacy centre was found, or the legacy
+    // candidate is bigger — hold off on deciding who the real centre is until
+    // the user resolves the legacy file(s), rather than possibly locking in
+    // the wrong body as centre right now.
+    const legacyCentreCandidates = legacyFiles.filter(f => f._lacksOrbit);
+    let deferredCentre = false;
+    if(legacyCentreCandidates.length > 0){
+      const bestLegacyRadius = Math.max(...legacyCentreCandidates.map(f => f._radius || 0));
+      const currentCentreRadius = inCentreName ? ((inBodies[inCentreName].data.BASE_DATA||{}).radius || 0) : -1;
+      if(!inCentreName || bestLegacyRadius > currentCentreRadius) deferredCentre = true;
+    }
+    if(deferredCentre && inCentreName){
+      // Don't lock this body in as the winner yet — it stays parentless and
+      // non-centre for now (same as any other "extra" no-orbit body already
+      // does elsewhere in this app), to be re-evaluated once the legacy
+      // candidate(s) are converted.
+      inBodies[inCentreName].isCenter = false;
+    }
 
     // ── Resolve name collisions: prefix all imported names with the zip stem ──
     const stem    = file.name.replace(/\.zip$/i,'').replace(/[^A-Za-z0-9_\- ]/g,'').trim() || 'Imported';
@@ -1283,9 +1876,12 @@ async function importSystemZip(file){
     // ── Determine existing centre ──
     const exCentreName = Object.keys(bodies).find(n => bodies[n].isCenter) || null;
 
-    // ── Apply merge mode ──
-    const importedCentreBody = inCentreName ? inBodies[inCentreName] : null;
+    // ── Apply merge mode (skipped entirely if centre resolution is deferred —
+    //     see runLegacyConversion / _lcApplyZipImportConversion, which replays
+    //     this same logic once the true centre is known) ──
+    const importedCentreBody = (!deferredCentre && inCentreName) ? inBodies[inCentreName] : null;
 
+    if(!deferredCentre){
     if(opt === 'a'){
       // ── Mode A: Shared barycentre ──
       // 1. Create a barycentre body (no mass, no atmosphere, just a marker)
@@ -1347,6 +1943,7 @@ async function importSystemZip(file){
         };
       }
     }
+    } // end if(!deferredCentre)
 
     // ── Commit renamed imported bodies into global bodies map ──
     Object.entries(inBodies).forEach(([oldName, b]) => {
@@ -1367,6 +1964,19 @@ async function importSystemZip(file){
     setLoadingMsg('Done!');
     setTimeout(() => {
       hideLoading(); hideLoadingBars(); setLoadingTitle('LOADING SYSTEM');
+      if(legacyFiles.length > 0){
+        _legacyPending = {
+          kind: 'zip-import',
+          items: legacyFiles,
+          ctx: {
+            zipFileName: file.name, stem, renamed,
+            importedCentreName: deferredCentre ? null : inCentreName,
+            deferredCentreName: deferredCentre ? renamed[inCentreName] : null,
+            exCentreName, opt, baryAU, bAU, cAU, cParent
+          }
+        };
+        showLegacyFormatNotice(legacyFiles.map(f => f.fileName), 'zip');
+      }
       goNew();
       setTimeout(() => drawViewport(), 400);
     }, 350);

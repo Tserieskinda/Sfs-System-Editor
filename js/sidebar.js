@@ -768,6 +768,17 @@ function importBodyFromTxt(input){
   const reader = new FileReader();
   reader.onload = e => {
     let raw = e.target.result;
+
+    if(typeof _isLegacyPlanetText === 'function' && _isLegacyPlanetText(raw)){
+      if(typeof showLegacyFormatNotice === 'function'){
+        _legacyPending = { kind: 'addBody', items: [{ fileName: file.name, raw }] };
+        showLegacyFormatNotice([file.name], 'single');
+      } else {
+        alert('"' + file.name + '" uses the old pre-1.5 planet format and needs to be converted first.');
+      }
+      return;
+    }
+
     // Lenient parse: same fixes as zip importer
     try {
       raw = raw
@@ -779,33 +790,43 @@ function importBodyFromTxt(input){
     try { bodyData = normalizeDiffScaleKeys(JSON.parse(raw)); }
     catch(err) { alert('Could not parse .txt file:\n' + err.message); return; }
 
-    // Derive name from filename (strip .txt)
-    let name = file.name.replace(/\.txt$/i, '').trim() || 'Body';
+    _lcFinishAddBody(bodyData, file.name);
+  };
+  reader.readAsText(file);
+}
 
-    // Deduplicate name if it already exists
-    if(bodies[name]){
-      let n = 2;
-      while(bodies[name + '_' + n]) n++;
-      name = name + '_' + n;
+// Everything that happens once we have a valid (already-current-format) bodyData
+// object to add via the Add Body flow — split out of importBodyFromTxt so the
+// legacy-conversion path (see _legacyConvertPending in io.js) can reuse it
+// after converting a pre-1.5 file, instead of duplicating this logic.
+function _lcFinishAddBody(bodyData, fileName){
+  // Derive name from filename (strip .txt)
+  let name = (fileName || 'Body').replace(/\.txt$/i, '').trim() || 'Body';
+
+  // Deduplicate name if it already exists
+  if(bodies[name]){
+    let n = 2;
+    while(bodies[name + '_' + n]) n++;
+    name = name + '_' + n;
+  }
+
+  pushUndo();
+
+  // Determine if this should be the center
+  const lacksOrbit = !bodyData.ORBIT_DATA;
+  const existingCenter = Object.values(bodies).find(b => b.isCenter);
+
+  if(isForCenter){
+    // Called from openPreset(true) — replace center slot
+    if(existingCenter){
+      alert('A system center already exists. Remove it first.');
+      return;
     }
-
-    pushUndo();
-
-    // Determine if this should be the center
-    const lacksOrbit = !bodyData.ORBIT_DATA;
-    const existingCenter = Object.values(bodies).find(b => b.isCenter);
-
-    if(isForCenter){
-      // Called from openPreset(true) — replace center slot
-      if(existingCenter){
-        alert('A system center already exists. Remove it first.');
-        return;
-      }
-      delete bodyData.ORBIT_DATA;
-    } else if(lacksOrbit && !existingCenter){
-      // No center yet and file has no orbit — treat as center
-      // (fine — user dropped a star txt as first body)
-    } else if(lacksOrbit && existingCenter){
+    delete bodyData.ORBIT_DATA;
+  } else if(lacksOrbit && !existingCenter){
+    // No center yet and file has no orbit — treat as center
+    // (fine — user dropped a star txt as first body)
+  } else if(lacksOrbit && existingCenter){
       // File has no orbit data but a center exists — inject a smart default orbit
       const centerName = Object.keys(bodies).find(n => bodies[n].isCenter) || 'Sun';
       const parentName = (selectedBody && bodies[selectedBody]) ? selectedBody : centerName;
@@ -890,8 +911,6 @@ function importBodyFromTxt(input){
     updateStatusBar();
     selectBody(name);
     drawViewport();
-  };
-  reader.readAsText(file);
 }
 
 // ── Smooth animated zoom to a body ──
