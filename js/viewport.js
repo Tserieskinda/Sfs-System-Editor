@@ -2033,22 +2033,7 @@ function _drawViewportNow(){
                 const cloudStartY_val = (R_eff_px + startH_m + gradH_cld) / gradH_cld - 1;
 
                 if(!drawViewport._cldDbg) drawViewport._cldDbg = {};
-                // Log once per meaningfully-different physR_px (zoom level) instead of
-                // once-ever-per-body — the once-ever guard was firing during an early
-                // icon/thumbnail-scale draw pass (physR_px ~1px) before the user had
-                // zoomed in, so the numbers never reflected the actual view.
-                const _cldDbgKey = name;
-                const _cldDbgLast = drawViewport._cldDbg[_cldDbgKey];
-                const _cldDbgShouldLog = physR_px > 5 && (!_cldDbgLast || Math.abs(physR_px - _cldDbgLast) > _cldDbgLast * 0.2);
-                if(_cldDbgShouldLog){
-                  drawViewport._cldDbg[_cldDbgKey] = physR_px;
-                  // Predicted seam: the on-screen radius where v_raw crosses the next
-                  // integer (wrap boundary). v_disc_seam = ceil(cloudStartY) - cloudStartY,
-                  // scaled by cloudSizeY; dist = outer - v_disc*(outer-inner).
-                  const seamVDisc = (Math.ceil(cloudStartY_val) - cloudStartY_val) / cloudSizeY;
-                  const seamPx = atmoDisk_px - seamVDisc * (atmoDisk_px - physR_px);
-                  console.log(`[CLD] ${name}: R=${R_eff_px}, startH=${startH_m}, cloudH=${cloudH_m}, gradH=${gradH_cld}, numTiles=${numTiles}, cloudSizeY=${cloudSizeY.toFixed(3)}, cloudStartY=${cloudStartY_val.toFixed(3)} | physR_px=${physR_px.toFixed(1)}, atmoDisk_px=${atmoDisk_px.toFixed(1)}, seamVDisc=${seamVDisc.toFixed(3)}, seamPx=${seamPx.toFixed(1)}`);
-                }
+                if(!drawViewport._cldDbg[name]){ drawViewport._cldDbg[name]=true; console.log(`[CLD] ${name}: R=${R_eff_px}, startH=${startH_m}, cloudH=${cloudH_m}, gradH=${gradH_cld}, numTiles=${numTiles}, cloudSizeY=${cloudSizeY.toFixed(3)}, cloudStartY=${cloudStartY_val.toFixed(3)}`); }
 
                 const cacheKey = 'cld9:' + CLD.texture
                                 + '|' + R_eff_px.toFixed(1)
@@ -2091,22 +2076,26 @@ function _drawViewportNow(){
                       const edgeA = Math.min(innerAlpha, outerAlpha);
                       // v_disc: 0 at atmo outer edge, 1 at planet surface — matches shader
                       const v_disc = Math.max(0, Math.min(1, (outerN - dist) / (outerN - innerN)));
-                      // shader: sample at cloudStartY + v_disc * cloudSizeY, tiled
-                      const v_raw = cloudStartY_val + v_disc * cloudSizeY;
-                      const v_frac = v_raw - Math.floor(v_raw);
+                      // NOTE: cloudStartY_val (== R/gradH here) is deliberately NOT added
+                      // in as an offset before tiling. Adding it and wrapping with frac()
+                      // — what this used to do — pushes v_raw past 1.0 about 19% of the
+                      // way in from the outer edge, so the texture restarts from row 0
+                      // a second time and gets sampled TWICE across the disc: once as a
+                      // thin sliver near the outer edge, and again (the bulk of it) from
+                      // there all the way down to the surface. That's exactly the "two
+                      // separate rings with a gap between them" artifact — confirmed
+                      // against an in-game reference screenshot, where the ring is a
+                      // single unbroken band sitting roughly 1.4-1.9 planet-radii out,
+                      // fading to black well before the outer atmosphere/cloud boundary.
+                      // A single un-offset pass (scaled only by cloudSizeY, so the far
+                      // outer edge reads pure black off the top of the texture and the
+                      // surface reads into the texture's brighter lower rows) reproduces
+                      // that single-band look with no seam.
+                      const v_frac = Math.max(0, Math.min(1, v_disc * cloudSizeY));
                       let ang = Math.atan2(dy, dx) / (2 * Math.PI);
                       if(ang < 0) ang += 1;
                       const u = (ang * numTiles) % 1;
                       const sx = Math.min(tw - 1, Math.floor(u * tw));
-                      // Row mapping, matching the atmosphere polar-warp convention exactly.
-                      // There, t=0 at surface / t=1 at outer edge, and texRowF=(1-t)*(SH-1)
-                      // — i.e. surface samples the image's BOTTOM row (Unity V=0), outer
-                      // edge samples the TOP row (Unity V=1). Here v_disc is defined the
-                      // OPPOSITE way round (1 at surface, 0 at outer edge), so v_frac is
-                      // already the "(1-t)" quantity — no extra flip needed. The previous
-                      // attempt applied (1 - v_frac) on top of that, double-flipping and
-                      // rendering every cloud texture upside-down. v_frac directly gives
-                      // the bottom-row-at-surface mapping the game's V convention wants.
                       const texRowF = v_frac * (th - 1);
                       // Bilinear interpolation along Y — same fix the atmosphere polar
                       // warp already applies (see _atmoPolarCache build above) and for
@@ -2134,26 +2123,19 @@ function _drawViewportNow(){
                 ctx2.globalAlpha *= baseAlpha;
                 ctx2.imageSmoothingEnabled = true;
                 ctx2.imageSmoothingQuality = 'high';
+                // SFS convention: cloud/ring textures are unlit source art with NO
+                // alpha channel (most are opaque JPGs) — black pixels mean "nothing
+                // here" and blend additively/emissively in-game, same convention
+                // already used for GRADIENT above (see the 'lighter' composite
+                // branch around line 1355). Left at the default 'source-over',
+                // every near-black texel (the vast majority of a ring texture like
+                // Ring_Somber, which is mostly empty space around a thin ring band)
+                // gets painted as an OPAQUE dark-grey disc instead of staying
+                // invisible, producing the muddy, mismatched smear seen over the
+                // planet instead of a clean ring silhouette.
+                ctx2.globalCompositeOperation = 'lighter';
                 ctx2.drawImage(wc, sp.x - outer_px, sp.y - outer_px, outer_px * 2, outer_px * 2);
                 ctx2.restore();
-
-                // ── TEMP CALIBRATION MARKERS (remove once diagnosis is done) ──
-                // red = physR_px (planet surface, v_disc=1)
-                // yellow = atmoDisk_px (cloud disc outer edge, v_disc=0)
-                // cyan = predicted wrap-seam radius (where v_raw crosses 1.0)
-                {
-                  const seamVDisc = (Math.ceil(cloudStartY_val) - cloudStartY_val) / cloudSizeY;
-                  const seamPx = outer_px - seamVDisc * (outer_px - inner_px);
-                  ctx2.save();
-                  ctx2.lineWidth = 2;
-                  ctx2.strokeStyle = 'red';
-                  ctx2.beginPath(); ctx2.arc(sp.x, sp.y, inner_px, 0, Math.PI*2); ctx2.stroke();
-                  ctx2.strokeStyle = 'yellow';
-                  ctx2.beginPath(); ctx2.arc(sp.x, sp.y, outer_px, 0, Math.PI*2); ctx2.stroke();
-                  ctx2.strokeStyle = 'cyan';
-                  ctx2.beginPath(); ctx2.arc(sp.x, sp.y, seamPx, 0, Math.PI*2); ctx2.stroke();
-                  ctx2.restore();
-                }
               }
             }
           }
