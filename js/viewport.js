@@ -2092,16 +2092,16 @@ function _drawViewportNow(){
                       // surface reads into the texture's brighter lower rows) reproduces
                       // that single-band look with no seam.
                       const v_frac = Math.max(0, Math.min(1, v_disc * cloudSizeY));
-                      let ang = Math.atan2(dy, dx) / (2 * Math.PI);
+                      // Vertical flip of a polar-mapped disc reflects ANGLE across the
+                      // horizontal axis (top<->bottom), not radius — negating dy here
+                      // mirrors top/bottom while leaving left/right (u=0 / u=0.5, where
+                      // this texture's bright ring lobes sit) untouched. Radius/texRowF
+                      // is unrelated to this axis and stays as-is.
+                      let ang = Math.atan2(-dy, dx) / (2 * Math.PI);
                       if(ang < 0) ang += 1;
                       const u = (ang * numTiles) % 1;
                       const sx = Math.min(tw - 1, Math.floor(u * tw));
-                      // Flip the row read direction: the un-offset pass above got the
-                      // band's radial POSITION right, but reads the texture bottom-to-top
-                      // relative to how it's meant to be laid onto the disc, so the ring
-                      // rendered mirrored end-for-end along its radius (confirmed against
-                      // an in-game screenshot — same footprint, vertically flipped).
-                      const texRowF = (1 - v_frac) * (th - 1);
+                      const texRowF = v_frac * (th - 1);
                       // Bilinear interpolation along Y — same fix the atmosphere polar
                       // warp already applies (see _atmoPolarCache build above) and for
                       // the same reason: nearest-neighbor row sampling stairsteps hard
