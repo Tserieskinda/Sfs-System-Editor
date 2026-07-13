@@ -2096,7 +2096,12 @@ function _drawViewportNow(){
                       if(ang < 0) ang += 1;
                       const u = (ang * numTiles) % 1;
                       const sx = Math.min(tw - 1, Math.floor(u * tw));
-                      const texRowF = v_frac * (th - 1);
+                      // Flip the row read direction: the un-offset pass above got the
+                      // band's radial POSITION right, but reads the texture bottom-to-top
+                      // relative to how it's meant to be laid onto the disc, so the ring
+                      // rendered mirrored end-for-end along its radius (confirmed against
+                      // an in-game screenshot — same footprint, vertically flipped).
+                      const texRowF = (1 - v_frac) * (th - 1);
                       // Bilinear interpolation along Y — same fix the atmosphere polar
                       // warp already applies (see _atmoPolarCache build above) and for
                       // the same reason: nearest-neighbor row sampling stairsteps hard
