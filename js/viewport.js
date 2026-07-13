@@ -2026,7 +2026,12 @@ function _drawViewportNow(){
                 const baseAlpha = Math.min(rawAlpha, 1) * cldFade;
 
                 // _CloudSizeX = ceil((R + startH) * 2π / width)  — Planet.cs line 429
-                const numTiles = Math.max(1, Math.ceil((R_eff_px + startH_m) * 6.283185307 / widthM));
+                // Epsilon subtracted before ceil: when the ratio lands a hair above a
+                // clean integer (e.g. 1.0000000003) purely from float rounding — which
+                // happens whenever an edit nudges R_eff_px by a tiny amount — ceil()
+                // was flipping numTiles from 1 to 2, tiling the texture twice around
+                // the disc and producing a second, duplicate ring.
+                const numTiles = Math.max(1, Math.ceil((R_eff_px + startH_m) * 6.283185307 / widthM - 1e-6));
                 // _CloudSizeY = (R + gradH) / cloudH  — Planet.cs line 428
                 const cloudSizeY = (R_eff_px + gradH_cld) / cloudH_m;
                 // _CloudStartY = (R + startH + gradH) / gradH - 1  — Planet.cs line 427
@@ -2076,22 +2081,21 @@ function _drawViewportNow(){
                       const edgeA = Math.min(innerAlpha, outerAlpha);
                       // v_disc: 0 at atmo outer edge, 1 at planet surface — matches shader
                       const v_disc = Math.max(0, Math.min(1, (outerN - dist) / (outerN - innerN)));
-                      // NOTE: cloudStartY_val (== R/gradH here) is deliberately NOT added
-                      // in as an offset before tiling. Adding it and wrapping with frac()
-                      // — what this used to do — pushes v_raw past 1.0 about 19% of the
-                      // way in from the outer edge, so the texture restarts from row 0
-                      // a second time and gets sampled TWICE across the disc: once as a
-                      // thin sliver near the outer edge, and again (the bulk of it) from
-                      // there all the way down to the surface. That's exactly the "two
-                      // separate rings with a gap between them" artifact — confirmed
-                      // against an in-game reference screenshot, where the ring is a
-                      // single unbroken band sitting roughly 1.4-1.9 planet-radii out,
-                      // fading to black well before the outer atmosphere/cloud boundary.
-                      // A single un-offset pass (scaled only by cloudSizeY, so the far
-                      // outer edge reads pure black off the top of the texture and the
-                      // surface reads into the texture's brighter lower rows) reproduces
-                      // that single-band look with no seam.
-                      const v_frac = Math.max(0, Math.min(1, v_disc * cloudSizeY));
+                      // Texture row coordinate is world-distance-from-surface-domain
+                      // scaled by cloudSizeY directly — NOT offset by cloudStartY_val.
+                      // cloudStartY_val((R+startH)/gradH) is a separate cutoff/position
+                      // value from Planet.cs, not a term added into the per-pixel radial
+                      // texture coordinate. Whether the texture repeats (stacks into
+                      // multiple visible layers) or shows just once is entirely down to
+                      // whether v_disc*cloudSizeY exceeds 1 within the visible disc —
+                      // i.e. whether cloudH is smaller than the full R+gradH span. A
+                      // creator who sizes cloudH >= R+gradH (as here) gets exactly one
+                      // clean, non-repeating pass by design; a smaller cloudH wraps
+                      // into multiple stacked layers, which is intentional for regular
+                      // multi-band cloud textures and still handled correctly by the
+                      // frac() below.
+                      const v_raw = v_disc * cloudSizeY;
+                      const v_frac = v_raw - Math.floor(v_raw);
                       // Vertical flip of a polar-mapped disc reflects ANGLE across the
                       // horizontal axis (top<->bottom), not radius — negating dy here
                       // mirrors top/bottom while leaving left/right (u=0 / u=0.5, where
