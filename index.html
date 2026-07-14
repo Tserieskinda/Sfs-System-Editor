@@ -340,6 +340,30 @@
         </div>
       </div>
 
+      <!-- ── RUVAN SYSTEM ── -->
+      <div class="fs-card">
+        <span class="fs-card-new-badge">NEW</span>
+        <div class="fs-card-header">
+          <span class="fs-card-title">RUVAN SYSTEM</span>
+          <span class="fs-card-author">by (add your name)</span>
+        </div>
+        <div class="fs-card-preview" style="padding:0;overflow:hidden;border-radius:6px">
+          <img src="featured/RS.png" alt="Ruvan System Preview" style="width:100%;height:auto;display:block">
+        </div>
+        <div class="fs-card-desc">
+          A fictional solar system that has 3 stellar systems with realistic physics on each planet along with adding a bunch of moons.
+        </div>
+        <div class="fs-card-actions">
+          <button class="fs-btn fs-btn-dl" onclick="trackFeatured('rs','import');importFeatured('featured/RS.zip','RS.zip')">⬇ IMPORT</button>
+          <button class="fs-btn fs-btn-open" onclick="trackFeatured('rs','open');loadZipFromUrl('featured/RS.zip','RS.zip')">▶ OPEN IN EDITOR</button>
+        </div>
+        <div class="fs-card-stats" id="fsstats-rs">
+          <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-rs-import">…</span> imports</span>
+          <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-rs-open">…</span> opens</span>
+          <span class="fs-stat fs-stat-size">📦 <span class="fs-stat-num fs-stat-loading" id="fssz-rs">…</span> MB</span>
+        </div>
+      </div>
+
       <!-- ── BLANK CARD slot ── -->
       <div class="fs-card fs-card-empty">
         <div class="fs-empty-icon">＋</div>
@@ -1767,7 +1791,7 @@
 <script src="js/autosave.js?v=5.12"></script>
 <script src="js/settings.js?v=5.12"></script>
 <script src="js/preset-modal.js?v=5.12"></script>
-<script src="js/viewport.js?v=5.12"></script>
+<script src="js/viewport.js?v=5.15"></script>
 <script src="js/tools.js?v=5.13"></script>
 <script src="js/units.js?v=5.12"></script>
 <script src="js/sidebar.js?v=5.14"></script>
@@ -6549,7 +6573,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const SB_KEY = 'sb_publishable_7UarYndVEPrKEg3qFrfevQ_jbMh3dbI';
   const HEADERS = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
 
-  const KEYS = ['sfs-default', 'bgh', 'htss', 'ys', 'ch'];
+  const KEYS = ['sfs-default', 'bgh', 'htss', 'ys', 'ch', 'rs'];
   const ACTS = ['import', 'open'];
 
   const ZIP_URLS = {
@@ -6558,6 +6582,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'htss':        'featured/HTSS.zip',
     'ys':          'featured/YS.zip',
     'ch':          'featured/CH.zip',
+    'rs':          'featured/RS.zip',
   };
 
   // ── Increment via RPC and update display ──
