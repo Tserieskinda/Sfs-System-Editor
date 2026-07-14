@@ -426,6 +426,49 @@ function updateSOIDisplay(){
 
 // Throttle drawViewport to one RAF per call — prevents stacking on rapid scroll/zoom
 let _drawPending = false;
+// ── Debug: survey CLOUDS radial-tiling behavior across every loaded body ──
+// Run window.debugCloudsSummary() in the browser console. For each body with
+// a CLOUDS texture, prints R/gradH/cloudH (metres) and the derived
+// cloudSizeY — the single number that determines whether the texture renders
+// as one clean, non-repeating pass (cloudSizeY < 1, e.g. Somber's ring trick)
+// or wraps into multiple stacked layers (cloudSizeY >= 1, a normal multi-band
+// cloud planet). Use this to check whether an issue is specific to
+// single-pass "trick" textures (rings/halos) or shows up on ordinary
+// multi-layer cloud planets too — same computation the renderer itself uses,
+// just surfaced for every body at once instead of one console log per body
+// per render.
+window.debugCloudsSummary = function(){
+  const rows = [];
+  for(const name of Object.keys(bodies)){
+    const b = bodies[name];
+    const CLD = b.data.ATMOSPHERE_VISUALS_DATA?.CLOUDS;
+    if(!CLD || !CLD.texture || CLD.texture === 'None') continue;
+    const atmoMult    = getAtmoDifficultyMult(b.data);
+    const radiusMult  = getRadiusDifficultyMult(b.data.BASE_DATA);
+    const R_m         = ((b.data.BASE_DATA || {}).radius || 1) * radiusMult;
+    const atmoPhysH_m = (b.data.ATMOSPHERE_PHYSICS_DATA?.height || 0) * atmoMult;
+    const gradH_m     = (b.data.ATMOSPHERE_VISUALS_DATA?.GRADIENT?.height || atmoPhysH_m) * atmoMult;
+    const cloudH_m    = Math.max(1, (CLD.height || 1)) * atmoMult;
+    const startH_m    = (CLD.startHeight || 0) * atmoMult;
+    const widthM      = Math.max(1, (CLD.width || 1)) * atmoMult;
+    const cloudSizeY  = (R_m + gradH_m) / cloudH_m;
+    const numTiles    = Math.max(1, Math.ceil((R_m + startH_m) * 6.283185307 / widthM - 1e-6));
+    rows.push({
+      name,
+      texture: CLD.texture,
+      R_m: Math.round(R_m),
+      gradH_m: Math.round(gradH_m),
+      cloudH_m: Math.round(cloudH_m),
+      startH_m: Math.round(startH_m),
+      cloudSizeY: +cloudSizeY.toFixed(4),
+      angularTiles: numTiles,
+      mode: cloudSizeY < 1 ? 'single-pass (no wrap)' : `multi-pass (~${cloudSizeY.toFixed(2)}x)`
+    });
+  }
+  console.table(rows);
+  return rows;
+};
+
 function drawViewport(){
   if(_drawPending) return;
   _drawPending = true;
@@ -2118,11 +2161,26 @@ function _drawViewportNow(){
                       const si0 = (sy0 * tw + sx) * 4;
                       const si1 = (sy1 * tw + sx) * 4;
                       const oi = (py * SZ + px2) * 4;
-                      out[oi]     = sd[si0]     + (sd[si1]     - sd[si0])     * fy + 0.5 | 0;
-                      out[oi + 1] = sd[si0 + 1] + (sd[si1 + 1] - sd[si0 + 1]) * fy + 0.5 | 0;
-                      out[oi + 2] = sd[si0 + 2] + (sd[si1 + 2] - sd[si0 + 2]) * fy + 0.5 | 0;
+                      const rC = sd[si0]     + (sd[si1]     - sd[si0])     * fy;
+                      const gC = sd[si0 + 1] + (sd[si1 + 1] - sd[si0 + 1]) * fy;
+                      const bC = sd[si0 + 2] + (sd[si1 + 2] - sd[si0 + 2]) * fy;
+                      out[oi]     = rC + 0.5 | 0;
+                      out[oi + 1] = gC + 0.5 | 0;
+                      out[oi + 2] = bC + 0.5 | 0;
                       const a0 = sd[si0 + 3], a1 = sd[si1 + 3];
-                      out[oi + 3] = Math.round((a0 + (a1 - a0) * fy) * edgeA);
+                      // Black-point crush: these are lossy JPEG source textures with no
+                      // real alpha, so "black" pixels are never exactly (0,0,0) — JPEG
+                      // artifacting/noise leaves them at ~4-20/255. Sampled faithfully
+                      // and blended additively ('lighter') over the ENTIRE outer part of
+                      // the disc (a large area), that tiny per-pixel noise accumulates
+                      // into a visible wide, faint wash beyond the ring's real content —
+                      // confirmed against an in-game reference where that same region is
+                      // essentially invisible. A soft threshold on luminance crushes that
+                      // noise floor to true transparent without touching the actual
+                      // (much brighter) ring content.
+                      const lum = rC + gC + bC;
+                      const blackCrush = Math.max(0, Math.min(1, (lum - 18) / 10));
+                      out[oi + 3] = Math.round((a0 + (a1 - a0) * fy) * edgeA * blackCrush);
                     }
                   }
                   wctx.putImageData(od, 0, 0);
@@ -2145,6 +2203,28 @@ function _drawViewportNow(){
                 ctx2.globalCompositeOperation = 'lighter';
                 ctx2.drawImage(wc, sp.x - outer_px, sp.y - outer_px, outer_px * 2, outer_px * 2);
                 ctx2.restore();
+                // ── Debug overlay: set window.DEBUG_CLOUD_RINGS = true in the console ──
+                // Draws thin labeled circles at v_disc = 0 (planet surface), 0.25, 0.5,
+                // 0.75, 1 (outer atmo/cloud edge) for the CLOUDS disc currently being
+                // rendered. Line up these fractions against a real in-game screenshot
+                // (same zoom) to pinpoint exactly which radius the ring/band should sit
+                // at, instead of eyeballing pixel offsets by hand.
+                if(window.DEBUG_CLOUD_RINGS){
+                  ctx2.save();
+                  ctx2.font = '10px monospace';
+                  ctx2.textAlign = 'left';
+                  [0, 0.25, 0.5, 0.75, 1].forEach(f => {
+                    const r = inner_px + f * (outer_px - inner_px);
+                    ctx2.strokeStyle = f === 0 || f === 1 ? 'rgba(255,80,80,0.8)' : 'rgba(255,255,0,0.5)';
+                    ctx2.lineWidth = 1;
+                    ctx2.beginPath();
+                    ctx2.arc(sp.x, sp.y, r, 0, Math.PI * 2);
+                    ctx2.stroke();
+                    ctx2.fillStyle = 'rgba(255,255,0,0.9)';
+                    ctx2.fillText(`${name} v=${f}`, sp.x + r * 0.3, sp.y - r * 0.95);
+                  });
+                  ctx2.restore();
+                }
               }
             }
           }
