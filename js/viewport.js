@@ -898,9 +898,6 @@ function _drawViewportNow(){
   // FrontClouds.cs gives every layer the same sortingOrder and only
   // positionZ (a flat, global Z) ever decides relative order.
   const _fcDeferred = [];
-  // Screen-space discs drawn so far this frame, used by the icon-overlap cull
-  // below to keep bigger bodies visually on top of smaller ones.
-  const _drawnDiscs = [];
   drawOrder.forEach(name => {
     try {
     const b = bodies[name];
@@ -955,34 +952,6 @@ function _drawViewportNow(){
       _cullR = Math.max(_cullR, r * _ringRatio);
     }
     if(sp.x + _cullR < 0 || sp.x - _cullR > W || sp.y + _cullR < 0 || sp.y - _cullR > H) return;
-
-    // ── Icon-overlap cull ────────────────────────────────────────────────────
-    // Small bodies use a fixed-pixel "icon" floor (iconR) so they stay visible
-    // at any zoom level. But draw order above is hierarchy-first (parents
-    // before children) for terrain/front-cloud correctness elsewhere, which
-    // means a moon's icon is always painted AFTER its (usually much bigger)
-    // planet's icon — i.e. the smaller icon ends up on top of / inside the
-    // bigger one. That reads as a rendering glitch rather than the intended
-    // "bigger body wins" look. Painter's-algorithm already does the right
-    // thing when a bigger body happens to draw after a smaller one (it just
-    // covers it) — the only broken case is a smaller icon-floor-dominated
-    // body drawn after an already-drawn bigger disc that it mostly overlaps.
-    // Guard exactly that case: cull the smaller icon rather than let it paint
-    // inside the bigger body. Only applies to bodies actually being shown at
-    // their icon floor (iconR >= physR_px) — real, physically-sized terrain
-    // discs are never culled this way.
-    if(iconR >= physR_px){
-      for(let _oi = 0; _oi < _drawnDiscs.length; _oi++){
-        const _d = _drawnDiscs[_oi];
-        if(_d.r <= r * 1.05) continue; // not meaningfully bigger — no cull
-        const _dx = sp.x - _d.x, _dy = sp.y - _d.y;
-        if(Math.sqrt(_dx*_dx + _dy*_dy) < _d.r * 0.85){
-          if(!_sfsDbgLogged['ovcull_'+name]){ _sfsDbgLogged['ovcull_'+name]=true; console.log(`[SFS|CULL] "${name}" icon hidden inside larger "${_d.name}" icon`); }
-          return; // culled — smaller icon fully overlapped by a bigger one
-        }
-      }
-    }
-    _drawnDiscs.push({x: sp.x, y: sp.y, r, name});
 
     const bodyFadeA  = bodyFadeVal[name]  ?? 1;
     const labelFadeA = labelFadeVal[name] ?? 1;
