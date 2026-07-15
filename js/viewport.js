@@ -424,6 +424,49 @@ function updateSOIDisplay(){
   el.textContent = fmt ? '= ' + fmt : '';
 }
 
+// ── Debug: survey CLOUDS radial-tiling behavior across every loaded body ──
+// Run window.debugCloudsSummary() in the browser console. For each body with
+// a CLOUDS texture, prints R/gradH/cloudH (metres) and the derived
+// cloudSizeY — the single number that determines whether the texture renders
+// as one clean, non-repeating pass (cloudSizeY < 1, e.g. Somber's ring trick)
+// or wraps into multiple stacked layers (cloudSizeY >= 1, a normal multi-band
+// cloud planet). Use this to check whether an issue is specific to
+// single-pass "trick" textures (rings/halos) or shows up on ordinary
+// multi-layer cloud planets too — same computation the renderer itself uses,
+// just surfaced for every body at once instead of one console log per body
+// per render.
+window.debugCloudsSummary = function(){
+  const rows = [];
+  for(const name of Object.keys(bodies)){
+    const b = bodies[name];
+    const CLD = b.data.ATMOSPHERE_VISUALS_DATA?.CLOUDS;
+    if(!CLD || !CLD.texture || CLD.texture === 'None') continue;
+    const atmoMult    = getAtmoDifficultyMult(b.data);
+    const radiusMult  = getRadiusDifficultyMult(b.data.BASE_DATA);
+    const R_m         = ((b.data.BASE_DATA || {}).radius || 1) * radiusMult;
+    const atmoPhysH_m = (b.data.ATMOSPHERE_PHYSICS_DATA?.height || 0) * atmoMult;
+    const gradH_m     = (b.data.ATMOSPHERE_VISUALS_DATA?.GRADIENT?.height || atmoPhysH_m) * atmoMult;
+    const cloudH_m    = Math.max(1, (CLD.height || 1)) * atmoMult;
+    const startH_m    = (CLD.startHeight || 0) * atmoMult;
+    const widthM      = Math.max(1, (CLD.width || 1)) * atmoMult;
+    const cloudSizeY  = (R_m + gradH_m) / cloudH_m;
+    const numTiles    = Math.max(1, Math.ceil((R_m + startH_m) * 6.283185307 / widthM - 1e-6));
+    rows.push({
+      name,
+      texture: CLD.texture,
+      R_m: Math.round(R_m),
+      gradH_m: Math.round(gradH_m),
+      cloudH_m: Math.round(cloudH_m),
+      startH_m: Math.round(startH_m),
+      cloudSizeY: +cloudSizeY.toFixed(4),
+      angularTiles: numTiles,
+      mode: cloudSizeY < 1 ? 'single-pass (no wrap)' : `multi-pass (~${cloudSizeY.toFixed(2)}x)`
+    });
+  }
+  console.table(rows);
+  return rows;
+};
+
 // Throttle drawViewport to one RAF per call — prevents stacking on rapid scroll/zoom
 let _drawPending = false;
 function drawViewport(){
@@ -898,6 +941,9 @@ function _drawViewportNow(){
   // FrontClouds.cs gives every layer the same sortingOrder and only
   // positionZ (a flat, global Z) ever decides relative order.
   const _fcDeferred = [];
+  // Screen-space discs drawn so far this frame, used by the icon-overlap cull
+  // below to keep bigger bodies visually on top of smaller ones.
+  const _drawnDiscs = [];
   drawOrder.forEach(name => {
     try {
     const b = bodies[name];
@@ -952,6 +998,34 @@ function _drawViewportNow(){
       _cullR = Math.max(_cullR, r * _ringRatio);
     }
     if(sp.x + _cullR < 0 || sp.x - _cullR > W || sp.y + _cullR < 0 || sp.y - _cullR > H) return;
+
+    // ── Icon-overlap cull ────────────────────────────────────────────────────
+    // Small bodies use a fixed-pixel "icon" floor (iconR) so they stay visible
+    // at any zoom level. But draw order above is hierarchy-first (parents
+    // before children) for terrain/front-cloud correctness elsewhere, which
+    // means a moon's icon is always painted AFTER its (usually much bigger)
+    // planet's icon — i.e. the smaller icon ends up on top of / inside the
+    // bigger one. That reads as a rendering glitch rather than the intended
+    // "bigger body wins" look. Painter's-algorithm already does the right
+    // thing when a bigger body happens to draw after a smaller one (it just
+    // covers it) — the only broken case is a smaller icon-floor-dominated
+    // body drawn after an already-drawn bigger disc that it mostly overlaps.
+    // Guard exactly that case: cull the smaller icon rather than let it paint
+    // inside the bigger body. Only applies to bodies actually being shown at
+    // their icon floor (iconR >= physR_px) — real, physically-sized terrain
+    // discs are never culled this way.
+    if(iconR >= physR_px){
+      for(let _oi = 0; _oi < _drawnDiscs.length; _oi++){
+        const _d = _drawnDiscs[_oi];
+        if(_d.r <= r * 1.05) continue; // not meaningfully bigger — no cull
+        const _dx = sp.x - _d.x, _dy = sp.y - _d.y;
+        if(Math.sqrt(_dx*_dx + _dy*_dy) < _d.r * 0.85){
+          if(!_sfsDbgLogged['ovcull_'+name]){ _sfsDbgLogged['ovcull_'+name]=true; console.log(`[SFS|CULL] "${name}" icon hidden inside larger "${_d.name}" icon`); }
+          return; // culled — smaller icon fully overlapped by a bigger one
+        }
+      }
+    }
+    _drawnDiscs.push({x: sp.x, y: sp.y, r, name});
 
     const bodyFadeA  = bodyFadeVal[name]  ?? 1;
     const labelFadeA = labelFadeVal[name] ?? 1;
@@ -2081,20 +2155,14 @@ function _drawViewportNow(){
                       const edgeA = Math.min(innerAlpha, outerAlpha);
                       // v_disc: 0 at atmo outer edge, 1 at planet surface — matches shader
                       const v_disc = Math.max(0, Math.min(1, (outerN - dist) / (outerN - innerN)));
-                      // Texture row coordinate is world-distance-from-surface-domain
-                      // scaled by cloudSizeY directly — NOT offset by cloudStartY_val.
-                      // cloudStartY_val((R+startH)/gradH) is a separate cutoff/position
-                      // value from Planet.cs, not a term added into the per-pixel radial
-                      // texture coordinate. Whether the texture repeats (stacks into
-                      // multiple visible layers) or shows just once is entirely down to
-                      // whether v_disc*cloudSizeY exceeds 1 within the visible disc —
-                      // i.e. whether cloudH is smaller than the full R+gradH span. A
-                      // creator who sizes cloudH >= R+gradH (as here) gets exactly one
-                      // clean, non-repeating pass by design; a smaller cloudH wraps
-                      // into multiple stacked layers, which is intentional for regular
-                      // multi-band cloud textures and still handled correctly by the
-                      // frac() below.
-                      const v_raw = v_disc * cloudSizeY;
+                      // Match Planet.cs exactly: offset by cloudStartY_val before scaling
+                      // and wrapping. Proven necessary (not droppable): a pure
+                      // v_disc*cloudSizeY pass always equals 0 exactly at the outer edge
+                      // (v_disc=0), so it can only ever leave a fractional remainder at
+                      // the SURFACE end. A multi-layer-cloud planet test showed the real
+                      // game rendering a fractional tile at BOTH the outer and inner
+                      // edges — structurally impossible without a nonzero phase offset.
+                      const v_raw = cloudStartY_val + v_disc * cloudSizeY;
                       const v_frac = v_raw - Math.floor(v_raw);
                       // Vertical flip of a polar-mapped disc reflects ANGLE across the
                       // horizontal axis (top<->bottom), not radius — negating dy here
