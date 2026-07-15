@@ -467,6 +467,19 @@ window.debugCloudsSummary = function(){
   return rows;
 };
 
+// Forces the one-time-per-body [CLD] console log (which includes actual
+// rendered physR_px / atmoDisk_px pixel values at the CURRENT zoom level) to
+// fire again on the next frame — useful for comparing computed pixel values
+// directly against pixels measured off a screenshot. Call with no argument
+// to re-log every body with clouds, or window.debugCloudPixelsRefresh('Somber')
+// for just one.
+window.debugCloudPixelsRefresh = function(name){
+  if(!drawViewport._cldDbg) return;
+  if(name){ delete drawViewport._cldDbg[name]; }
+  else { drawViewport._cldDbg = {}; }
+  drawViewport();
+};
+
 // Throttle drawViewport to one RAF per call — prevents stacking on rapid scroll/zoom
 let _drawPending = false;
 function drawViewport(){
@@ -2112,7 +2125,7 @@ function _drawViewportNow(){
                 const cloudStartY_val = (R_eff_px + startH_m + gradH_cld) / gradH_cld - 1;
 
                 if(!drawViewport._cldDbg) drawViewport._cldDbg = {};
-                if(!drawViewport._cldDbg[name]){ drawViewport._cldDbg[name]=true; console.log(`[CLD] ${name}: R=${R_eff_px}, startH=${startH_m}, cloudH=${cloudH_m}, gradH=${gradH_cld}, numTiles=${numTiles}, cloudSizeY=${cloudSizeY.toFixed(3)}, cloudStartY=${cloudStartY_val.toFixed(3)}`); }
+                if(!drawViewport._cldDbg[name]){ drawViewport._cldDbg[name]=true; console.log(`[CLD] ${name}: R=${R_eff_px}, startH=${startH_m}, cloudH=${cloudH_m}, gradH=${gradH_cld}, numTiles=${numTiles}, cloudSizeY=${cloudSizeY.toFixed(3)}, cloudStartY=${cloudStartY_val.toFixed(3)} | PIXELS: physR_px=${physR_px.toFixed(2)}, atmoDisk_px=${atmoDisk_px.toFixed(2)}, outer/inner ratio=${(atmoDisk_px/physR_px).toFixed(4)} (theoretical (R+gradH)/R=${(atmoOuter_m/R_eff_px).toFixed(4)})`); }
 
                 const cacheKey = 'cld9:' + CLD.texture
                                 + '|' + R_eff_px.toFixed(1)
