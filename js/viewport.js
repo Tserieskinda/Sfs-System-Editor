@@ -2155,14 +2155,13 @@ function _drawViewportNow(){
                       const edgeA = Math.min(innerAlpha, outerAlpha);
                       // v_disc: 0 at atmo outer edge, 1 at planet surface — matches shader
                       const v_disc = Math.max(0, Math.min(1, (outerN - dist) / (outerN - innerN)));
-                      // Match Planet.cs exactly: offset by cloudStartY_val before scaling
-                      // and wrapping. Proven necessary (not droppable): a pure
-                      // v_disc*cloudSizeY pass always equals 0 exactly at the outer edge
-                      // (v_disc=0), so it can only ever leave a fractional remainder at
-                      // the SURFACE end. A multi-layer-cloud planet test showed the real
-                      // game rendering a fractional tile at BOTH the outer and inner
-                      // edges — structurally impossible without a nonzero phase offset.
-                      const v_raw = cloudStartY_val + v_disc * cloudSizeY;
+                      // Texture row coordinate is world-distance-from-surface-domain
+                      // scaled by cloudSizeY directly — NOT offset by cloudStartY_val.
+                      // Confirmed by direct in-editor/in-game comparison: adding the
+                      // cloudStartY_val offset back in was tried and made the render
+                      // wrong again. Whatever the real shader does with cloudStartY_val,
+                      // it isn't a simple additive term in this per-pixel radial lookup.
+                      const v_raw = v_disc * cloudSizeY;
                       const v_frac = v_raw - Math.floor(v_raw);
                       // Vertical flip of a polar-mapped disc reflects ANGLE across the
                       // horizontal axis (top<->bottom), not radius — negating dy here
