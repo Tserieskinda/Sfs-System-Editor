@@ -518,8 +518,14 @@ window.showCloudDebugPanel = function(){
     ${row('Angular flip', '<input type="checkbox" id="cldFlipA">')}
     ${row('Wrap mode', `<select id="cldWrapMode" style="background:#222;color:#eee;border:1px solid #444;border-radius:4px;">
       <option value="wrap">wrap (frac)</option><option value="clamp">clamp</option></select>`)}
-    ${row('cloudSizeY ×<span id="cldScaleVal">1.00</span>', '<input type="range" id="cldScaleY" min="0.05" max="3" step="0.01" value="1" style="width:120px;">')}
-    ${row('offset <span id="cldOffsetVal">0.00</span>', '<input type="range" id="cldOffsetY" min="-2" max="2" step="0.01" value="0" style="width:120px;">')}
+    ${row('cloudSizeY ×', `<span style="display:flex;align-items:center;gap:6px;">
+      <input type="range" id="cldScaleY" min="0.05" max="3" step="0.01" value="1" style="width:80px;">
+      <input type="number" id="cldScaleYNum" value="1" step="0.01" style="width:56px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 4px;">
+    </span>`)}
+    ${row('offset', `<span style="display:flex;align-items:center;gap:6px;">
+      <input type="range" id="cldOffsetY" min="-2" max="2" step="0.01" value="0" style="width:80px;">
+      <input type="number" id="cldOffsetYNum" value="0" step="0.01" style="width:56px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 4px;">
+    </span>`)}
     <div style="display:flex;gap:8px;margin-top:10px;">
       <button id="cldDebugReset" style="flex:1;padding:6px;border:none;border-radius:6px;background:#333;color:#eee;cursor:pointer;">Reset</button>
       <button id="cldDebugLog" style="flex:1;padding:6px;border:none;border-radius:6px;background:#00a8ff;color:#fff;cursor:pointer;">Log values</button>
@@ -534,19 +540,35 @@ window.showCloudDebugPanel = function(){
   $('cldFlipA').checked = d.angularFlip;
   $('cldWrapMode').value = d.wrapMode;
   $('cldScaleY').value = d.scaleY;
+  $('cldScaleYNum').value = d.scaleY;
   $('cldOffsetY').value = d.offsetY;
+  $('cldOffsetYNum').value = d.offsetY;
 
   const refresh = () => { if(drawViewport._cldDbg) drawViewport._cldDbg = {}; drawViewport(); };
   $('cldFlipR').onchange = e => { d.radialFlip = e.target.checked; refresh(); };
   $('cldFlipA').onchange = e => { d.angularFlip = e.target.checked; refresh(); };
   $('cldWrapMode').onchange = e => { d.wrapMode = e.target.value; refresh(); };
-  $('cldScaleY').oninput = e => { d.scaleY = +e.target.value; $('cldScaleVal').textContent = d.scaleY.toFixed(2); refresh(); };
-  $('cldOffsetY').oninput = e => { d.offsetY = +e.target.value; $('cldOffsetVal').textContent = d.offsetY.toFixed(2); refresh(); };
+  $('cldScaleY').oninput = e => {
+    d.scaleY = +e.target.value; $('cldScaleYNum').value = d.scaleY; refresh();
+  };
+  $('cldScaleYNum').addEventListener('input', e => {
+    const v = parseFloat(e.target.value);
+    if(isNaN(v)) return;
+    d.scaleY = v; $('cldScaleY').value = v; refresh();
+  });
+  $('cldOffsetY').oninput = e => {
+    d.offsetY = +e.target.value; $('cldOffsetYNum').value = d.offsetY; refresh();
+  };
+  $('cldOffsetYNum').addEventListener('input', e => {
+    const v = parseFloat(e.target.value);
+    if(isNaN(v)) return;
+    d.offsetY = v; $('cldOffsetY').value = v; refresh();
+  });
   $('cldDebugReset').onclick = () => {
     d.radialFlip = false; d.angularFlip = true; d.scaleY = 1; d.offsetY = 0; d.wrapMode = 'wrap';
     $('cldFlipR').checked = false; $('cldFlipA').checked = true; $('cldWrapMode').value = 'wrap';
-    $('cldScaleY').value = 1; $('cldScaleVal').textContent = '1.00';
-    $('cldOffsetY').value = 0; $('cldOffsetVal').textContent = '0.00';
+    $('cldScaleY').value = 1; $('cldScaleYNum').value = 1;
+    $('cldOffsetY').value = 0; $('cldOffsetYNum').value = 0;
     refresh();
   };
   $('cldDebugLog').onclick = () => console.log('[CLD DEBUG]', JSON.parse(JSON.stringify(d)));
