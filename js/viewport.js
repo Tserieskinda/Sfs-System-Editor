@@ -480,6 +480,84 @@ window.debugCloudPixelsRefresh = function(name){
   drawViewport();
 };
 
+// ── Live CLOUDS debug panel ───────────────────────────────────────────────
+// Defaults match the currently-confirmed-correct rendering exactly (no
+// offset, wrap mode, scale=1, angular flip on) — opening the panel changes
+// nothing until you actually move a control.
+window._cldDebug = {
+  radialFlip: false,
+  angularFlip: true,
+  scaleY: 1,
+  offsetY: 0,
+  wrapMode: 'wrap' // 'wrap' | 'clamp'
+};
+
+// window.showCloudDebugPanel() opens a small floating control panel for
+// window._cldDebug. Every control forces an immediate re-render (bypassing
+// the disc cache, since cacheKey includes all these params) so the effect
+// of a change is visible right away. Close with the × or by calling
+// window.hideCloudDebugPanel().
+window.showCloudDebugPanel = function(){
+  if(document.getElementById('cldDebugPanel')) return;
+  const panel = document.createElement('div');
+  panel.id = 'cldDebugPanel';
+  panel.style.cssText = `
+    position:fixed; top:70px; right:16px; z-index:99999;
+    background:#151515; color:#eee; font:12px/1.4 'Segoe UI', sans-serif;
+    border:1px solid #333; border-radius:10px; padding:14px 16px;
+    width:280px; box-shadow:0 4px 24px rgba(0,0,0,0.6);
+  `;
+  const row = (label, control) => `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0;">
+    <label style="color:#aaa;">${label}</label>${control}</div>`;
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <b style="font-size:13px;">Cloud/Ring Debug</b>
+      <span id="cldDebugClose" style="cursor:pointer;color:#888;padding:0 4px;">✕</span>
+    </div>
+    ${row('Radial flip', '<input type="checkbox" id="cldFlipR">')}
+    ${row('Angular flip', '<input type="checkbox" id="cldFlipA">')}
+    ${row('Wrap mode', `<select id="cldWrapMode" style="background:#222;color:#eee;border:1px solid #444;border-radius:4px;">
+      <option value="wrap">wrap (frac)</option><option value="clamp">clamp</option></select>`)}
+    ${row('cloudSizeY ×<span id="cldScaleVal">1.00</span>', '<input type="range" id="cldScaleY" min="0.05" max="3" step="0.01" value="1" style="width:120px;">')}
+    ${row('offset <span id="cldOffsetVal">0.00</span>', '<input type="range" id="cldOffsetY" min="-2" max="2" step="0.01" value="0" style="width:120px;">')}
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button id="cldDebugReset" style="flex:1;padding:6px;border:none;border-radius:6px;background:#333;color:#eee;cursor:pointer;">Reset</button>
+      <button id="cldDebugLog" style="flex:1;padding:6px;border:none;border-radius:6px;background:#00a8ff;color:#fff;cursor:pointer;">Log values</button>
+    </div>
+    <div style="color:#666;font-size:10.5px;margin-top:8px;">Changes apply live. Cache is keyed on these values, so nothing is left stale.</div>
+  `;
+  document.body.appendChild(panel);
+
+  const d = window._cldDebug;
+  const $ = id => document.getElementById(id);
+  $('cldFlipR').checked = d.radialFlip;
+  $('cldFlipA').checked = d.angularFlip;
+  $('cldWrapMode').value = d.wrapMode;
+  $('cldScaleY').value = d.scaleY;
+  $('cldOffsetY').value = d.offsetY;
+
+  const refresh = () => { if(drawViewport._cldDbg) drawViewport._cldDbg = {}; drawViewport(); };
+  $('cldFlipR').onchange = e => { d.radialFlip = e.target.checked; refresh(); };
+  $('cldFlipA').onchange = e => { d.angularFlip = e.target.checked; refresh(); };
+  $('cldWrapMode').onchange = e => { d.wrapMode = e.target.value; refresh(); };
+  $('cldScaleY').oninput = e => { d.scaleY = +e.target.value; $('cldScaleVal').textContent = d.scaleY.toFixed(2); refresh(); };
+  $('cldOffsetY').oninput = e => { d.offsetY = +e.target.value; $('cldOffsetVal').textContent = d.offsetY.toFixed(2); refresh(); };
+  $('cldDebugReset').onclick = () => {
+    d.radialFlip = false; d.angularFlip = true; d.scaleY = 1; d.offsetY = 0; d.wrapMode = 'wrap';
+    $('cldFlipR').checked = false; $('cldFlipA').checked = true; $('cldWrapMode').value = 'wrap';
+    $('cldScaleY').value = 1; $('cldScaleVal').textContent = '1.00';
+    $('cldOffsetY').value = 0; $('cldOffsetVal').textContent = '0.00';
+    refresh();
+  };
+  $('cldDebugLog').onclick = () => console.log('[CLD DEBUG]', JSON.parse(JSON.stringify(d)));
+  $('cldDebugClose').onclick = () => window.hideCloudDebugPanel();
+};
+
+window.hideCloudDebugPanel = function(){
+  const p = document.getElementById('cldDebugPanel');
+  if(p) p.remove();
+};
+
 // Throttle drawViewport to one RAF per call — prevents stacking on rapid scroll/zoom
 let _drawPending = false;
 function drawViewport(){
@@ -2134,7 +2212,12 @@ function _drawViewportNow(){
                                 + '|' + cloudH_m.toFixed(1)
                                 + '|' + numTiles
                                 + '|' + cloudSizeY.toFixed(3)
-                                + '|' + _surfaceSZ();
+                                + '|' + _surfaceSZ()
+                                + '|' + window._cldDebug.radialFlip
+                                + '|' + window._cldDebug.angularFlip
+                                + '|' + window._cldDebug.scaleY
+                                + '|' + window._cldDebug.offsetY
+                                + '|' + window._cldDebug.wrapMode;
                 if(!drawViewport._cloudCache) drawViewport._cloudCache = {};
                 let wc = drawViewport._cloudCache[cacheKey];
                 if(!wc){
@@ -2168,20 +2251,28 @@ function _drawViewportNow(){
                       const edgeA = Math.min(innerAlpha, outerAlpha);
                       // v_disc: 0 at atmo outer edge, 1 at planet surface — matches shader
                       const v_disc = Math.max(0, Math.min(1, (outerN - dist) / (outerN - innerN)));
-                      // Texture row coordinate is world-distance-from-surface-domain
-                      // scaled by cloudSizeY directly — NOT offset by cloudStartY_val.
-                      // Confirmed by direct in-editor/in-game comparison: adding the
-                      // cloudStartY_val offset back in was tried and made the render
-                      // wrong again. Whatever the real shader does with cloudStartY_val,
-                      // it isn't a simple additive term in this per-pixel radial lookup.
-                      const v_raw = v_disc * cloudSizeY;
-                      const v_frac = v_raw - Math.floor(v_raw);
-                      // Vertical flip of a polar-mapped disc reflects ANGLE across the
-                      // horizontal axis (top<->bottom), not radius — negating dy here
-                      // mirrors top/bottom while leaving left/right (u=0 / u=0.5, where
-                      // this texture's bright ring lobes sit) untouched. Radius/texRowF
-                      // is unrelated to this axis and stays as-is.
-                      let ang = Math.atan2(-dy, dx) / (2 * Math.PI);
+                      // Everything below reads from window._cldDebug, wired to the live
+                      // cloud debug panel (window.showCloudDebugPanel()) so these can be
+                      // experimented with in real time without editing code:
+                      //  - scaleY:      multiplies cloudSizeY before the row lookup
+                      //  - offsetY:     added on top of v_disc*cloudSizeY (this is what
+                      //                 cloudStartY_val used to do before it was found
+                      //                 to be wrong for this texture — kept as a live,
+                      //                 clearly-visible experiment instead of baked-in)
+                      //  - wrapMode:    'wrap' fracs the result (allows multi-layer
+                      //                 stacking), 'clamp' holds it at [0,1] (never
+                      //                 stacks, even if the scaled value exceeds 1)
+                      //  - radialFlip:  mirrors which end of the texture (outer edge vs
+                      //                 surface) reads which row
+                      //  - angularFlip: mirrors top/bottom (the -dy vs dy debate from
+                      //                 earlier in this conversation), independent axis
+                      const dbg = window._cldDebug;
+                      let v_raw = dbg.offsetY + v_disc * cloudSizeY * dbg.scaleY;
+                      let v_frac = (dbg.wrapMode === 'clamp')
+                        ? Math.max(0, Math.min(1, v_raw))
+                        : v_raw - Math.floor(v_raw);
+                      if(dbg.radialFlip) v_frac = 1 - v_frac;
+                      let ang = Math.atan2(dbg.angularFlip ? -dy : dy, dx) / (2 * Math.PI);
                       if(ang < 0) ang += 1;
                       const u = (ang * numTiles) % 1;
                       const sx = Math.min(tw - 1, Math.floor(u * tw));
