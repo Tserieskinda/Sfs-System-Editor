@@ -2273,14 +2273,26 @@ function _drawViewportNow(){
                       const edgeA = Math.min(innerAlpha, outerAlpha);
                       // v_disc: 0 at atmo outer edge, 1 at planet surface — matches shader
                       const v_disc = Math.max(0, Math.min(1, (outerN - dist) / (outerN - innerN)));
+                      // cloudSizeY only does real work (scaling into multiple wrapped/
+                      // stacked bands) once it's >= 1. Below 1, the disc is a single,
+                      // direct, UNSCALED pass — v_frac = v_disc — regardless of the
+                      // exact cloudH/gradH/R combination. Confirmed empirically on two
+                      // independent ring-trick planets (Somber, Ame-no-Uzume): the
+                      // debug-panel scaleY value found by eye to look correct was
+                      // 1/cloudSizeY_computed to within slider precision in BOTH cases
+                      // (0.913→1.0956≈1.095 found; 0.890→1.1235≈1.124 found) — i.e.
+                      // effective scale = cloudSizeY * (1/cloudSizeY) = 1 exactly,
+                      // every time, whenever cloudSizeY starts out under 1.
+                      const cloudSizeYEff = Math.max(1, cloudSizeY);
                       // Everything below reads from window._cldDebug, wired to the live
                       // cloud debug panel (window.showCloudDebugPanel()) so these can be
                       // experimented with in real time without editing code:
-                      //  - scaleY:      multiplies cloudSizeY before the row lookup
-                      //  - offsetY:     added on top of v_disc*cloudSizeY (this is what
-                      //                 cloudStartY_val used to do before it was found
-                      //                 to be wrong for this texture — kept as a live,
-                      //                 clearly-visible experiment instead of baked-in)
+                      //  - scaleY:      multiplies cloudSizeYEff before the row lookup
+                      //  - offsetY:     added on top of v_disc*cloudSizeYEff (this is
+                      //                 what cloudStartY_val used to do before it was
+                      //                 found to be wrong for this texture — kept as a
+                      //                 live, clearly-visible experiment instead of
+                      //                 baked-in)
                       //  - wrapMode:    'wrap' fracs the result (allows multi-layer
                       //                 stacking), 'clamp' holds it at [0,1] (never
                       //                 stacks, even if the scaled value exceeds 1)
@@ -2289,7 +2301,7 @@ function _drawViewportNow(){
                       //  - angularFlip: mirrors top/bottom (the -dy vs dy debate from
                       //                 earlier in this conversation), independent axis
                       const dbg = window._cldDebug;
-                      let v_raw = dbg.offsetY + v_disc * cloudSizeY * dbg.scaleY;
+                      let v_raw = dbg.offsetY + v_disc * cloudSizeYEff * dbg.scaleY;
                       let v_frac = (dbg.wrapMode === 'clamp')
                         ? Math.max(0, Math.min(1, v_raw))
                         : v_raw - Math.floor(v_raw);
