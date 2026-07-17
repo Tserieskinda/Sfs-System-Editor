@@ -580,6 +580,137 @@ window.hideCloudDebugPanel = function(){
   if(p) p.remove();
 };
 
+// ── Reference screenshot overlay ──────────────────────────────────────────
+// Same trick that got the Somber/Uzume rings to 0.005 precision (matching
+// front-clouds against rings against a real screenshot), generalized: load
+// an actual in-game screenshot, lay it semi-transparent (or difference-
+// blended, which makes even 1px misalignment glow) directly on top of the
+// live editor render, and manually align the PLANET BODY (the reliable,
+// debug-panel-independent anchor) between the two with drag/scroll/arrow
+// keys. Once the planet bodies coincide exactly, any remaining mismatch in
+// the cloud bands is purely down to the cloud debug panel's offset/scale —
+// so you can nudge those sliders and watch the bands converge live, instead
+// of eyeballing two separate screenshots and typing in a guessed number.
+window.showCloudOverlayTool = function(){
+  if(document.getElementById('cldOverlayPanel')) return;
+
+  const img = document.createElement('img');
+  img.id = 'cldOverlayImg';
+  img.style.cssText = `
+    position:fixed; left:50%; top:50%; pointer-events:none;
+    opacity:0.5; mix-blend-mode:normal; transform-origin:0 0;
+    transform:translate(-50%,-50%) scale(1); z-index:99998; user-select:none;
+    display:none;
+  `;
+  document.body.appendChild(img);
+
+  const ov = { x: 0, y: 0, scale: 1, opacity: 0.5, blend: 'normal', dragging: false, dx0: 0, dy0: 0 };
+  const applyTransform = () => {
+    img.style.left = `calc(50% + ${ov.x}px)`;
+    img.style.top  = `calc(50% + ${ov.y}px)`;
+    img.style.transform = `translate(-50%,-50%) scale(${ov.scale})`;
+    img.style.opacity = ov.opacity;
+    img.style.mixBlendMode = ov.blend;
+  };
+
+  const panel = document.createElement('div');
+  panel.id = 'cldOverlayPanel';
+  panel.style.cssText = `
+    position:fixed; top:70px; right:310px; z-index:99999;
+    background:#151515; color:#eee; font:12px/1.4 'Segoe UI', sans-serif;
+    border:1px solid #333; border-radius:10px; padding:14px 16px;
+    width:250px; box-shadow:0 4px 24px rgba(0,0,0,0.6);
+  `;
+  const row = (label, control) => `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0;">
+    <label style="color:#aaa;">${label}</label>${control}</div>`;
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <b style="font-size:13px;">Reference Overlay</b>
+      <span id="cldOvClose" style="cursor:pointer;color:#888;padding:0 4px;">✕</span>
+    </div>
+    <input type="file" id="cldOvFile" accept="image/*" style="width:100%;font-size:11px;margin-bottom:8px;">
+    ${row('Opacity', '<input type="range" id="cldOvOpacity" min="0" max="1" step="0.01" value="0.5" style="width:120px;">')}
+    ${row('Blend', `<select id="cldOvBlend" style="background:#222;color:#eee;border:1px solid #444;border-radius:4px;">
+      <option value="normal">normal</option><option value="difference">difference</option>
+      <option value="exclusion">exclusion</option></select>`)}
+    ${row('Scale', `<span style="display:flex;gap:6px;">
+      <input type="range" id="cldOvScale" min="0.1" max="4" step="0.001" value="1" style="width:80px;">
+      <input type="number" id="cldOvScaleNum" value="1" step="0.001" style="width:56px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 4px;">
+    </span>`)}
+    ${row('X / Y', `<span style="display:flex;gap:4px;">
+      <input type="number" id="cldOvX" value="0" step="1" style="width:48px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 4px;">
+      <input type="number" id="cldOvY" value="0" step="1" style="width:48px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 4px;">
+    </span>`)}
+    <div style="color:#666;font-size:10.5px;margin-top:8px;line-height:1.5;">
+      Drag the image to move, scroll to scale. Arrow keys nudge 1px (hold Shift for 10px) while an X/Y box is focused.
+      Align the <b>planet body</b> first — that's the reliable anchor — then compare cloud bands.
+    </div>
+  `;
+  document.body.appendChild(panel);
+
+  const $ = id => document.getElementById(id);
+  $('cldOvFile').onchange = e => {
+    const f = e.target.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ev => { img.src = ev.target.result; img.style.display = 'block'; };
+    reader.readAsDataURL(f);
+  };
+  $('cldOvOpacity').oninput = e => { ov.opacity = +e.target.value; applyTransform(); };
+  $('cldOvBlend').onchange = e => { ov.blend = e.target.value; applyTransform(); };
+  $('cldOvScale').oninput = e => { ov.scale = +e.target.value; $('cldOvScaleNum').value = ov.scale; applyTransform(); };
+  $('cldOvScaleNum').addEventListener('input', e => {
+    const v = parseFloat(e.target.value); if(isNaN(v)) return;
+    ov.scale = v; $('cldOvScale').value = v; applyTransform();
+  });
+  $('cldOvX').addEventListener('input', e => { ov.x = +e.target.value || 0; applyTransform(); });
+  $('cldOvY').addEventListener('input', e => { ov.y = +e.target.value || 0; applyTransform(); });
+  [$('cldOvX'), $('cldOvY')].forEach(inp => {
+    inp.addEventListener('keydown', e => {
+      if(e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      const step = e.shiftKey ? 10 : 1;
+      const delta = (e.key === 'ArrowUp' ? 1 : -1) * step * (inp.id === 'cldOvY' ? -1 : 1);
+      inp.value = (parseFloat(inp.value) || 0) + delta;
+      inp.dispatchEvent(new Event('input'));
+    });
+  });
+  $('cldOvClose').onclick = () => {
+    panel.remove(); img.remove();
+  };
+
+  // Drag to reposition
+  img.style.pointerEvents = 'auto';
+  img.style.cursor = 'move';
+  img.addEventListener('mousedown', e => {
+    ov.dragging = true; ov.dx0 = e.clientX - ov.x; ov.dy0 = e.clientY - ov.y;
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    if(!ov.dragging) return;
+    ov.x = e.clientX - ov.dx0; ov.y = e.clientY - ov.dy0;
+    $('cldOvX').value = Math.round(ov.x); $('cldOvY').value = Math.round(ov.y);
+    applyTransform();
+  });
+  window.addEventListener('mouseup', () => { ov.dragging = false; });
+  img.addEventListener('wheel', e => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.02 : 0.98;
+    ov.scale = Math.max(0.05, Math.min(10, ov.scale * factor));
+    $('cldOvScale').value = ov.scale; $('cldOvScaleNum').value = ov.scale.toFixed(3);
+    applyTransform();
+  }, { passive: false });
+
+  applyTransform();
+};
+
+window.hideCloudOverlayTool = function(){
+  const p = document.getElementById('cldOverlayPanel');
+  const i = document.getElementById('cldOverlayImg');
+  if(p) p.remove();
+  if(i) i.remove();
+};
+
 // Throttle drawViewport to one RAF per call — prevents stacking on rapid scroll/zoom
 let _drawPending = false;
 function drawViewport(){
