@@ -492,6 +492,7 @@ window.debugCloudPixelsRefresh = function(name){
 // need a different orientation or scale than assumed here.
 window._cldDebug = {
   radialFlip: false,
+  vInputFlip: false,
   angularFlip: true,
   scaleY: 1,
   offsetY: 0,
@@ -521,7 +522,8 @@ window.showCloudDebugPanel = function(){
       <b style="font-size:13px;">Cloud/Ring Debug</b>
       <span id="cldDebugClose" style="cursor:pointer;color:#888;padding:0 4px;">✕</span>
     </div>
-    ${row('Radial flip', '<input type="checkbox" id="cldFlipR">')}
+    ${row('Radial flip (output)', '<input type="checkbox" id="cldFlipR">')}
+    ${row('Input flip (v1.y dir)', '<input type="checkbox" id="cldFlipIn">')}
     ${row('Angular flip', '<input type="checkbox" id="cldFlipA">')}
     ${row('Formula', `<select id="cldFormula" style="background:#222;color:#eee;border:1px solid #444;border-radius:4px;">
       <option value="legacy">legacy (offset + v·scale)</option>
@@ -547,6 +549,7 @@ window.showCloudDebugPanel = function(){
   const d = window._cldDebug;
   const $ = id => document.getElementById(id);
   $('cldFlipR').checked = d.radialFlip;
+  $('cldFlipIn').checked = d.vInputFlip;
   $('cldFlipA').checked = d.angularFlip;
   $('cldFormula').value = d.formulaMode;
   $('cldWrapMode').value = d.wrapMode;
@@ -557,6 +560,7 @@ window.showCloudDebugPanel = function(){
 
   const refresh = () => { if(drawViewport._cldDbg) drawViewport._cldDbg = {}; drawViewport(); };
   $('cldFlipR').onchange = e => { d.radialFlip = e.target.checked; refresh(); };
+  $('cldFlipIn').onchange = e => { d.vInputFlip = e.target.checked; refresh(); };
   $('cldFlipA').onchange = e => { d.angularFlip = e.target.checked; refresh(); };
   $('cldFormula').onchange = e => { d.formulaMode = e.target.value; refresh(); };
   $('cldWrapMode').onchange = e => { d.wrapMode = e.target.value; refresh(); };
@@ -577,8 +581,8 @@ window.showCloudDebugPanel = function(){
     d.offsetY = v; $('cldOffsetY').value = v; refresh();
   });
   $('cldDebugReset').onclick = () => {
-    d.radialFlip = false; d.angularFlip = true; d.scaleY = 1; d.offsetY = 0; d.wrapMode = 'wrap'; d.formulaMode = 'real';
-    $('cldFlipR').checked = false; $('cldFlipA').checked = true; $('cldWrapMode').value = 'wrap'; $('cldFormula').value = 'real';
+    d.radialFlip = false; d.vInputFlip = false; d.angularFlip = true; d.scaleY = 1; d.offsetY = 0; d.wrapMode = 'wrap'; d.formulaMode = 'real';
+    $('cldFlipR').checked = false; $('cldFlipIn').checked = false; $('cldFlipA').checked = true; $('cldWrapMode').value = 'wrap'; $('cldFormula').value = 'real';
     $('cldScaleY').value = 1; $('cldScaleYNum').value = 1;
     $('cldOffsetY').value = 0; $('cldOffsetYNum').value = 0;
     refresh();
@@ -2379,6 +2383,7 @@ function _drawViewportNow(){
                                 + '|' + cloudSizeY.toFixed(3)
                                 + '|' + _surfaceSZ()
                                 + '|' + window._cldDebug.radialFlip
+                                + '|' + window._cldDebug.vInputFlip
                                 + '|' + window._cldDebug.angularFlip
                                 + '|' + window._cldDebug.scaleY
                                 + '|' + window._cldDebug.offsetY
@@ -2452,12 +2457,22 @@ function _drawViewportNow(){
                       //                 earlier in this conversation), independent axis
                       const dbg = window._cldDebug;
                       let v_raw;
+                      // v_disc_input: which physical end feeds the formula as "0". The
+                      // real formula is NOT symmetric (it's not simply mirrored by
+                      // flipping the OUTPUT), so whether v1.y in the actual mesh runs
+                      // surface->outer or outer->surface has to be tested by flipping
+                      // the INPUT, separately from radialFlip (which flips the result
+                      // afterward and is a different, weaker operation on this formula
+                      // shape). Cone meshes conventionally have V=0 at the apex — if the
+                      // apex is at the planet's center, v1.y=0 could mean "surface" (or
+                      // even inside it), the opposite of what v_disc assumes by default.
+                      const v_disc_input = dbg.vInputFlip ? (1 - v_disc) : v_disc;
                       if(dbg.formulaMode === 'real'){
                         const csY = cloudSizeYEff * dbg.scaleY;
                         const cStart = cloudStartY_val + dbg.offsetY;
-                        v_raw = csY * (v_disc * (cStart + 1) - cStart);
+                        v_raw = csY * (v_disc_input * (cStart + 1) - cStart);
                       } else {
-                        v_raw = dbg.offsetY + v_disc * cloudSizeYEff * dbg.scaleY;
+                        v_raw = dbg.offsetY + v_disc_input * cloudSizeYEff * dbg.scaleY;
                       }
                       let v_frac = (dbg.wrapMode === 'clamp')
                         ? Math.max(0, Math.min(1, v_raw))
