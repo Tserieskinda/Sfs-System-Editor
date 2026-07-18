@@ -2660,7 +2660,14 @@ function _drawViewportNow(){
           if(fcCutEl && fcCutEl.value !== '') fcCutout = parseFloat(fcCutEl.value) ?? fcCutout;
         }
         const fcCutClamped = Math.max(0, Math.min(1, fcCutout));
-        const fcAlpha = fcCutClamped * atmoFade;
+        // Decompiled Front Clouds shader (hash d5d4dade-c536bd60-dcf5e788-7b8a0660): cb0[2].x
+        // (_TextureCutout) is used ONLY to rescale the sample UV before the texture lookup
+        // (step 2 — replicated below via the texture-cache zoom, dh = cx/fcCutClamped). The
+        // shader's final output alpha (steps 7-15) is radialFade * (sharpened) textureAlpha —
+        // _TextureCutout never re-enters as an overall opacity multiplier. Previously fcAlpha
+        // multiplied fcCutClamped in here too, silently dimming/fading front-cloud discs whose
+        // texture is deliberately cropped tight (cutout < 1) with no basis in the real shader.
+        const fcAlpha = atmoFade;
         if(fcAlpha > 0.01){
           // Difficulty.ScalePlanetData: frontClouds.height *= atmoMult;
           // frontClouds.fadeZoneHeight *= atmoMult; — both were being read raw here,
@@ -2698,7 +2705,7 @@ function _drawViewportNow(){
           const _fcTexNeeded = fcR_px * 2;
           let fcTexSZ = _surfaceSZ();
           while (fcTexSZ < _fcTexNeeded && fcTexSZ < 2048) fcTexSZ *= 2;
-          const fcTexCacheKey = 'fctex:' + fcTex + '|' + fcCutClamped.toFixed(3) + '|' + fcTexSZ;
+          const fcTexCacheKey = 'fctex:' + fcTex + '|' + fcCutClamped.toFixed(3) + '|' + fcTexSZ + '|' + (FCD.sharpenAlpha ? 1 : 0);
           if(!drawViewport._fcTexCache) drawViewport._fcTexCache = {};
           let fcTexCanvas = drawViewport._fcTexCache[fcTexCacheKey];
           if(!fcTexCanvas){
@@ -2709,6 +2716,20 @@ function _drawViewportNow(){
             const cx = SZ / 2, cy = SZ / 2;
             const dh = fcCutClamped > 0 ? cx / fcCutClamped : cx;
             tCtx.drawImage(fcImg, cx - dh, cy - dh, dh*2, dh*2);
+            // Decompiled shader steps 9-13: when sharpenAlpha (_SharpenAlpha) is enabled, the
+            // TEXTURE's own alpha channel (not the disc's radial fade) is put through a hard
+            // cutout curve: alpha' = saturate((alpha - 0.25) * 1.5), instead of being used raw.
+            // This is a per-pixel op on the cached texture content, cached alongside it since
+            // it depends only on the source image + this flag, not per-frame state.
+            if(FCD.sharpenAlpha){
+              const id = tCtx.getImageData(0, 0, SZ, SZ);
+              const d = id.data;
+              for(let p = 3; p < d.length; p += 4){
+                const a = d[p] / 255;
+                d[p] = Math.max(0, Math.min(1, (a - 0.25) * 1.5)) * 255;
+              }
+              tCtx.putImageData(id, 0, 0);
+            }
             drawViewport._fcTexCache[fcTexCacheKey] = fcTexCanvas;
           }
 
