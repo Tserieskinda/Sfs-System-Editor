@@ -484,12 +484,19 @@ window.debugCloudPixelsRefresh = function(name){
 // Defaults match the currently-confirmed-correct rendering exactly (no
 // offset, wrap mode, scale=1, angular flip on) — opening the panel changes
 // nothing until you actually move a control.
+// formulaMode defaults to 'real': v1.y*(_CloudStartY+1) - _CloudStartY, then
+// *_CloudSizeY — decoded directly from a RenderDoc capture of the compiled
+// SFS/Atmosphere pixel shader (ps_4_0 disassembly), not inferred from
+// screenshots. 'legacy' (the old offsetY + v_disc*cloudSizeY*scaleY shape)
+// is kept selectable in the panel for comparison / in case v1.y turns out to
+// need a different orientation or scale than assumed here.
 window._cldDebug = {
   radialFlip: false,
   angularFlip: true,
   scaleY: 1,
   offsetY: 0,
-  wrapMode: 'wrap' // 'wrap' | 'clamp'
+  wrapMode: 'wrap', // 'wrap' | 'clamp'
+  formulaMode: 'real' // 'legacy' | 'real' — see formula comment at the render site
 };
 
 // window.showCloudDebugPanel() opens a small floating control panel for
@@ -516,6 +523,9 @@ window.showCloudDebugPanel = function(){
     </div>
     ${row('Radial flip', '<input type="checkbox" id="cldFlipR">')}
     ${row('Angular flip', '<input type="checkbox" id="cldFlipA">')}
+    ${row('Formula', `<select id="cldFormula" style="background:#222;color:#eee;border:1px solid #444;border-radius:4px;">
+      <option value="legacy">legacy (offset + v·scale)</option>
+      <option value="real">real shader (scale·(v·(start+1)−start))</option></select>`)}
     ${row('Wrap mode', `<select id="cldWrapMode" style="background:#222;color:#eee;border:1px solid #444;border-radius:4px;">
       <option value="wrap">wrap (frac)</option><option value="clamp">clamp</option></select>`)}
     ${row('cloudSizeY ×', `<span style="display:flex;align-items:center;gap:6px;">
@@ -538,6 +548,7 @@ window.showCloudDebugPanel = function(){
   const $ = id => document.getElementById(id);
   $('cldFlipR').checked = d.radialFlip;
   $('cldFlipA').checked = d.angularFlip;
+  $('cldFormula').value = d.formulaMode;
   $('cldWrapMode').value = d.wrapMode;
   $('cldScaleY').value = d.scaleY;
   $('cldScaleYNum').value = d.scaleY;
@@ -547,6 +558,7 @@ window.showCloudDebugPanel = function(){
   const refresh = () => { if(drawViewport._cldDbg) drawViewport._cldDbg = {}; drawViewport(); };
   $('cldFlipR').onchange = e => { d.radialFlip = e.target.checked; refresh(); };
   $('cldFlipA').onchange = e => { d.angularFlip = e.target.checked; refresh(); };
+  $('cldFormula').onchange = e => { d.formulaMode = e.target.value; refresh(); };
   $('cldWrapMode').onchange = e => { d.wrapMode = e.target.value; refresh(); };
   $('cldScaleY').oninput = e => {
     d.scaleY = +e.target.value; $('cldScaleYNum').value = d.scaleY; refresh();
@@ -565,8 +577,8 @@ window.showCloudDebugPanel = function(){
     d.offsetY = v; $('cldOffsetY').value = v; refresh();
   });
   $('cldDebugReset').onclick = () => {
-    d.radialFlip = false; d.angularFlip = true; d.scaleY = 1; d.offsetY = 0; d.wrapMode = 'wrap';
-    $('cldFlipR').checked = false; $('cldFlipA').checked = true; $('cldWrapMode').value = 'wrap';
+    d.radialFlip = false; d.angularFlip = true; d.scaleY = 1; d.offsetY = 0; d.wrapMode = 'wrap'; d.formulaMode = 'real';
+    $('cldFlipR').checked = false; $('cldFlipA').checked = true; $('cldWrapMode').value = 'wrap'; $('cldFormula').value = 'real';
     $('cldScaleY').value = 1; $('cldScaleYNum').value = 1;
     $('cldOffsetY').value = 0; $('cldOffsetYNum').value = 0;
     refresh();
@@ -2370,7 +2382,8 @@ function _drawViewportNow(){
                                 + '|' + window._cldDebug.angularFlip
                                 + '|' + window._cldDebug.scaleY
                                 + '|' + window._cldDebug.offsetY
-                                + '|' + window._cldDebug.wrapMode;
+                                + '|' + window._cldDebug.wrapMode
+                                + '|' + window._cldDebug.formulaMode;
                 if(!drawViewport._cloudCache) drawViewport._cloudCache = {};
                 let wc = drawViewport._cloudCache[cacheKey];
                 if(!wc){
@@ -2404,35 +2417,48 @@ function _drawViewportNow(){
                       const edgeA = Math.min(innerAlpha, outerAlpha);
                       // v_disc: 0 at atmo outer edge, 1 at planet surface — matches shader
                       const v_disc = Math.max(0, Math.min(1, (outerN - dist) / (outerN - innerN)));
-                      // cloudSizeY only does real work (scaling into multiple wrapped/
-                      // stacked bands) once it's >= 1. Below 1, the disc is a single,
-                      // direct, UNSCALED pass — v_frac = v_disc — regardless of the
-                      // exact cloudH/gradH/R combination. Confirmed empirically on two
-                      // independent ring-trick planets (Somber, Ame-no-Uzume): the
-                      // debug-panel scaleY value found by eye to look correct was
-                      // 1/cloudSizeY_computed to within slider precision in BOTH cases
-                      // (0.913→1.0956≈1.095 found; 0.890→1.1235≈1.124 found) — i.e.
-                      // effective scale = cloudSizeY * (1/cloudSizeY) = 1 exactly,
-                      // every time, whenever cloudSizeY starts out under 1.
-                      const cloudSizeYEff = Math.max(1, cloudSizeY);
+                      // History: earlier attempts tried Math.max(1,cloudSizeY) clamps and
+                      // additive offset guesses on the WRONG formula shape — disproven by
+                      // Kōjin and others. A RenderDoc capture of the actual compiled
+                      // SFS/Atmosphere pixel shader (ps_4_0 disassembly) resolved this for
+                      // real: the true per-pixel radial coordinate is
+                      //   cloudV = _CloudSizeY * ( v1.y*(_CloudStartY+1) - _CloudStartY )
+                      // — not a simple offset+scale. That's now the default ('real' mode
+                      // below). 'legacy' (the old shape) stays selectable for comparison.
+                      const cloudSizeYEff = cloudSizeY;
                       // Everything below reads from window._cldDebug, wired to the live
                       // cloud debug panel (window.showCloudDebugPanel()) so these can be
                       // experimented with in real time without editing code:
-                      //  - scaleY:      multiplies cloudSizeYEff before the row lookup
-                      //  - offsetY:     added on top of v_disc*cloudSizeYEff (this is
-                      //                 what cloudStartY_val used to do before it was
-                      //                 found to be wrong for this texture — kept as a
-                      //                 live, clearly-visible experiment instead of
-                      //                 baked-in)
+                      //  - formulaMode: 'real' (default) = cloudSizeY*scaleY * ( v_disc*
+                      //                 (cloudStartY+offsetY+1) - (cloudStartY+offsetY) )
+                      //                 — the confirmed real shader shape (see above).
+                      //                 'legacy' = offsetY + v_disc*cloudSizeY*scaleY, the
+                      //                 old guessed shape, kept for comparison only.
+                      //                 offsetY adjusts _CloudStartY directly (additive);
+                      //                 scaleY multiplies _CloudSizeY. Same two sliders,
+                      //                 correctly combined for whichever shape is selected.
+                      //  - scaleY:      multiplies cloudSizeYEff
+                      //  - offsetY:     legacy: added directly to v_raw. real: added to
+                      //                 cloudStartY_val before it enters the real formula.
                       //  - wrapMode:    'wrap' fracs the result (allows multi-layer
                       //                 stacking), 'clamp' holds it at [0,1] (never
                       //                 stacks, even if the scaled value exceeds 1)
                       //  - radialFlip:  mirrors which end of the texture (outer edge vs
-                      //                 surface) reads which row
+                      //                 surface) reads which row — still relevant since
+                      //                 v1.y's orientation (0 at surface vs 0 at outer
+                      //                 edge) wasn't directly recoverable from the
+                      //                 disassembly alone
                       //  - angularFlip: mirrors top/bottom (the -dy vs dy debate from
                       //                 earlier in this conversation), independent axis
                       const dbg = window._cldDebug;
-                      let v_raw = dbg.offsetY + v_disc * cloudSizeYEff * dbg.scaleY;
+                      let v_raw;
+                      if(dbg.formulaMode === 'real'){
+                        const csY = cloudSizeYEff * dbg.scaleY;
+                        const cStart = cloudStartY_val + dbg.offsetY;
+                        v_raw = csY * (v_disc * (cStart + 1) - cStart);
+                      } else {
+                        v_raw = dbg.offsetY + v_disc * cloudSizeYEff * dbg.scaleY;
+                      }
                       let v_frac = (dbg.wrapMode === 'clamp')
                         ? Math.max(0, Math.min(1, v_raw))
                         : v_raw - Math.floor(v_raw);
