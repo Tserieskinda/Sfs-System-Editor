@@ -1400,37 +1400,30 @@ function _drawViewportNow(){
             const safeOuter  = Math.min(outer_px, diagPx * 4);
             const safeInner  = Math.min(inner_px, safeOuter * 0.9999);
             if(safeOuter > 0.5 && safeOuter > safeInner){
-              // Cache ring stop strings per body+ringFade+ringRatio (colour-only, position-independent)
+              // Cache ring stop strings per body+ringFade (colour-only, position-independent)
               if(!drawViewport._ringStopCache) drawViewport._ringStopCache = {};
-              const mc = RD.mapColor || {r:1,g:1,b:1,a:1};
-              // Decompiled "Rings Module" pixel shader (Saturn, hash 3f45be75-58c005ef-48ab5c0b-549b0eb9):
-              //   r0.x = length(v1.xy) - 1        (v1.xy = local vertex pos, pre-divided by startRadius)
-              //   sample(r0.x, 0.5)               -> texture U = r/startRadius - 1
-              // So the texture's U-coordinate is linear in r but only reaches 1.0 at r = 2*startRadius,
-              // NOT at r = endRadius. It must NOT be treated as spanning 0..1 across [startRadius,endRadius]
-              // unless endRadius happens to equal 2*startRadius. Convert the 0..1 gradient-stop position (s,
-              // which IS linear across [startRadius,endRadius] since that's how canvas radial gradients work)
-              // into the shader's true texture U via texU(s) = s * (endRadius/startRadius - 1), clamped to
-              // [0,1] (clamp addressing — matches the shader sampling the ramp texture's own edge past that
-              // point, same as it would beyond the ring mesh's outer vertex).
-              const ringRatio = endR_m / startR_m;
-              const ringStopKey = ringTex + '|' + ringFade.toFixed(3)
-                + '|' + mc.r.toFixed(3) + '|' + mc.g.toFixed(3)
-                + '|' + mc.b.toFixed(3) + '|' + (mc.a??1).toFixed(3)
-                + '|' + ringRatio.toFixed(4);
+              // ── Ground truth from decompiled source + RenderDoc capture ──
+              // 1) Radial mapping: Rings.cs builds the ring mesh with vertex UV magnitude hardcoded to 1 at
+              //    the inner edge and 2 at the outer edge (array2[i*2]=vector, array2[i*2+1]=vector*2f),
+              //    REGARDLESS of the true endRadius/startRadius ratio. The GPU linearly interpolates that
+              //    UV between the two vertex rings, so at fraction s (0=inner,1=outer) magnitude = (1+s).
+              //    Shader: texU = length(v1.xy) - 1 = s. So texU is simply the ring's own 0..1 width
+              //    fraction — confirmed via RenderDoc mesh viewer (TEXCOORD0 1.00 -> 2.00). Matches the
+              //    original t=i/N mapping below; no ring-ratio correction needed.
+              // 2) Colour: Planet.cs CreateRingsMaterial() only calls material.SetTexture("_RingsTex", ...)
+              //    — mapColor is NEVER sent to this shader (it's only read in MapEnvironment.cs for the flat
+              //    2D map-view dot, a different render entirely). The cb0[2]=(1,0.95,1.2,0) seen in RenderDoc
+              //    is an unset material default, and only .x is read (broadcast, no-op at 1.0). So the real
+              //    planet-view ring colour is just the ramp texture's own RGBA, unmodified.
+              const ringStopKey = ringTex + '|' + ringFade.toFixed(3);
               if(!drawViewport._ringStopCache[ringStopKey]){
                 const N = 64;
                 const stops = [];
                 for(let i = 0; i <= N; i++){
-                  const t    = i / N; // gradient-stop position: linear across physical radius
-                  const texU = Math.max(0, Math.min(1, t * (ringRatio - 1)));
-                  const ci = Math.round(texU * 63) * 4;
-                  let cr = pxCache[ci], cg = pxCache[ci+1], cb = pxCache[ci+2], ca = pxCache[ci+3];
-                  const brightness = Math.max(cr, cg, cb) / 255;
-                  cr = Math.round(cr * mc.r);
-                  cg = Math.round(cg * mc.g);
-                  cb = Math.round(cb * mc.b);
-                  const alpha = (ca / 255) * brightness * (mc.a !== undefined ? mc.a * 8 : 1.6) * ringFade;
+                  const t  = i / N;
+                  const ci = Math.round(t * 63) * 4;
+                  const cr = pxCache[ci], cg = pxCache[ci+1], cb = pxCache[ci+2], ca = pxCache[ci+3];
+                  const alpha = (ca / 255) * ringFade;
                   stops.push([t, `rgba(${cr},${cg},${cb},${Math.min(1,alpha).toFixed(3)})`]);
                 }
                 drawViewport._ringStopCache[ringStopKey] = stops;
