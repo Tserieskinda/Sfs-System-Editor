@@ -2476,9 +2476,19 @@ function _drawViewportNow(){
                         // offsetY/scaleY below still apply on top in case this needs
                         // fine correction, but should ideally be near 0/1 if this is
                         // truly the whole picture.
+                        // v_raw is negated from the raw derivation (1 - ...) to bake in
+                        // a confirmed, permanent correction: Unity's texture V=0 row is
+                        // the opposite end of the image from what this code's row-index
+                        // math (texRowF = v_frac*(th-1)) treats as row 0 — a standard
+                        // OpenGL/Unity-vs-canvas texture-coordinate convention mismatch,
+                        // not a per-planet fudge. Confirmed by testing: without this, the
+                        // bright/structured part of the texture lands at the outer edge
+                        // and black lands at the surface — backwards from every in-game
+                        // reference screenshot in this conversation, which consistently
+                        // show bright content near the planet fading to black outward.
                         const csY = dbg.scaleY;
                         const num = (R_eff_px + gradH_cld) - v_disc * (R_eff_px + startH_m + gradH_cld);
-                        v_raw = dbg.offsetY + csY * (num / cloudH_m);
+                        v_raw = dbg.offsetY + (1 - csY * (num / cloudH_m));
                       } else if(dbg.formulaMode === 'real'){
                       // v_disc_input: which physical end feeds the formula as "0". The
                       // real formula is NOT symmetric (it's not simply mirrored by
