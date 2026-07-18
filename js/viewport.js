@@ -497,7 +497,7 @@ window._cldDebug = {
   scaleY: 1,
   offsetY: 0,
   wrapMode: 'wrap', // 'wrap' | 'clamp'
-  formulaMode: 'real' // 'legacy' | 'real' — see formula comment at the render site
+  formulaMode: 'exact' // 'legacy' | 'real' | 'exact' — see formula comment at the render site
 };
 
 // window.showCloudDebugPanel() opens a small floating control panel for
@@ -527,7 +527,8 @@ window.showCloudDebugPanel = function(){
     ${row('Angular flip', '<input type="checkbox" id="cldFlipA">')}
     ${row('Formula', `<select id="cldFormula" style="background:#222;color:#eee;border:1px solid #444;border-radius:4px;">
       <option value="legacy">legacy (offset + v·scale)</option>
-      <option value="real">real shader (scale·(v·(start+1)−start))</option></select>`)}
+      <option value="real">real shader (scale·(v·(start+1)−start))</option>
+      <option value="exact">exact (derived, no v1.y guess)</option></select>`)}
     ${row('Wrap mode', `<select id="cldWrapMode" style="background:#222;color:#eee;border:1px solid #444;border-radius:4px;">
       <option value="wrap">wrap (frac)</option><option value="clamp">clamp</option></select>`)}
     ${row('cloudSizeY ×', `<span style="display:flex;align-items:center;gap:6px;">
@@ -581,8 +582,8 @@ window.showCloudDebugPanel = function(){
     d.offsetY = v; $('cldOffsetY').value = v; refresh();
   });
   $('cldDebugReset').onclick = () => {
-    d.radialFlip = false; d.vInputFlip = false; d.angularFlip = true; d.scaleY = 1; d.offsetY = 0; d.wrapMode = 'wrap'; d.formulaMode = 'real';
-    $('cldFlipR').checked = false; $('cldFlipIn').checked = false; $('cldFlipA').checked = true; $('cldWrapMode').value = 'wrap'; $('cldFormula').value = 'real';
+    d.radialFlip = false; d.vInputFlip = false; d.angularFlip = true; d.scaleY = 1; d.offsetY = 0; d.wrapMode = 'wrap'; d.formulaMode = 'exact';
+    $('cldFlipR').checked = false; $('cldFlipIn').checked = false; $('cldFlipA').checked = true; $('cldWrapMode').value = 'wrap'; $('cldFormula').value = 'exact';
     $('cldScaleY').value = 1; $('cldScaleYNum').value = 1;
     $('cldOffsetY').value = 0; $('cldOffsetYNum').value = 0;
     refresh();
@@ -2457,6 +2458,28 @@ function _drawViewportNow(){
                       //                 earlier in this conversation), independent axis
                       const dbg = window._cldDebug;
                       let v_raw;
+                      if(dbg.formulaMode === 'exact'){
+                        // Derived directly from a RenderDoc capture: the Mesh Viewer's
+                        // VS Output table showed TEXCOORD0 (= v1) is the atmosphere
+                        // mesh's own LOCAL radius — 0 at the planet's exact center, 1 at
+                        // the mesh's outer rim — NOT "0 at surface, 1 at outer edge" as
+                        // every earlier attempt assumed. The surface sits partway through
+                        // that range, at local radius R/(R+gradH), because the mesh is a
+                        // simple unit disc scaled out to R+gradH while still starting
+                        // from the true center. Substituting that into the *proven*
+                        // shader formula (confirmed against the actual constant buffer:
+                        // _CloudStartY=0.8255, _CloudSizeY=0.9127 for Somber, matching
+                        // this code's own computed values exactly) and simplifying
+                        // algebraically collapses everything to a clean linear closed
+                        // form — no offset/scale fudging needed, in principle:
+                        //   v_raw = [ (R+gradH) − v_disc·(R+startHeight+gradH) ] / cloudH
+                        // offsetY/scaleY below still apply on top in case this needs
+                        // fine correction, but should ideally be near 0/1 if this is
+                        // truly the whole picture.
+                        const csY = dbg.scaleY;
+                        const num = (R_eff_px + gradH_cld) - v_disc * (R_eff_px + startH_m + gradH_cld);
+                        v_raw = dbg.offsetY + csY * (num / cloudH_m);
+                      } else if(dbg.formulaMode === 'real'){
                       // v_disc_input: which physical end feeds the formula as "0". The
                       // real formula is NOT symmetric (it's not simply mirrored by
                       // flipping the OUTPUT), so whether v1.y in the actual mesh runs
@@ -2466,12 +2489,12 @@ function _drawViewportNow(){
                       // shape). Cone meshes conventionally have V=0 at the apex — if the
                       // apex is at the planet's center, v1.y=0 could mean "surface" (or
                       // even inside it), the opposite of what v_disc assumes by default.
-                      const v_disc_input = dbg.vInputFlip ? (1 - v_disc) : v_disc;
-                      if(dbg.formulaMode === 'real'){
+                        const v_disc_input = dbg.vInputFlip ? (1 - v_disc) : v_disc;
                         const csY = cloudSizeYEff * dbg.scaleY;
                         const cStart = cloudStartY_val + dbg.offsetY;
                         v_raw = csY * (v_disc_input * (cStart + 1) - cStart);
                       } else {
+                        const v_disc_input = dbg.vInputFlip ? (1 - v_disc) : v_disc;
                         v_raw = dbg.offsetY + v_disc_input * cloudSizeYEff * dbg.scaleY;
                       }
                       let v_frac = (dbg.wrapMode === 'clamp')
