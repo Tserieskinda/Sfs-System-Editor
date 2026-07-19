@@ -333,8 +333,8 @@ const SFX = (() => {
       // modal-*.classList.remove('open') dismiss buttons
       if (oc.includes("classList.remove('open')")) { click(); return; }
 
-      // TC.open() — texture creator launch
-      if (oc.includes('TC.open')) { select(); return; }
+      // TC.open() / PT.open() — texture creator launches
+      if (oc.includes('TC.open') || oc.includes('PT.open')) { select(); return; }
 
       // triggerFileInput — file pickers
       if (oc.startsWith('triggerFileInput') || (oc.startsWith('document.getElementById(') && oc.includes('.click()'))) {

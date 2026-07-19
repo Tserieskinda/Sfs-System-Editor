@@ -3276,3 +3276,55 @@ body {
   border-color: rgba(255,220,80,.45);
 }
 .tq-chip:active { transform: scale(.96); }
+
+/* ════════════════════════════════════════════════════════════════════
+   PLANET TEXTURE CREATOR (PT) — reuses .tc-* shell classes from the
+   atmosphere texture creator; these are the PT-specific additions.
+   ════════════════════════════════════════════════════════════════════ */
+.pt-window { }
+.pt-panel { padding: 12px 14px 60px; overflow-y: auto; flex: 1; }
+.pt-section {
+  font-family: 'JetBrains Mono', monospace; font-size: .62rem;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--ink4);
+  border-bottom: 1px solid var(--rim); padding-bottom: 4px; margin: 16px 0 8px;
+}
+.pt-section:first-child { margin-top: 0; }
+.pt-row { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.pt-row-label { display: flex; justify-content: space-between; font-size: .68rem; color: var(--ink3); letter-spacing: .03em; }
+.pt-row-label .pt-val { color: var(--sky2); font-family: 'JetBrains Mono', monospace; }
+.pt-select {
+  background: var(--dp3); border: 1px solid var(--ac13); color: var(--ink2);
+  font-family: 'JetBrains Mono', monospace; font-size: .7rem; padding: 7px 8px;
+  border-radius: 4px; outline: none; width: 100%; cursor: pointer;
+}
+.pt-color-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 8px; }
+.pt-color-box {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: var(--panel3); border: 1px solid var(--rim2); border-radius: 6px; padding: 6px;
+}
+.pt-color-box label { font-size: .58rem; letter-spacing: .02em; color: var(--ink4); text-align: center; }
+.pt-color-box input[type="color"] { width: 100%; height: 28px; border: none; background: transparent; cursor: pointer; padding: 0; }
+.pt-preset-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 8px; }
+.pt-preset-btn {
+  background: var(--panel3); border: 1px solid var(--rim2); border-radius: 4px;
+  color: var(--ink2); font-family: 'JetBrains Mono', monospace; font-size: .6rem;
+  letter-spacing: .03em; padding: 9px 4px; cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.pt-preset-btn:hover { border-color: var(--sky); color: var(--sky2); background: var(--ac10); }
+.pt-view-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 4px; }
+.pt-view-btn {
+  background: none; border: 1px solid var(--rim2); border-radius: 4px;
+  color: var(--ink2); font-family: 'JetBrains Mono', monospace; font-size: .56rem;
+  padding: 7px 2px; cursor: pointer; transition: border-color .15s, color .15s;
+}
+.pt-view-btn:hover { border-color: var(--sky); color: var(--sky2); }
+.pt-canvas-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.pt-canvas {
+  border-radius: 8px; background: #000; box-shadow: 0 0 40px rgba(0,0,0,.6);
+  max-width: min(70vh, 520px); width: 100%; height: auto; touch-action: none;
+}
+@media (max-width: 640px) {
+  .pt-preset-grid { grid-template-columns: repeat(2, 1fr); }
+  .pt-color-grid { grid-template-columns: repeat(2, 1fr); }
+}
