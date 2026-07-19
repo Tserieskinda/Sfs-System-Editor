@@ -745,6 +745,34 @@
             <input class="finput" id="fc-pz" type="text" inputmode="decimal" step="500"></div>
           <div class="ftoggle-row"><span class="flabel">Sharpen Alpha</span>
             <div class="tog" id="fc-sa" onclick="this.classList.toggle('on')"></div></div>
+
+          <div class="fsec-title" style="margin-top:14px;font-size:.65rem;opacity:.75">DAY/NIGHT CYCLE (FAKE)</div>
+          <div style="font-size:.62rem;color:var(--sky2);opacity:.65;padding:0 2px 8px;line-height:1.4">
+            Generates an invisible body carrying a dark front-cloud disc that orbits the selected planet, faking a day/night terminator.
+          </div>
+          <button class="add-btn" onclick="_dncOnGenerateClick()">+ ADD DAY/NIGHT CYCLE</button>
+
+          <div id="dnc-fields" style="display:none;margin-top:8px">
+            <div class="frow-s">
+              <div class="frow-s-top"><span class="flabel">Darkness</span><span class="fval" id="dnc-dark-val">—</span><input class="finput" id="dnc-dark" type="text" inputmode="decimal" step="0.01" min="0" max="1" style="flex:0 0 72px;width:72px" oninput="syncSlider('dnc-dark',0,1);_dncOnSliderInput()"></div>
+              <input class="fslider" id="dnc-dark-sl" type="range" min="0" max="1" step="0.01" oninput="syncFromSlider('dnc-dark',0,1,2);_dncOnSliderInput()">
+            </div>
+            <div class="frow-s">
+              <div class="frow-s-top"><span class="flabel">Terminator Softness</span><span class="fval" id="dnc-soft-val">—</span><input class="finput" id="dnc-soft" type="text" inputmode="decimal" step="10" min="0" max="5000" style="flex:0 0 72px;width:72px" oninput="syncSlider('dnc-soft',0,5000);_dncOnSliderInput()"></div>
+              <input class="fslider" id="dnc-soft-sl" type="range" min="0" max="5000" step="10" oninput="syncFromSlider('dnc-soft',0,5000,0);_dncOnSliderInput()">
+              <span style="font-size:.58rem;color:var(--sky2);opacity:.6">km fade zone height — higher = softer terminator line</span>
+            </div>
+            <div class="frow-s">
+              <div class="frow-s-top"><span class="flabel">Invisible Body Size</span><span class="fval" id="dnc-radmult-val">—</span><input class="finput" id="dnc-radmult" type="text" inputmode="decimal" step="0.5" min="1" max="20" style="flex:0 0 72px;width:72px" oninput="syncSlider('dnc-radmult',1,20);_dncOnSliderInput()"></div>
+              <input class="fslider" id="dnc-radmult-sl" type="range" min="1" max="20" step="0.5" oninput="syncFromSlider('dnc-radmult',1,20,1);_dncOnSliderInput()">
+              <span style="font-size:.58rem;color:var(--sky2);opacity:.6">× planet radius — larger = straighter terminator</span>
+            </div>
+            <div class="frow-s">
+              <div class="frow-s-top"><span class="flabel">Cloud Height (SMA offset)</span><span class="fval" id="dnc-cloudh-val">—</span><input class="finput" id="dnc-cloudh" type="text" inputmode="decimal" step="5" min="1" max="500" style="flex:0 0 72px;width:72px" oninput="syncSlider('dnc-cloudh',1,500);_dncOnSliderInput()"></div>
+              <input class="fslider" id="dnc-cloudh-sl" type="range" min="1" max="500" step="5" oninput="syncFromSlider('dnc-cloudh',1,500,0);_dncOnSliderInput()">
+              <span style="font-size:.58rem;color:var(--sky2);opacity:.6">km — SMA = invisible body radius + this value, so the disc cuts the planet in half</span>
+            </div>
+          </div>
         </div>
       </div>
       <div class="fsec">

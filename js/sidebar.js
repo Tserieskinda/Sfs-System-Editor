@@ -1604,8 +1604,18 @@ function makeFogKey(k,i){
   <input type="hidden" id="fk-${i}-a" value="${col.a||0}">`;
   return d;
 }
-function addFogKey(){ const l=document.getElementById('fog-keys-list'); const i=l.children.length; l.appendChild(makeFogKey({distance:0,color:{r:0,g:0,b:0,a:0}},i)); liveSync(); }
-function delFogKey(i){ document.getElementById('fk-'+i)?.remove(); liveSync(); }
+function addFogKey(){
+  const keys = collectFogKeys();
+  keys.push({distance:0,color:{r:0,g:0,b:0,a:0}});
+  buildFogKeys(keys);
+  liveSync();
+}
+function delFogKey(i){
+  const keys = collectFogKeys();
+  keys.splice(i, 1);
+  buildFogKeys(keys);
+  liveSync();
+}
 
 // ── PP KEYS ──
 function buildPPKeys(keys){
@@ -1633,8 +1643,18 @@ function makePPKey(k,i){
   <input type="hidden" id="ppk-${i}-b" value="${(k.blue||1).toFixed(4)}">`;
   return d;
 }
-function addPPKey(){ const l=document.getElementById('pp-keys-list'); const i=l.children.length; l.appendChild(makePPKey({height:0,shadowIntensity:1.75,starIntensity:0,hueShift:0,saturation:0.95,contrast:1.2,red:1,green:1,blue:1},i)); }
-function delPPKey(i){ document.getElementById('ppk-'+i)?.remove(); }
+function addPPKey(){
+  const keys = collectPPKeys();
+  keys.push({height:0,shadowIntensity:1.75,starIntensity:0,hueShift:0,saturation:0.95,contrast:1.2,red:1,green:1,blue:1});
+  buildPPKeys(keys);
+  liveSync();
+}
+function delPPKey(i){
+  const keys = collectPPKeys();
+  keys.splice(i, 1);
+  buildPPKeys(keys);
+  liveSync();
+}
 
 // ── LANDMARKS ──
 function buildLandmarks(lms){
@@ -2736,4 +2756,247 @@ function hmSyncFromTextareas(){
   _hmActiveDiff = 'Normal';
   hmSetDiff('Normal');
   hmRefreshLoadedList();
+}
+
+// ══════════════════════════ DAY/NIGHT CYCLE GENERATOR ══════════════════════════
+// Fakes a day/night terminator the way SFS players commonly do it: an invisible
+// body (zero-alpha surface, no terrain) orbits the target planet carrying a
+// solid/semi-transparent black FRONT_CLOUDS texture. Because front clouds render
+// in front of the main body and use positionZ to control layering, a large,
+// dark, nearly-flat disc orbiting close to the planet reads as a moving night
+// side with a soft terminator line.
+//
+// The "texture" is generated on the fly as a 1×1 black pixel PNG at adjustable
+// alpha — SFS/the editor stretches a 1×1 texture into a filled circle, so no
+// gradient or shape work is needed, just the right alpha value.
+
+const _DNC_DEFAULTS = {
+  darkness: 0.85,       // alpha of the generated black pixel (0 = invisible, 1 = fully opaque)
+  fadeZoneKm: 300,       // FRONT_CLOUDS_DATA.fadeZoneHeight — controls terminator softness
+  invisRadiusMult: 6,    // invisible body's radius, as a multiple of the target planet's radius
+  cloudHeightKm: 80,     // FRONT_CLOUDS_DATA.height — standard SFS convention
+  positionZ: -5000       // layers the night-side disc over the main body's own front clouds
+};
+
+// Generate (or reuse) a solid black texture at the given alpha and register it
+// in the shared asset/texture cache, exactly like tex-creator.js's exporter does.
+function _dncGenerateTexture(alpha){
+  const a = Math.max(0, Math.min(1, alpha));
+  const c = document.createElement('canvas');
+  c.width = 1; c.height = 1;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, 1, 1);
+  ctx.fillStyle = `rgba(0,0,0,${a})`;
+  ctx.fillRect(0, 0, 1, 1);
+  const dataUrl = c.toDataURL('image/png');
+
+  const name = `DayNightCycle_${Math.round(a * 100)}.png`;
+  const texName = name.replace(/\.[^.]+$/, '');
+
+  if(typeof assets !== 'undefined'){
+    // Reuse an existing entry with the same name instead of duplicating it
+    if(!assets.textures.find(t => t.name === name)){
+      const entry = { name, url: dataUrl, size: dataUrl.length };
+      assets.textures.push(entry);
+      if(typeof renderAssetThumb === 'function') renderAssetThumb(entry);
+      if(typeof updateAssetEmptyState === 'function') updateAssetEmptyState();
+    }
+  }
+  if(typeof cacheTexture === 'function') cacheTexture(texName, dataUrl);
+  if(typeof refreshTexPickerLists === 'function') refreshTexPickerLists();
+
+  return texName;
+}
+
+// Create the invisible night-side body orbiting whichever body is currently
+// selected (falling back to the system center). Returns the new body's name.
+function addDayNightCycle(opts){
+  const o = Object.assign({}, _DNC_DEFAULTS, opts || {});
+
+  const centerName = Object.keys(bodies).find(n => bodies[n].isCenter);
+  const targetName = (selectedBody && bodies[selectedBody]) ? selectedBody : centerName;
+  if(!targetName){
+    alert('Add a planet first, then select it before generating a day/night cycle.');
+    return null;
+  }
+  const target = bodies[targetName];
+  const targetRadius = target.data?.BASE_DATA?.radius || 6.371e6;
+
+  pushUndo();
+
+  const texName = _dncGenerateTexture(o.darkness);
+
+  const invisRadius = targetRadius * o.invisRadiusMult;
+  const cloudHeight = o.cloudHeightKm * 1000;
+  // SMA = invisible body's radius + front cloud height, so the disc cuts the
+  // main planet exactly in half as it orbits (per the standard SFS convention).
+  const sma = invisRadius + cloudHeight;
+
+  let name = `${targetName}_DayNight`;
+  if(bodies[name]){
+    let n = 2;
+    while(bodies[name + '_' + n]) n++;
+    name = name + '_' + n;
+  }
+
+  const bodyData = {
+    BASE_DATA: {
+      radius: invisRadius,
+      gravity: 0,
+      mapColor: { r: 0, g: 0, b: 0, a: 0 },   // fully transparent — the body itself is invisible
+      significant: false,
+      rotateCamera: false
+    },
+    ORBIT_DATA: {
+      parent: targetName,
+      semiMajorAxis: sma,
+      eccentricity: 0,
+      argumentOfPeriapsis: 0,
+      direction: 1,
+      multiplierSOI: 2.5,
+      smaDifficultyScale: {},
+      soiDifficultyScale: {}
+    },
+    FRONT_CLOUDS_DATA: {
+      cloudsTexture: texName,
+      cloudTextureCutout: 1,
+      fadeZoneHeight: o.fadeZoneKm * 1000,
+      height: cloudHeight,
+      positionZ: o.positionZ,
+      sharpenAlpha: false
+    }
+  };
+
+  bodies[name] = {
+    data: bodyData,
+    preset: 'dayNightCycle',
+    isCenter: false,
+    color: '#000000',
+    glow: false,
+    icon: 'moon'
+  };
+
+  syncAddBodyBtn();
+  if(typeof tagDdSyncBtn === 'function') tagDdSyncBtn();
+  updateStatusBar();
+  selectBody(name);
+  drawViewport();
+  return name;
+}
+
+// Regenerate the texture + reapply slider values for an *existing* day/night
+// body — called live as the user drags the dedicated sliders, so they don't
+// have to delete/recreate the body to retune it.
+function updateDayNightCycle(name, opts){
+  const b = bodies[name];
+  if(!b || !b.data?.FRONT_CLOUDS_DATA) return;
+  const o = opts || {};
+  const d = b.data;
+
+  if(o.darkness != null){
+    d.FRONT_CLOUDS_DATA.cloudsTexture = _dncGenerateTexture(o.darkness);
+  }
+  if(o.fadeZoneKm != null) d.FRONT_CLOUDS_DATA.fadeZoneHeight = o.fadeZoneKm * 1000;
+  if(o.positionZ != null) d.FRONT_CLOUDS_DATA.positionZ = o.positionZ;
+  if(o.cloudHeightKm != null){
+    d.FRONT_CLOUDS_DATA.height = o.cloudHeightKm * 1000;
+    if(d.ORBIT_DATA) d.ORBIT_DATA.semiMajorAxis = (d.BASE_DATA.radius || 0) + d.FRONT_CLOUDS_DATA.height;
+  }
+  if(o.invisRadiusMult != null){
+    const parentName = d.ORBIT_DATA?.parent;
+    const parentRadius = (parentName && bodies[parentName]?.data?.BASE_DATA?.radius) || 6.371e6;
+    d.BASE_DATA.radius = parentRadius * o.invisRadiusMult;
+    if(d.ORBIT_DATA) d.ORBIT_DATA.semiMajorAxis = d.BASE_DATA.radius + (d.FRONT_CLOUDS_DATA.height || 0);
+  }
+
+  if(selectedBody === name) fillSidebar(name);
+  drawViewport();
+}
+
+// ── Day/Night Cycle panel wiring ──
+// Tracks which body's day/night sliders are currently being shown/edited,
+// since the invisible body created by this tool isn't the same body the
+// rest of the Atmosphere tab is showing (that's still the target planet's
+// front clouds, if any — this is a *separate* body layered on top).
+let _dncActiveBody = null;
+
+function _dncSetSliderDefaults(){
+  setSlider('dnc-dark', _DNC_DEFAULTS.darkness, 0, 1);
+  initSlider('dnc-dark', 0, 1);
+  setSlider('dnc-soft', _DNC_DEFAULTS.fadeZoneKm, 0, 5000);
+  initSlider('dnc-soft', 0, 5000);
+  setSlider('dnc-radmult', _DNC_DEFAULTS.invisRadiusMult, 1, 20);
+  initSlider('dnc-radmult', 1, 20);
+  setSlider('dnc-cloudh', _DNC_DEFAULTS.cloudHeightKm, 1, 500);
+  initSlider('dnc-cloudh', 1, 500);
+}
+
+function _dncOnGenerateClick(){
+  const name = addDayNightCycle();
+  if(!name) return;
+  _dncActiveBody = name;
+  document.getElementById('dnc-fields').style.display = '';
+  _dncSetSliderDefaults();
+}
+
+// Debounce slider drags onto a single animation frame, same pattern liveSync uses.
+function _dncOnSliderInput(){
+  if(!_dncActiveBody || !bodies[_dncActiveBody]) return;
+  if(_dncOnSliderInput._pending) return;
+  _dncOnSliderInput._pending = true;
+  requestAnimationFrame(() => {
+    _dncOnSliderInput._pending = false;
+    updateDayNightCycle(_dncActiveBody, {
+      darkness: parseFloat(document.getElementById('dnc-dark').value),
+      fadeZoneKm: parseFloat(document.getElementById('dnc-soft').value),
+      invisRadiusMult: parseFloat(document.getElementById('dnc-radmult').value),
+      cloudHeightKm: parseFloat(document.getElementById('dnc-cloudh').value)
+    });
+  });
+}
+
+// If the user selects a day/night body directly from the body list (e.g. to
+// delete it, or coming back to it later), show and repopulate its sliders
+// from its actual stored data instead of leaving stale values in the panel.
+function _dncSyncPanelForSelection(name){
+  const b = bodies[name];
+  const isDayNight = !!(b && b.preset === 'dayNightCycle' && b.data?.FRONT_CLOUDS_DATA);
+  const panel = document.getElementById('dnc-fields');
+  if(!panel) return;
+  if(!isDayNight){
+    panel.style.display = 'none';
+    if(_dncActiveBody === name) _dncActiveBody = null;
+    return;
+  }
+  _dncActiveBody = name;
+  panel.style.display = '';
+  const fc = b.data.FRONT_CLOUDS_DATA;
+  const parentName = b.data.ORBIT_DATA?.parent;
+  const parentRadius = (parentName && bodies[parentName]?.data?.BASE_DATA?.radius) || 6.371e6;
+  const radMult = parentRadius > 0 ? (b.data.BASE_DATA.radius || 0) / parentRadius : _DNC_DEFAULTS.invisRadiusMult;
+
+  // Recover darkness from the generated texture's name (DayNightCycle_<pct>.png)
+  // rather than re-deriving from pixels — cheap and exact for our own textures.
+  let darkness = _DNC_DEFAULTS.darkness;
+  const m = /^DayNightCycle_(\d+)$/.exec(fc.cloudsTexture || '');
+  if(m) darkness = parseInt(m[1], 10) / 100;
+
+  setSlider('dnc-dark', darkness, 0, 1);
+  initSlider('dnc-dark', 0, 1);
+  setSlider('dnc-soft', (fc.fadeZoneHeight || 0) / 1000, 0, 5000);
+  initSlider('dnc-soft', 0, 5000);
+  setSlider('dnc-radmult', radMult, 1, 20);
+  initSlider('dnc-radmult', 1, 20);
+  setSlider('dnc-cloudh', (fc.height || 0) / 1000, 1, 500);
+  initSlider('dnc-cloudh', 1, 500);
+}
+
+// Hook into selectBody without editing its definition directly — wrap it once
+// the page has loaded so every selection keeps the day/night panel in sync.
+if(typeof selectBody === 'function'){
+  const _origSelectBody = selectBody;
+  selectBody = function(name){
+    _origSelectBody(name);
+    _dncSyncPanelForSelection(name);
+  };
 }
