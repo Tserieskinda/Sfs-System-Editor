@@ -2948,6 +2948,7 @@ function _dncOnGenerateClick(){
   _dncActiveBody = name;
   document.getElementById('dnc-fields').style.display = '';
   _dncSetSliderDefaults();
+  _dncSyncPeriodDisplay();
 }
 
 // Debounce slider drags onto a single animation frame, same pattern liveSync uses.
@@ -2963,7 +2964,32 @@ function _dncOnSliderInput(){
       invisRadiusMult: parseFloat(document.getElementById('dnc-radmult').value),
       cloudHeightKm: parseFloat(document.getElementById('dnc-cloudh').value)
     });
+    _dncSyncPeriodDisplay();
   });
+}
+
+// Read the day/night body's current SMA and show its orbital period (i.e. how
+// long a full day/night cycle takes). Reuses the same SMA→period math as the
+// main Orbit tab (_periodFromSMA in units.js) so the two always agree — it
+// relies on selectedBody being the day/night body, which holds whenever this
+// panel is visible (_dncActiveBody is only ever set to the selected body).
+function _dncSyncPeriodDisplay(){
+  const input = document.getElementById('dnc-period');
+  if(!input) return;
+  if(!_dncActiveBody || !bodies[_dncActiveBody]){ input.value = ''; return; }
+  const sma = bodies[_dncActiveBody].data?.ORBIT_DATA?.semiMajorAxis;
+  if(sma == null || typeof _periodFromSMA !== 'function'){ input.value = ''; return; }
+  const T = _periodFromSMA(sma);
+  const unitSel = document.getElementById('dnc-period-unit');
+  if(T == null || !isFinite(T) || T <= 0){
+    input.value = '';
+    return;
+  }
+  if(unitSel && unitSel.dataset.userPicked !== '1' && typeof _bestTimeUnit === 'function'){
+    unitSel.value = _bestTimeUnit(T);
+  }
+  const unit = unitSel?.value || 'h';
+  input.value = (typeof _fmtTime === 'function') ? _fmtTime(T, unit) : T.toFixed(0);
 }
 
 // If the user selects a day/night body directly from the body list (e.g. to
@@ -2977,6 +3003,8 @@ function _dncSyncPanelForSelection(name){
   if(!isDayNight){
     panel.style.display = 'none';
     if(_dncActiveBody === name) _dncActiveBody = null;
+    const periodInput = document.getElementById('dnc-period');
+    if(periodInput) periodInput.value = '';
     return;
   }
   _dncActiveBody = name;
@@ -3000,6 +3028,7 @@ function _dncSyncPanelForSelection(name){
   initSlider('dnc-radmult', 1, 20);
   setSlider('dnc-cloudh', (fc.height || 0) / 1000, -500, 500);
   initSlider('dnc-cloudh', -500, 500);
+  _dncSyncPeriodDisplay();
 }
 
 // Hook into selectBody without editing its definition directly — wrap it once

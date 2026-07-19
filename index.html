@@ -767,6 +767,17 @@
               <input class="fslider" id="dnc-radmult-sl" type="range" min="1" max="20" step="0.5" oninput="syncFromSlider('dnc-radmult',1,20,1);_dncOnSliderInput()">
               <span style="font-size:.58rem;color:var(--sky2);opacity:.6">× planet radius — larger = straighter terminator</span>
             </div>
+            <div class="frow">
+              <span class="flabel">Cycle Period</span>
+              <input class="finput" id="dnc-period" type="text" readonly placeholder="—" title="Derived from orbit distance — determined by Invisible Body Size and Cloud Height, not editable directly" style="opacity:.85">
+              <select class="funit-sel" id="dnc-period-unit" onchange="this.dataset.userPicked='1';_dncSyncPeriodDisplay()">
+                <option value="s">s</option>
+                <option value="min">min</option>
+                <option value="h" selected>h</option>
+                <option value="d">d</option>
+                <option value="y">y</option>
+              </select>
+            </div>
             <div class="frow-s">
               <div class="frow-s-top"><span class="flabel">Cloud Height (SMA offset)</span><span class="fval" id="dnc-cloudh-val">—</span><input class="finput" id="dnc-cloudh" type="text" inputmode="decimal" step="5" min="-500" max="500" style="flex:0 0 72px;width:72px" oninput="syncSlider('dnc-cloudh',-500,500);_dncOnSliderInput()"></div>
               <input class="fslider" id="dnc-cloudh-sl" type="range" min="-500" max="500" step="5" oninput="syncFromSlider('dnc-cloudh',-500,500,0);_dncOnSliderInput()">
