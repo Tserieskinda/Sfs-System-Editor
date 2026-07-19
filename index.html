@@ -768,9 +768,9 @@
               <span style="font-size:.58rem;color:var(--sky2);opacity:.6">× planet radius — larger = straighter terminator</span>
             </div>
             <div class="frow-s">
-              <div class="frow-s-top"><span class="flabel">Cloud Height (SMA offset)</span><span class="fval" id="dnc-cloudh-val">—</span><input class="finput" id="dnc-cloudh" type="text" inputmode="decimal" step="5" min="1" max="500" style="flex:0 0 72px;width:72px" oninput="syncSlider('dnc-cloudh',1,500);_dncOnSliderInput()"></div>
-              <input class="fslider" id="dnc-cloudh-sl" type="range" min="1" max="500" step="5" oninput="syncFromSlider('dnc-cloudh',1,500,0);_dncOnSliderInput()">
-              <span style="font-size:.58rem;color:var(--sky2);opacity:.6">km — SMA = invisible body radius + this value, so the disc cuts the planet in half</span>
+              <div class="frow-s-top"><span class="flabel">Cloud Height (SMA offset)</span><span class="fval" id="dnc-cloudh-val">—</span><input class="finput" id="dnc-cloudh" type="text" inputmode="decimal" step="5" min="-500" max="500" style="flex:0 0 72px;width:72px" oninput="syncSlider('dnc-cloudh',-500,500);_dncOnSliderInput()"></div>
+              <input class="fslider" id="dnc-cloudh-sl" type="range" min="-500" max="500" step="5" oninput="syncFromSlider('dnc-cloudh',-500,500,0);_dncOnSliderInput()">
+              <span style="font-size:.58rem;color:var(--sky2);opacity:.6">km — orbit distance = invisible body radius + 1/4 of this value; negative pulls the disc closer, positive pushes it out</span>
             </div>
           </div>
         </div>

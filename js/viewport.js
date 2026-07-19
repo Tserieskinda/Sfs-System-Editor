@@ -2722,16 +2722,26 @@ function _drawViewportNow(){
           // since physR_px already has radiusMult baked in and the two multipliers
           // (radiusMult, atmoMult) are independent in-game.
           const fcAtmoMult  = getAtmoDifficultyMult(b.data);
-          const fcHeight_m  = (FCD.height || 0) * fcAtmoMult;
-          const fcFadeZone_m = (FCD.fadeZoneHeight || 0) * fcAtmoMult;
           const R_eff_px_fc = bodyRadius_m * radiusMult;
+          // Clamp so a negative FRONT_CLOUDS_DATA.height (now reachable via the
+          // day/night SMA-offset slider) can never push the effective disc
+          // radius (R_eff_px_fc + fcHeight_m) to zero/negative — that would
+          // flip fcR_px negative and corrupt all the downstream circle math.
+          const fcHeight_m  = Math.max(-R_eff_px_fc * 0.99, (FCD.height || 0) * fcAtmoMult);
+          // Distinguish "explicitly set to 0" (true hard edge) from "field never
+          // set" (older planet files without this key at all) — both used to
+          // collapse to the same fcFadeZone_m===0 value below, which silently
+          // forced every hard-edge request into an 8% fallback fade instead.
+          const fcFadeZoneSpecified = FCD.fadeZoneHeight != null;
+          const fcFadeZone_m = (FCD.fadeZoneHeight || 0) * fcAtmoMult;
+
           const fcR_px      = physR_px * (R_eff_px_fc + fcHeight_m) / R_eff_px_fc;
 
           // fadeZoneHeight is world-space — convert to a fraction of the cloud radius
           // so it's zoom-independent (used in cache key and for rendering).
-          const fadeZoneFrac = fcFadeZone_m > 0
-            ? Math.min(1, fcFadeZone_m / (bodyRadius_m + fcHeight_m))
-            : 0.08; // fallback: 8% of cloud radius if not specified
+          const fadeZoneFrac = fcFadeZoneSpecified
+            ? Math.min(1, Math.max(0, fcFadeZone_m) / (bodyRadius_m + fcHeight_m))
+            : 0.08; // fallback: 8% of cloud radius only if the field was never set
 
           // ── Front-cloud texture cache (image content only — no clip, no fade) ──
           // The disc's circular clip AND its radial edge-fade are pure vector

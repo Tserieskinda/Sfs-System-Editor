@@ -2808,6 +2808,14 @@ function _dncGenerateTexture(alpha){
   return texName;
 }
 
+// Shared SMA formula so addDayNightCycle and updateDayNightCycle can never
+// drift apart again. See addDayNightCycle for why only 1/4 of cloudHeight_m
+// counts toward the offset. cloudHeight_m may be negative (see slider).
+function _dncComputeSMA(invisRadius_m, cloudHeight_m){
+  const offset = cloudHeight_m * 0.25;
+  return Math.max(invisRadius_m * 0.01, invisRadius_m + offset);
+}
+
 // Create the invisible night-side body orbiting whichever body is currently
 // selected (falling back to the system center). Returns the new body's name.
 function addDayNightCycle(opts){
@@ -2828,9 +2836,7 @@ function addDayNightCycle(opts){
 
   const invisRadius = targetRadius * o.invisRadiusMult;
   const cloudHeight = o.cloudHeightKm * 1000;
-  // SMA = invisible body's radius + front cloud height, so the disc cuts the
-  // main planet exactly in half as it orbits (per the standard SFS convention).
-  const sma = invisRadius + cloudHeight;
+  const sma = _dncComputeSMA(invisRadius, cloudHeight);
 
   let name = `${targetName}_DayNight`;
   if(bodies[name]){
@@ -2884,6 +2890,7 @@ function addDayNightCycle(opts){
   return name;
 }
 
+
 // Regenerate the texture + reapply slider values for an *existing* day/night
 // body — called live as the user drags the dedicated sliders, so they don't
 // have to delete/recreate the body to retune it.
@@ -2900,13 +2907,17 @@ function updateDayNightCycle(name, opts){
   if(o.positionZ != null) d.FRONT_CLOUDS_DATA.positionZ = o.positionZ;
   if(o.cloudHeightKm != null){
     d.FRONT_CLOUDS_DATA.height = o.cloudHeightKm * 1000;
-    if(d.ORBIT_DATA) d.ORBIT_DATA.semiMajorAxis = (d.BASE_DATA.radius || 0) + d.FRONT_CLOUDS_DATA.height;
+    if(d.ORBIT_DATA){
+      d.ORBIT_DATA.semiMajorAxis = _dncComputeSMA(d.BASE_DATA.radius || 0, d.FRONT_CLOUDS_DATA.height);
+    }
   }
   if(o.invisRadiusMult != null){
     const parentName = d.ORBIT_DATA?.parent;
     const parentRadius = (parentName && bodies[parentName]?.data?.BASE_DATA?.radius) || 6.371e6;
     d.BASE_DATA.radius = parentRadius * o.invisRadiusMult;
-    if(d.ORBIT_DATA) d.ORBIT_DATA.semiMajorAxis = d.BASE_DATA.radius + (d.FRONT_CLOUDS_DATA.height || 0);
+    if(d.ORBIT_DATA){
+      d.ORBIT_DATA.semiMajorAxis = _dncComputeSMA(d.BASE_DATA.radius, d.FRONT_CLOUDS_DATA.height || 0);
+    }
   }
 
   if(selectedBody === name) fillSidebar(name);
@@ -2927,8 +2938,8 @@ function _dncSetSliderDefaults(){
   initSlider('dnc-soft', 0, 5000);
   setSlider('dnc-radmult', _DNC_DEFAULTS.invisRadiusMult, 1, 20);
   initSlider('dnc-radmult', 1, 20);
-  setSlider('dnc-cloudh', _DNC_DEFAULTS.cloudHeightKm, 1, 500);
-  initSlider('dnc-cloudh', 1, 500);
+  setSlider('dnc-cloudh', _DNC_DEFAULTS.cloudHeightKm, -500, 500);
+  initSlider('dnc-cloudh', -500, 500);
 }
 
 function _dncOnGenerateClick(){
@@ -2987,8 +2998,8 @@ function _dncSyncPanelForSelection(name){
   initSlider('dnc-soft', 0, 5000);
   setSlider('dnc-radmult', radMult, 1, 20);
   initSlider('dnc-radmult', 1, 20);
-  setSlider('dnc-cloudh', (fc.height || 0) / 1000, 1, 500);
-  initSlider('dnc-cloudh', 1, 500);
+  setSlider('dnc-cloudh', (fc.height || 0) / 1000, -500, 500);
+  initSlider('dnc-cloudh', -500, 500);
 }
 
 // Hook into selectBody without editing its definition directly — wrap it once
