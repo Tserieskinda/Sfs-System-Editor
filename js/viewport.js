@@ -756,17 +756,75 @@ function getPostProcessKey(bodyData, altM){
   }
   return keys[keys.length-1];
 }
-// Offscreen canvas reused for the CSS-filter pass only
-let _ppOffscreen = null;
-// Brightness boost factor applied on top of the SFS post-processing values.
-const PP_BRIGHTNESS_BOOST = 1.0;
+// ── Post-processing — exact reproduction of the decompiled pixel shader ──
+// (hash fa05cde4-eae677f2-8903d1e7-1a8bef02). Constant mapping confirmed via RenderDoc +
+// disassembly: cb0[2].x=Hue(deg), cb0[2].y=Saturation, cb0[2].z=Contrast, cb0[3].xyz=Multiplier
+// (matches PostProcessing.cs SetAmbient's SetFloat(Hue/Saturation/Contrast) + SetVector(Multiplier)
+// property names exactly). Real order, from the disassembly: CONTRAST -> HUE ROTATE -> SATURATION -> TINT.
+// This previously ran as CSS `hue-rotate() saturate() contrast()` (wrong order — hue first, contrast
+// last) using three formulas that don't match the game's:
+//   - CONTRAST (steps 1-4): the shader is ASYMMETRIC — `movc r0.xyz, (0.5<original), (c-0.5)*contrast+0.5, original`
+//     means channels <=0.5 pass through completely UNCHANGED; only channels >0.5 get scaled. CSS
+//     contrast() scales the whole range symmetrically — a different function, not just a different order.
+//   - HUE ROTATION (steps 6-15): the 0.577350 constant is 1/sqrt(3) — this is Rodrigues' rotation
+//     formula rotating the RGB vector about the UNIFORM gray axis (1,1,1)/sqrt(3):
+//       result = color*cosT + axis*(axis.color)*(1-cosT) + (axis x color)*sinT
+//     CSS hue-rotate() also rotates about the gray diagonal but per the W3C spec uses a perceptually-
+//     weighted (~Rec.709) construction instead of this uniform axis — different matrix, different
+//     result at the same angle. Not an HSL/HSV shift either.
+//   - SATURATION (steps 16-18): lerp(luma, color, saturation) with luma = 0.22R+0.707G+0.071B — a
+//     DIFFERENT luma weighting than the 0.3/0.59/0.11 SetAmbient uses to build the tint Multiplier
+//     (two distinct luma constants really are used in two different places; confirmed by the raw
+//     0.220000/0.707000/0.071000 immediates in the disassembly vs. the C# SetAmbient formula).
+//   - TINT (step 19): a plain multiply by Multiplier, NO clamp. The previous code additionally
+//     divided the tint by max(mr,mg,mb,1) to prevent >1 brightness — that clamp has no basis in the
+//     shader; the game lets channels legitimately blow out past 1.0 here.
+// Hue-rotate + saturation + tint are all linear (matrix) ops, so they're composed into ONE
+// feColorMatrix. Contrast is non-linear but has exactly one breakpoint (0.5), so it's reproduced
+// with ZERO approximation error via a 3-point feComponentTransfer table: identity on [0,0.5],
+// (x-0.5)*contrast+0.5 on [0.5,1] — a piecewise-linear function is exactly what SVG's "table" type
+// interpolates between control points, and putting a point exactly at x=0.5 needs only 3 samples.
+const PP_BRIGHTNESS_BOOST = 1.0; // editor-only extra multiplier on top of the exact game math; 1.0 = no-op
 
-// SVG filter injected into <defs> for GPU-side colour matrix (tint + brightness).
-// Re-created only when the matrix values change.
+function _buildPostProcessMatrix(hueDeg, sat, r, g, b){
+  const rad = hueDeg * Math.PI / 180;
+  const c = Math.cos(rad), s = Math.sin(rad);
+  const a = 1 / Math.sqrt(3);
+  const k = (1 - c) / 3;
+  // Hue-rotation matrix (Rodrigues, uniform axis (1,1,1)/sqrt(3)) — v1 = H * v0
+  const H = [
+    [c + k,       k - s*a,     k + s*a],
+    [k + s*a,     c + k,       k - s*a],
+    [k - s*a,     k + s*a,     c + k]
+  ];
+  // Saturation matrix (luma weights 0.22/0.707/0.071 — matches this shader's saturation step
+  // specifically, NOT the 0.3/0.59/0.11 used below for the tint) — v2 = S * v1
+  const lr = 0.22, lg = 0.707, lb = 0.071;
+  const S = [
+    [sat + (1-sat)*lr,  (1-sat)*lg,        (1-sat)*lb      ],
+    [(1-sat)*lr,        sat + (1-sat)*lg,  (1-sat)*lb      ],
+    [(1-sat)*lr,        (1-sat)*lg,        sat + (1-sat)*lb]
+  ];
+  // Compose hue then saturation: M = S * H
+  const M = [[0,0,0],[0,0,0],[0,0,0]];
+  for(let i=0;i<3;i++) for(let j=0;j<3;j++)
+    M[i][j] = S[i][0]*H[0][j] + S[i][1]*H[1][j] + S[i][2]*H[2][j];
+  // Tint (Multiplier from SetAmbient: red/luma, green/luma, blue/luma, luma via 0.3/0.59/0.11), no
+  // clamp — applied last, as a left-multiply by diag(mr,mg,mb), i.e. scale each output row.
+  const lumaT = 0.3*r + 0.59*g + 0.11*b || 1;
+  const mr = (r/lumaT) * PP_BRIGHTNESS_BOOST, mg = (g/lumaT) * PP_BRIGHTNESS_BOOST, mb = (b/lumaT) * PP_BRIGHTNESS_BOOST;
+  M[0] = M[0].map(v => v*mr);
+  M[1] = M[1].map(v => v*mg);
+  M[2] = M[2].map(v => v*mb);
+  return M;
+}
+
+// SVG filter injected into <defs>: feComponentTransfer (exact asymmetric contrast) into
+// feColorMatrix (composed hue x saturation x tint). Re-created only when values change.
 let _ppSvgFilter = null;
 let _ppSvgFilterKey = '';
-function _ensureSvgFilter(filterId, mr, mg, mb, brightness){
-  const key = `${mr.toFixed(4)},${mg.toFixed(4)},${mb.toFixed(4)},${brightness.toFixed(4)}`;
+function _ensureSvgFilter(filterId, contrast, M){
+  const key = contrast.toFixed(4) + '|' + M.map(row => row.map(v => v.toFixed(5)).join(',')).join('|');
   if(key === _ppSvgFilterKey && _ppSvgFilter) return;
   _ppSvgFilterKey = key;
   if(_ppSvgFilter) _ppSvgFilter.remove();
@@ -778,17 +836,29 @@ function _ensureSvgFilter(filterId, mr, mg, mb, brightness){
   const filter = document.createElementNS(ns, 'filter');
   filter.setAttribute('id', filterId);
   filter.setAttribute('color-interpolation-filters','sRGB');
+
+  // Stage 1: asymmetric contrast (shader steps 1-4) — exact via a 3-point piecewise-linear table
+  const top = Math.max(0, 0.5 + 0.5*contrast);
+  const feCT = document.createElementNS(ns, 'feComponentTransfer');
+  ['feFuncR','feFuncG','feFuncB'].forEach(tag => {
+    const f = document.createElementNS(ns, tag);
+    f.setAttribute('type','table');
+    f.setAttribute('tableValues', `0 0.5 ${top}`);
+    feCT.appendChild(f);
+  });
+  filter.appendChild(feCT);
+
+  // Stage 2: composed hue-rotation x saturation x tint (shader steps 6-19)
+  const [[m00,m01,m02],[m10,m11,m12],[m20,m21,m22]] = M;
   const fe = document.createElementNS(ns, 'feColorMatrix');
   fe.setAttribute('type','matrix');
-  // feColorMatrix row format: R G B A offset
-  // Apply per-channel multiply (tint) and brightness in one matrix.
-  const br = brightness * mr, bg = brightness * mg, bb = brightness * mb;
   fe.setAttribute('values',
-    `${br} 0 0 0 0  ` +
-    `0 ${bg} 0 0 0  ` +
-    `0 0 ${bb} 0 0  ` +
+    `${m00} ${m01} ${m02} 0 0  ` +
+    `${m10} ${m11} ${m12} 0 0  ` +
+    `${m20} ${m21} ${m22} 0 0  ` +
     `0 0 0 1 0`);
   filter.appendChild(fe);
+
   defs.appendChild(filter);
   svg.appendChild(defs);
   document.body.appendChild(svg);
@@ -797,39 +867,13 @@ function _ensureSvgFilter(filterId, mr, mg, mb, brightness){
 
 function _applyPostProcessingOverlay(ctx, w, h, key){
   if(!key) return;
-  const hueRot = key.hueShift || 0;
+  const hueDeg = key.hueShift || 0;
   const sat    = key.saturation ?? 1;
   const con    = key.contrast   ?? 1;
   const r = key.red ?? 1, g = key.green ?? 1, b = key.blue ?? 1;
-  const luma = 0.3*r + 0.59*g + 0.11*b || 1;
-  const _mr0 = r/luma, _mg0 = g/luma, _mb0 = b/luma;
-  const _mmax = Math.max(_mr0, _mg0, _mb0, 1);
-  const mr = _mr0/_mmax, mg = _mg0/_mmax, mb = _mb0/_mmax;
-
-  const filterNeeded = Math.abs(hueRot) > 0.1 || Math.abs(sat-1) > 0.005 || Math.abs(con-1) > 0.005;
-  const tintNeeded   = Math.abs(mr-1) > 0.005 || Math.abs(mg-1) > 0.005 || Math.abs(mb-1) > 0.005;
-
-  // ── Pass 1 (CPU): hue-rotate + saturate + contrast via CSS filter on offscreen ──
-  // Only runs when these values are non-trivial.
-  if(filterNeeded){
-    if(!_ppOffscreen) _ppOffscreen = document.createElement('canvas');
-    if(_ppOffscreen.width !== w || _ppOffscreen.height !== h){
-      _ppOffscreen.width = w; _ppOffscreen.height = h;
-    }
-    const oc = _ppOffscreen.getContext('2d');
-    oc.clearRect(0, 0, w, h);
-    oc.filter = `hue-rotate(${hueRot}deg) saturate(${sat}) contrast(${con})`;
-    oc.drawImage(ctx.canvas, 0, 0);
-    oc.filter = 'none';
-    ctx.clearRect(0, 0, w, h);
-    ctx.drawImage(_ppOffscreen, 0, 0);
-  }
-
-  // ── Pass 2 (GPU): tint × brightness via SVG feColorMatrix on the canvas element ──
-  // This replaces the getImageData pixel loop entirely — runs on the GPU, zero CPU cost.
-  // The filter is injected into the DOM once and reused every frame until values change.
-  const FILTER_ID = '_sfs_pp_tint';
-  _ensureSvgFilter(FILTER_ID, mr, mg, mb, PP_BRIGHTNESS_BOOST);
+  const M = _buildPostProcessMatrix(hueDeg, sat, r, g, b);
+  const FILTER_ID = '_sfs_pp_full';
+  _ensureSvgFilter(FILTER_ID, con, M);
   ctx.canvas.style.filter = `url(#${FILTER_ID})`;
 }
 
