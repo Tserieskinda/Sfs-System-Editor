@@ -97,9 +97,19 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       if(selectedBody) replaceBodyPrompt();
       return;
+    case 'Escape':
+      e.preventDefault();
+      if(typeof groupSelectMode !== 'undefined' && groupSelectMode){
+        if(typeof exitGroupSelect === 'function') exitGroupSelect();
+      }
+      break;
     case 'Delete':
       e.preventDefault();
-      if(selectedBody) confirmDeleteBody();
+      if(typeof groupSelectMode !== 'undefined' && groupSelectMode && typeof groupSelDeleteAll === 'function'){
+        groupSelDeleteAll();
+      } else if(selectedBody){
+        confirmDeleteBody();
+      }
       return;
     // WASD camera movement
     case 'w': case 'W': e.preventDefault(); _wasd.w = true; break;

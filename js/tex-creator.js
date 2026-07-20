@@ -601,31 +601,66 @@ const TC = (() => {
     const bar = document.createElement('canvas');
     bar.className = 'tc-grad-bar';
     bar.style.width = '100%';
-    bar.style.height = '28px';
-    bar.width = 400; bar.height = 28;
+    bar.style.height = '52px';
+    bar.width = 400; bar.height = 52;
     barWrap.appendChild(bar);
     panel.appendChild(barWrap);
     requestAnimationFrame(() => {
       const bw = bar.offsetWidth;
-      if(bw > 0){ bar.width = bw; _drawGradBar(bar, g); }
+      if(bw > 0){ bar.width = bw; bar.height = 52; _drawGradBar(bar, g); }
     });
     _drawGradBar(bar, g);
 
     // Drag state for stop handles
+    // Bar layout: top 20px = color swatch zone, bottom 32px = gradient zone
+    const BAR_SWATCH_H = 20;
     let _dragStop = null;
     const _getStopAtX = (clientX) => {
       const rect = bar.getBoundingClientRect();
       const x = (clientX - rect.left) * (bar.width / rect.width);
-      const HIT = 10;
+      const HIT = 14;
+      let best = -1, bestDist = HIT;
       for(let si = 0; si < g.stops.length; si++){
         const sx = g.stops[si].pos * bar.width;
-        if(Math.abs(x - sx) < HIT) return si;
+        const d = Math.abs(x - sx);
+        if(d < bestDist){ bestDist = d; best = si; }
       }
-      return -1;
+      return best;
     };
-    const _onBarDown = (clientX) => {
+    // Hidden color pickers for each stop, created once and reused
+    const _stopPickers = [];
+    const _getOrCreatePicker = (si) => {
+      if(!_stopPickers[si]){
+        const inp = document.createElement('input');
+        inp.type = 'color';
+        inp.style.cssText = 'position:fixed;opacity:0;pointer-events:none;width:0;height:0';
+        document.body.appendChild(inp);
+        inp.oninput = () => {
+          g.stops[si].color = inp.value;
+          _drawGradBar(bar, g);
+          _renderGradientList();
+          // Sync the stop-row swatch too
+          const rows = panel.querySelectorAll('.tc-stop-row');
+          if(rows[si]){ const sw = rows[si].querySelector('input[type=color]'); if(sw) sw.value = inp.value; }
+          _refresh();
+        };
+        _stopPickers[si] = inp;
+      }
+      _stopPickers[si].value = g.stops[si].color;
+      return _stopPickers[si];
+    };
+    const _onBarDown = (clientX, clientY) => {
+      const rect = bar.getBoundingClientRect();
+      const yRel = (clientY - rect.top) * (bar.height / rect.height);
       const si = _getStopAtX(clientX);
-      if(si >= 0){ _dragStop = si; bar.style.cursor = 'grabbing'; }
+      if(si < 0) return;
+      if(yRel < BAR_SWATCH_H){
+        // Click on color swatch zone → open color picker
+        const picker = _getOrCreatePicker(si);
+        picker.click();
+      } else {
+        _dragStop = si; bar.style.cursor = 'grabbing';
+      }
     };
     const _onBarMove = (clientX) => {
       if(_dragStop === null) return;
@@ -647,8 +682,8 @@ const TC = (() => {
     const _onBarUp = () => { _dragStop = null; bar.style.cursor = ''; };
 
     bar.style.cursor = 'default';
-    bar.addEventListener('mousedown',  e => { e.preventDefault(); _onBarDown(e.clientX); });
-    bar.addEventListener('touchstart', e => { _onBarDown(e.touches[0].clientX); }, {passive:true});
+    bar.addEventListener('mousedown',  e => { e.preventDefault(); _onBarDown(e.clientX, e.clientY); });
+    bar.addEventListener('touchstart', e => { _onBarDown(e.touches[0].clientX, e.touches[0].clientY); }, {passive:true});
     window.addEventListener('mousemove',  e => { if(_dragStop !== null) _onBarMove(e.clientX); });
     window.addEventListener('touchmove',  e => { if(_dragStop !== null){ e.preventDefault(); _onBarMove(e.touches[0].clientX); } }, {passive:false});
     window.addEventListener('mouseup',  _onBarUp);
@@ -720,11 +755,24 @@ const TC = (() => {
   function _drawGradBar(canvas, g){
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
-    // Checker
-    for(let x=0;x<W;x+=8) for(let y=0;y<H;y+=8){
-      ctx.fillStyle=((x/8+y/8)%2===0)?'#2a2a30':'#202025';
+    const SWATCH_H = 20;   // top zone for color squares
+    const GRAD_Y = SWATCH_H; // gradient starts here
+    const GRAD_H = H - SWATCH_H;
+
+    // Clear
+    ctx.clearRect(0, 0, W, H);
+
+    // Checker background for gradient zone
+    for(let x=0;x<W;x+=8) for(let y=GRAD_Y;y<H;y+=8){
+      ctx.fillStyle=((x/8+Math.floor((y-GRAD_Y)/8))%2===0)?'#2a2a30':'#202025';
       ctx.fillRect(x,y,8,8);
     }
+
+    // Swatch zone background
+    ctx.fillStyle = '#1a1a20';
+    ctx.fillRect(0, 0, W, SWATCH_H);
+
+    // Draw gradient fill
     const grd = ctx.createLinearGradient(0,0,W,0);
     for(const s of g.stops){
       const hex=s.color;
@@ -732,21 +780,43 @@ const TC = (() => {
       grd.addColorStop(s.pos,`rgba(${r},${gv},${b},${s.alpha})`);
     }
     ctx.fillStyle=grd;
-    ctx.fillRect(0,0,W,H);
-    // Stop markers — larger handles for easy dragging
+    ctx.fillRect(0,GRAD_Y,W,GRAD_H);
+
+    // Stop markers
+    const KNOB_R = 9;
+    const KNOB_CY = GRAD_Y + GRAD_H / 2;
+    const SW = 14, SH = 14; // color swatch size
     for(const s of g.stops){
       const x = s.pos * W;
-      ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1;
-      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
-      // Outer ring
-      ctx.fillStyle='rgba(0,0,0,0.6)';
-      ctx.beginPath(); ctx.arc(x,H/2,7,0,Math.PI*2); ctx.fill();
-      // Inner fill with stop color
-      ctx.fillStyle=s.color;
-      ctx.beginPath(); ctx.arc(x,H/2,5,0,Math.PI*2); ctx.fill();
+
+      // Vertical guide line through full bar
+      ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+
+      // Color swatch square in top zone
+      const sx = Math.max(SW/2+1, Math.min(W - SW/2 - 1, x));
+      const syTop = (SWATCH_H - SH) / 2;
+      // Drop shadow
+      ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=3;
+      ctx.fillStyle = s.color;
+      ctx.fillRect(sx - SW/2, syTop, SW, SH);
+      ctx.shadowBlur=0;
+      // Border
+      ctx.strokeStyle='rgba(255,255,255,0.75)'; ctx.lineWidth=1.5;
+      ctx.strokeRect(sx - SW/2 + 0.75, syTop + 0.75, SW - 1.5, SH - 1.5);
+
+      // Knob in gradient zone
+      // Outer shadow ring
+      ctx.shadowColor='rgba(0,0,0,0.7)'; ctx.shadowBlur=4;
+      ctx.fillStyle='rgba(0,0,0,0.55)';
+      ctx.beginPath(); ctx.arc(x, KNOB_CY, KNOB_R+1, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur=0;
+      // Colored fill
+      ctx.fillStyle = s.color;
+      ctx.beginPath(); ctx.arc(x, KNOB_CY, KNOB_R, 0, Math.PI*2); ctx.fill();
       // White border
-      ctx.strokeStyle='rgba(255,255,255,0.85)'; ctx.lineWidth=1.5;
-      ctx.beginPath(); ctx.arc(x,H/2,5,0,Math.PI*2); ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(x, KNOB_CY, KNOB_R, 0, Math.PI*2); ctx.stroke();
     }
   }
 

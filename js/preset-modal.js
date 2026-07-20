@@ -2,6 +2,7 @@
 // Preset modal state
 let _prsTab = 'all';       // 'all' | 'vanilla' | 'custom' | 'system'
 let _prsSearch = '';
+let _prsMode = 'add';      // 'add' | 'save-preset'  — controls confirm behaviour
 
 // SMA / parent state for the modal controls
 let _prsSmaMetres = 0;        // current SMA in metres (raw, Normal-scale)
@@ -318,6 +319,21 @@ function prsRebuild(){
   const grid = document.getElementById('prs-grid');
   const searchEl = document.getElementById('prs-search');
   if(!grid) return;
+
+  // Clipboard tab — completely separate rendering path
+  if(_prsTab === 'clipboard'){
+    searchEl && (searchEl.parentElement.style.display = 'none');
+    grid.innerHTML = '';
+    const clip = typeof _bodyClipboard !== 'undefined' ? _bodyClipboard : [];
+    if(clip.length === 0){
+      grid.innerHTML = '<div class="prs-empty">Clipboard is empty.<br>Use <b>Cut/Copy to Clipboard</b> on any body.</div>';
+    } else {
+      clip.forEach((entry, idx) => grid.appendChild(makeClipboardCard(entry, idx)));
+    }
+    return;
+  }
+  searchEl && (searchEl.parentElement.style.display = '');
+
   _prsSearch = (searchEl?.value || '').toLowerCase().trim();
   const all = buildAllPresets();
   const hasCenter = Object.values(bodies).some(b => b.isCenter);
@@ -378,6 +394,61 @@ function prsRebuild(){
   } else {
     filtered.forEach(p => grid.appendChild(makePrsCard(p)));
   }
+}
+
+function makeClipboardCard(entry, idx){
+  const card = document.createElement('div');
+  card.className = 'prs-card prs-card-clipboard';
+
+  // Draw sphere icon same as makePrsCard
+  const p = entry.preset || {};
+  const SZ = 32;
+  const ic = document.createElement('canvas');
+  ic.width = SZ; ic.height = SZ;
+  ic.style.cssText = 'display:block;margin:0 auto 3px';
+  const ix = ic.getContext('2d');
+  const cx = SZ/2, cy = SZ/2;
+  const pid = p.id || 'planet';
+  const cols = (p.color||'#aaaaaa,#555555').split(',');
+  const hi = cols[0]||'#aaaaaa', lo = cols[1]||'#555555', gl = p.glow||hi;
+  const ir = pid==='star'||pid==='blackhole' ? SZ*0.42
+           : pid==='gasgiant'||pid==='ringedgiant' ? SZ*0.36
+           : pid==='planet'||pid==='marslike'||pid==='mercurylike' ? SZ*0.30
+           : pid==='moon' ? SZ*0.24 : SZ*0.20;
+  if(pid==='star'||pid==='blackhole'){
+    const gg = ix.createRadialGradient(cx,cy,ir*0.5,cx,cy,ir*1.9);
+    gg.addColorStop(0, gl+'55'); gg.addColorStop(1, gl+'00');
+    ix.beginPath(); ix.arc(cx,cy,ir*1.9,0,Math.PI*2); ix.fillStyle=gg; ix.fill();
+  }
+  const sg = ix.createRadialGradient(cx-ir*0.28,cy-ir*0.28,ir*0.08,cx,cy,ir);
+  sg.addColorStop(0, hi); sg.addColorStop(0.5, hi); sg.addColorStop(1, lo);
+  ix.beginPath(); ix.arc(cx,cy,ir,0,Math.PI*2); ix.fillStyle=sg; ix.fill();
+
+  const r = entry.data.BASE_DATA?.radius;
+  const g = entry.data.BASE_DATA?.gravity;
+  const sub = r ? `r: ${r >= 1e6 ? (r/1e6).toFixed(2)+'M' : r >= 1e3 ? (r/1e3).toFixed(1)+'k' : r} m  g: ${g}` : '';
+
+  card.innerHTML =
+    `<span class="prs-card-name">${entry.name}</span>` +
+    (sub ? `<span class="prs-card-sub">${sub}</span>` : '') +
+    `<span class="prs-card-badge" style="background:rgba(255,160,50,.18);color:rgba(255,190,80,.9);border-color:rgba(255,160,50,.3)">📋</span>` +
+    `<button class="prs-clip-del" title="Remove from clipboard" onclick="event.stopPropagation();clipboardRemove(${idx})">✕</button>`;
+  card.insertBefore(ic, card.firstChild);
+
+  card.onclick = () => {
+    document.querySelectorAll('.prs-card').forEach(c => c.classList.remove('sel'));
+    card.classList.add('sel');
+    // Store a synthetic preset key that encodes the clipboard index
+    selectedPresetKey = '__clip__' + idx;
+  };
+  return card;
+}
+
+function clipboardRemove(idx){
+  if(typeof _bodyClipboard === 'undefined') return;
+  _bodyClipboard.splice(idx, 1);
+  if(typeof _updateClipboardBadge === 'function') _updateClipboardBadge();
+  prsRebuild();
 }
 
 function makePrsCard(p){
@@ -442,6 +513,7 @@ function makePrsCard(p){
 
 function openPreset(forCenter){
   isForCenter = forCenter;
+  _prsMode = 'add';
   // Default selection: Sun for center, Earth for body
   selectedPresetKey = forCenter ? 'Sun' : 'Earth';
   _prsTab = 'all';
@@ -457,8 +529,12 @@ function openPreset(forCenter){
   // Show/hide orbit controls and NEXT button
   const orbitCtrl = document.getElementById('prs-orbit-controls');
   const nextBtn   = document.getElementById('prs-next-btn');
-  if(orbitCtrl) orbitCtrl.style.display = forCenter ? 'none' : '';
-  if(nextBtn)   nextBtn.style.display   = forCenter ? 'none' : '';
+  const saveFields = document.getElementById('prs-save-preset-fields');
+  const uploadBtn  = document.getElementById('prs-upload-btn');
+  if(orbitCtrl)  orbitCtrl.style.display  = forCenter ? 'none' : '';
+  if(nextBtn)    nextBtn.style.display    = forCenter ? 'none' : '';
+  if(saveFields) saveFields.style.display = 'none';
+  if(uploadBtn)  uploadBtn.style.display  = '';
 
   let desc;
   if(forCenter){
@@ -480,8 +556,58 @@ function openPreset(forCenter){
   }
   document.getElementById('mp-desc').innerHTML = desc;
   document.getElementById('prs-confirm-btn').textContent = forCenter ? 'ADD CENTER →' : 'ADD BODY →';
+  document.getElementById('prs-confirm-btn').style.borderColor = '';
+  document.getElementById('prs-confirm-btn').style.color = '';
+  document.getElementById('prs-confirm-btn').style.background = '';
 
   // Open the modal first so it's visible even if prsRebuild is slow
+  document.getElementById('modal-preset').classList.add('open');
+  try { prsRebuild(); } catch(e){
+    console.error('[SFS] prsRebuild:', e);
+    const grid = document.getElementById('prs-grid');
+    if(grid) grid.innerHTML = '<div class="prs-empty">Error loading presets — check console.</div>';
+  }
+}
+
+// ── Open modal in "save as procgen preset" mode ────────────────────────────────
+function openPresetForSave(){
+  _prsMode = 'save-preset';
+  isForCenter = false;   // must be false so prsRebuild doesn't restrict to stars/BHs
+  selectedPresetKey = 'Earth';
+  _prsTab = 'all';
+  _prsSearch = '';
+  _prsSmaUserPicked = false;
+
+  try { prsRefreshNamedTabs(); } catch(_){}
+  document.querySelectorAll('.prs-tab').forEach((t,i)=>t.classList.toggle('on', i===0));
+  const searchEl = document.getElementById('prs-search');
+  if(searchEl) searchEl.value = '';
+
+  // Hide orbit controls and NEXT (not relevant for saving)
+  const orbitCtrl  = document.getElementById('prs-orbit-controls');
+  const nextBtn    = document.getElementById('prs-next-btn');
+  const saveFields = document.getElementById('prs-save-preset-fields');
+  const uploadBtn  = document.getElementById('prs-upload-btn');
+  if(orbitCtrl)  orbitCtrl.style.display  = 'none';
+  if(nextBtn)    nextBtn.style.display    = 'none';
+  if(saveFields){ saveFields.style.display = ''; }
+  if(uploadBtn)  uploadBtn.style.display  = 'none';
+
+  // Reset save fields
+  const nameEl = document.getElementById('prs-save-name');
+  const catEl  = document.getElementById('prs-save-cat');
+  if(nameEl) nameEl.value = '';
+  if(catEl)  catEl.value  = 'custom';
+
+  document.getElementById('mp-desc').innerHTML =
+    'Pick any preset to save into the <strong style="color:var(--sky2)">procgen preset pool</strong> — choose a name and category below';
+
+  const confirmBtn = document.getElementById('prs-confirm-btn');
+  confirmBtn.textContent = 'SAVE AS PRESET →';
+  confirmBtn.style.borderColor = 'rgba(100,220,180,.55)';
+  confirmBtn.style.color       = 'rgba(100,220,180,.95)';
+  confirmBtn.style.background  = 'rgba(100,220,180,.10)';
+
   document.getElementById('modal-preset').classList.add('open');
   try { prsRebuild(); } catch(e){
     console.error('[SFS] prsRebuild:', e);
@@ -493,9 +619,22 @@ function openPreset(forCenter){
 function closePreset(){
   document.getElementById('modal-preset').classList.remove('open');
   if(window._prsCloseHook){ window._prsCloseHook(); window._prsCloseHook = null; }
-  // Restore confirm button text
+  // Reset mode
+  _prsMode = 'add';
+  // Restore confirm button text/style
   const btn = document.getElementById('prs-confirm-btn');
-  if(btn) btn.textContent = isForCenter ? 'ADD CENTER →' : 'ADD BODY →';
+  if(btn){
+    btn.textContent = isForCenter ? 'ADD CENTER →' : 'ADD BODY →';
+    btn.style.borderColor = '';
+    btn.style.color       = '';
+    btn.style.background  = '';
+  }
+  // Hide save-preset fields
+  const sf = document.getElementById('prs-save-preset-fields');
+  if(sf) sf.style.display = 'none';
+  // Restore upload button
+  const ub = document.getElementById('prs-upload-btn');
+  if(ub) ub.style.display = '';
 }
 function syncAddBodyBtn(){
   const btn = document.getElementById('btn-add-body');
@@ -515,7 +654,56 @@ function syncAddBodyBtn(){
 function addBodyPrompt(){ openPreset(false); }
 
 function confirmPreset(){
+  // ── Save-as-preset mode: register into procgen pool instead of adding to scene ──
+  if(_prsMode === 'save-preset'){
+    const all    = buildAllPresets();
+    const preset = all.find(p => p.key === selectedPresetKey);
+    if(!preset){ alert('No preset selected.'); return; }
+
+    const nameEl = document.getElementById('prs-save-name');
+    const catEl  = document.getElementById('prs-save-cat');
+    const name   = (nameEl?.value || '').trim() || preset.name;
+    const cat    = catEl?.value || 'custom';
+
+    const bd = JSON.parse(JSON.stringify(preset.data || {}));
+    delete bd.ORBIT_DATA;
+
+    if(typeof _pgRegisterUserPreset === 'function'){
+      _pgRegisterUserPreset(name, bd, cat, preset.id || '');
+    }
+    if(typeof pgPresetsRender === 'function') pgPresetsRender();
+    try { SFX.select(); } catch(_){}
+    if(typeof pgShowStatus === 'function') pgShowStatus(`✓ Preset "${name}" saved to ${cat} pool`, 'ok');
+
+    closePreset();
+    return;
+  }
+
   closePreset();
+
+  // Clipboard entry selected
+  if(typeof selectedPresetKey === 'string' && selectedPresetKey.startsWith('__clip__')){
+    const idx = parseInt(selectedPresetKey.slice(8), 10);
+    const entry = (typeof _bodyClipboard !== 'undefined') ? _bodyClipboard[idx] : null;
+    if(!entry){ alert('Clipboard entry not found.'); return; }
+    let newName = entry.name;
+    let n = 2;
+    while(bodies[newName]) { newName = entry.name + '_copy' + (n++); }
+    pushUndo();
+    const newData = JSON.parse(JSON.stringify(entry.data));
+    delete newData.isCenter;
+    if(newData.ORBIT_DATA){
+      newData.ORBIT_DATA.SMA = (parseFloat(newData.ORBIT_DATA.SMA) || 0) * 1.1 || 1e8;
+    } else {
+      const centre = Object.keys(bodies).find(k => bodies[k].isCenter);
+      newData.ORBIT_DATA = { parent: centre || 'Sun', SMA: 1e8, E: 0, direction: 1 };
+    }
+    bodies[newName] = { preset: entry.preset, data: newData };
+    if(typeof drawViewport === 'function') drawViewport();
+    if(typeof updateStatusBar === 'function') updateStatusBar();
+    return;
+  }
+
   const all = buildAllPresets();
   const preset = all.find(p => p.key === selectedPresetKey);
   if(!preset){ alert('No preset selected.'); return; }

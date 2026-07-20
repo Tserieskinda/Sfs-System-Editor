@@ -134,8 +134,9 @@ function exportSystem(){
   // Planet Data/
   bodyEntries.forEach(([name, b]) => {
     const _ed = JSON.parse(JSON.stringify(b.data));
-    const { version: _ev, ..._er } = _ed;
-    const out = { version: _ev || '1.5', ..._er };
+    const { version: _ev, editor: _etags, ..._er } = _ed;
+    // editor goes last so it sits cleanly at the bottom of the file
+    const out = { version: _ev || '1.5', ..._er, ...(_etags !== undefined ? { editor: _etags } : {}) };
     zipFiles[`${sysName}/Planet Data/${name}.txt`] = enc(JSON.stringify(out, null, 2));
   });
 

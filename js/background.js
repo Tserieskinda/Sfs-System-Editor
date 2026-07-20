@@ -1,6 +1,11 @@
 // ════════════════════════════════ BACKGROUND THEMES ════════════════════════════════
-const BG_THEMES = ['stars','nebula','matrix','custom'];
-let bgTheme = localStorage.getItem('sfs_bg_theme') || 'stars';
+const BG_THEMES = ['gamelike','nebula','matrix','custom'];
+// Migrate anyone who had the old "Twinkling Stars" theme selected — it's been
+// removed in favour of 'gamelike' (pure black + in-game-style stars).
+if(localStorage.getItem('sfs_bg_theme') === 'stars'){
+  localStorage.setItem('sfs_bg_theme', 'gamelike');
+}
+let bgTheme = localStorage.getItem('sfs_bg_theme') || 'gamelike';
 let _customBgImg = null; // loaded Image object for custom theme
 
 // Attempt to reload a saved custom image from localStorage on startup
@@ -49,7 +54,7 @@ function clearCustomBg(){
   _customBgImg = null;
   localStorage.removeItem('sfs_custom_bg_dataurl');
   _updateCustomBgUI(false);
-  setBgTheme('stars');
+  setBgTheme('gamelike');
 }
 
 function onUiHuePick(hex){
@@ -74,6 +79,48 @@ function _updateUiSwatches(h){
     `hsl(${h},60%,15%),hsl(${h},65%,35%),hsl(${h},70%,55%),hsl(${h},75%,70%),hsl(${h},65%,85%))`;
 }
 
+// ── Small standalone 2D Perlin noise (classic Ken Perlin permutation-table
+// gradient noise) — used by the 'gamelike' background theme to mirror the
+// actual game's star placement/twinkle algorithm (SFS's StarGenerator.cs
+// clusters stars via a Perlin-noise rejection-sample, and Stars.cs twinkles
+// each star's SIZE via PerlinNoise(time*0.3, starIndex), not a sine wave).
+// This is a standard from-scratch implementation, not a port of Unity's
+// internal noise — it won't be bit-identical, but produces the same kind of
+// smooth, natural clustering/pulsing the game actually uses, which is what
+// "resembles how the game does stars" calls for.
+const _PERLIN_PERM = (() => {
+  const p = new Uint8Array(256);
+  for(let i=0;i<256;i++) p[i] = i;
+  // Fixed shuffle (seeded, deterministic) — fine for a decorative background
+  let seed = 1337;
+  const rnd = () => { seed = (seed*1103515245+12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  for(let i=255;i>0;i--){
+    const j = Math.floor(rnd()*(i+1));
+    const t = p[i]; p[i] = p[j]; p[j] = t;
+  }
+  const perm = new Uint8Array(512);
+  for(let i=0;i<512;i++) perm[i] = p[i & 255];
+  return perm;
+})();
+function _perlinFade(t){ return t*t*t*(t*(t*6-15)+10); }
+function _perlinGrad(hash, x, y){
+  const h = hash & 3;
+  const u = (h < 2) ? x : y;
+  const v = (h < 2) ? y : x;
+  return ((h & 1) ? -u : u) + ((h & 2) ? -2*v : 2*v);
+}
+function perlin2D(x, y){
+  const X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
+  x -= Math.floor(x); y -= Math.floor(y);
+  const u = _perlinFade(x), v = _perlinFade(y);
+  const P = _PERLIN_PERM;
+  const aa = P[X + P[Y]], ab = P[X + P[Y+1]], ba = P[X+1 + P[Y]], bb = P[X+1 + P[Y+1]];
+  const x1 = _perlinGrad(aa,x,y)     + u*(_perlinGrad(ba,x-1,y)   - _perlinGrad(aa,x,y));
+  const x2 = _perlinGrad(ab,x,y-1)   + u*(_perlinGrad(bb,x-1,y-1) - _perlinGrad(ab,x,y-1));
+  // Result roughly in [-1,1]; normalise to [0,1] for convenience at call sites.
+  return (x1 + v*(x2-x1)) * 0.5 + 0.5;
+}
+
 
 (function(){
   const c = document.getElementById('bg');
@@ -85,20 +132,56 @@ function _updateUiSwatches(h){
     if(animId) cancelAnimationFrame(animId);
     particles = null;
 
-    if(bgTheme === 'stars'){
-      particles = Array.from({length:380}, () => ({
-        x: Math.random()*c.width, y: Math.random()*c.height,
-        r: Math.random()*1.6+.15, a: Math.random()*.6+.15,
-        sp: Math.random()*.004+.001, ph: Math.random()*Math.PI*2,
-        col: Math.random()>.85 ? `rgba(255,240,200,` : `rgba(180,210,255,`
-      }));
+    if(bgTheme === 'gamelike'){
+      // Pure black backdrop + a Perlin-clustered starfield, matching SFS's own
+      // StarGenerator.cs (Perlin-noise rejection-sample placement, so stars
+      // naturally clump rather than scatter uniformly) and Stars.cs (each
+      // star's visual size pulses via Perlin noise over time, not a sine wave).
+      const PERLIN_SIZE = Math.max(c.width, c.height) / 5.5;
+      const STAR_COUNT = 260;
+      particles = [];
+      for(let i=0; i<STAR_COUNT; i++){
+        let x, y, tries = 0;
+        do {
+          x = Math.random()*c.width;
+          y = Math.random()*c.height;
+          tries++;
+        } while(
+          perlin2D(x/PERLIN_SIZE + 100, y/PERLIN_SIZE + 100) > (Math.random()*0.6 + 0.2) &&
+          tries < 12
+        );
+        const sizeRoll = Math.random();
+        // Bias toward small stars with a few standouts — approximates the
+        // game's AnimationCurve (exact curve isn't recoverable from decompiled
+        // code, since it's serialized Editor data, not in the .cs source).
+        const baseR = 0.3 + Math.pow(sizeRoll, 3) * 2.0;
+        const colRoll = Math.random();
+        const col = colRoll > 0.85 ? 'rgba(255,235,205,'
+                  : colRoll > 0.70 ? 'rgba(200,220,255,'
+                  :                  'rgba(255,255,255,';
+        particles.push({ x, y, baseR, col, noiseI: i });
+      }
       function draw(t){
         x.clearRect(0,0,c.width,c.height);
-        particles.forEach(s=>{
-          const a = s.a*(0.55+0.45*Math.sin(t*.001*s.sp*1000+s.ph));
-          x.beginPath(); x.arc(s.x,s.y,s.r,0,Math.PI*2);
-          x.fillStyle = s.col+a+')'; x.fill();
-        });
+        x.fillStyle = '#000';
+        x.fillRect(0,0,c.width,c.height);
+        // Global star-intensity multiplier — mirrors the game's own mechanism
+        // of fading background stars based on a body's authored PostProcessing
+        // curve (e.g. hideStarsInAtmosphere), computed live in viewport.js from
+        // the same POST_PROCESSING_DATA the game itself reads. Defaults to 1
+        // (fully visible) when no relevant body/data is present.
+        const starIntensity = (typeof window._sfsBgStarIntensity === 'number')
+          ? Math.max(0, Math.min(1, window._sfsBgStarIntensity)) : 1;
+        if(starIntensity > 0.002){
+          particles.forEach(s=>{
+            // Mirrors Stars.cs: Mathf.LerpUnclamped(0.6, 1.8, PerlinNoise(t*0.3, i))
+            const pulse = 0.6 + 1.2 * perlin2D(t*0.0003, s.noiseI*0.7);
+            const r = s.baseR * pulse;
+            const a = Math.max(0, Math.min(1, 0.55 + 0.35*(pulse-1))) * starIntensity;
+            x.beginPath(); x.arc(s.x, s.y, r, 0, Math.PI*2);
+            x.fillStyle = s.col + a + ')'; x.fill();
+          });
+        }
         animId = requestAnimationFrame(draw);
       }
       animId = requestAnimationFrame(draw);

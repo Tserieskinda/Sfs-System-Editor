@@ -13,6 +13,7 @@ function goStart(){
   document.getElementById('viewport').classList.remove('active');
   _syncThemeBtns();
   closeSidebar();
+  if(typeof exitGroupSelect === 'function') exitGroupSelect();
   // Always reset to main nav when returning to start
   const mainNav = document.getElementById('s-start-main-nav');
   const createNav = document.getElementById('s-start-create-nav');
@@ -30,6 +31,12 @@ function goStart(){
 }
 function goNew(){
   show('s-new');
+  // Block pointer events for the duration of the screen-transition animation so
+  // a click on the start-screen (e.g. "CREATE NEW SYSTEM") can't bleed through
+  // to the #add-center-btn that appears at the same coordinates in s-new.
+  const sNew = document.getElementById('s-new');
+  sNew.style.pointerEvents = 'none';
+  setTimeout(() => { sNew.style.pointerEvents = ''; }, 500);
   document.getElementById('viewport').classList.add('active');
   vpOffX = 0; vpOffY = 0; vpZ = 1;
   document.getElementById('sb-zoom').textContent = '100%';
@@ -38,10 +45,14 @@ function goNew(){
 }
 function goOpen(){
   show('s-open');
+  if(typeof exitGroupSelect === 'function') exitGroupSelect();
   // Show/hide the warning banner based on whether bodies are loaded
   const hasSession = Object.keys(bodies).length > 0;
   const warn = document.getElementById('open-session-warn');
   if(warn) warn.style.display = hasSession ? '' : 'none';
+  // Import System only makes sense when a session is already loaded
+  const importBtn = document.getElementById('btn-import-system');
+  if(importBtn) importBtn.style.display = hasSession ? '' : 'none';
 }
 
 // "START WITH EMPTY SYSTEM" from the open screen — confirm if session exists
@@ -65,4 +76,5 @@ function goNewFromOpen(){
 
 function goFeatured(){
   show('s-featured');
+  if(typeof exitGroupSelect === 'function') exitGroupSelect();
 }

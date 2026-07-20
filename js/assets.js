@@ -4,83 +4,79 @@ const textureCache  = {};
 const texPixelCache = {};
 let _sfsDbgLogged   = {}; // throttle per-body NODRAW warnings to once per load
 
-function cacheTexture(name, dataUrl){
-  console.log(`[SFS|CACHE] queueing "${name}" (${dataUrl.length} chars)`);
-  const img = new Image();
-  img.onload = () => {
-    textureCache[name] = img;
-    console.log(`[SFS|CACHE] loaded "${name}" ${img.naturalWidth}×${img.naturalHeight}`);
-    try {
-      // ── Ring strip: 1-D horizontal sample ──────────────────────────────────
-      const c = document.createElement('canvas');
-      c.width = 64; c.height = 64;
-      const x = c.getContext('2d');
-      x.drawImage(img, 0, 0, 64, 64);
-      texPixelCache[name + '_ring'] = x.getImageData(0, 0, 64, 1).data;
-      // _atmos: always 64 rows, row 0=outer(transparent), row 63=inner(surface)
-      texPixelCache[name + '_atmos'] = x.getImageData(0, 0, 1, 64).data;
+// Pending decode queue — process images one at a time to avoid overwhelming mobile
+const _decodeQueue = [];
+let   _decodeRunning = false;
 
-      // ── Atmosphere polar canvas ────────────────────────────────────────────
-      // Pre-warp the texture into polar coordinates so we can drawImage it
-      // directly onto the atmosphere disc at render time.
-      //
-      // SFS wrapping rules:
-      //   - Texture left  edge (U=0) = rightmost point of planet (East, angle=0)
-      //   - Texture right edge (U=1) = wraps back after 360° counter-clockwise
-      //   - Wrapping is CCW: East→North→West→South→East = left→right of texture
-      //   - Texture bottom row (Y=SH-1) = planet surface (radFrac=0)
-      //   - Texture top    row (Y=0)    = outer atmosphere edge (radFrac=1)
-      //
-      // Canvas atan2: angle=0 → East, increases clockwise (CW).
-      // To get CCW from East: u = 1 - normalised_CW_angle  (flip direction)
-      const SZ = 256;
-      const pc = document.createElement('canvas');
-      pc.width = SZ; pc.height = SZ;
-      const px2 = pc.getContext('2d');
-      const srcC = document.createElement('canvas');
-      srcC.width = img.naturalWidth; srcC.height = img.naturalHeight;
-      const srcX = srcC.getContext('2d');
-      srcX.drawImage(img, 0, 0);
-      const srcD = srcX.getImageData(0, 0, srcC.width, srcC.height).data;
-      const SW = srcC.width, SH = srcC.height;
-      const outD = px2.createImageData(SZ, SZ);
-      const od = outD.data;
-      const halfSZ = SZ / 2;
-      for(let py = 0; py < SZ; py++){
-        for(let ppx = 0; ppx < SZ; ppx++){
-          const dx = ppx - halfSZ, dy = py - halfSZ;
-          const radFrac = Math.sqrt(dx*dx + dy*dy) / halfSZ;
-          const oi = (py*SZ + ppx)*4;
-          if(radFrac > 1.0){
-            od[oi]=od[oi+1]=od[oi+2]=od[oi+3]=0;
-            continue;
+// Low-memory detection: deviceMemory ≤ 2 GB or unknown → conservative mode.
+// In conservative mode we yield after EVERY texture and add a small gap between
+// decodes so the GC has a chance to collect the previous data-URI string.
+const _lowMemDevice = (navigator.deviceMemory || 4) <= 2;
+const _decodeYieldMs = _lowMemDevice ? 16 : 0; // one frame gap on low-end phones
+
+// While a bulk load is in progress, suppress per-texture redraws — fire once at end.
+let _bulkLoadActive = false;
+
+function cacheTexture(name, dataUrl){
+  _decodeQueue.push({ name, dataUrl });
+  _processDecodeQueue();
+}
+
+// Process image decode queue strictly one at a time, with memory-aware yielding.
+async function _processDecodeQueue(){
+  if(_decodeRunning) return;
+  _decodeRunning = true;
+
+  let decoded = 0;
+  while(_decodeQueue.length > 0){
+    const { name, dataUrl } = _decodeQueue.shift();
+
+    await new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        textureCache[name] = img;
+        // ── Fast path: 64×64 strip samples ──────────────────────────────────
+        try {
+          const c = document.createElement('canvas');
+          c.width = 64; c.height = 64;
+          const x = c.getContext('2d');
+          x.drawImage(img, 0, 0, 64, 64);
+          texPixelCache[name + '_ring']  = x.getImageData(0, 0, 64, 1).data;
+          texPixelCache[name + '_atmos'] = x.getImageData(0, 0, 1, 64).data;
+        } catch(e) { console.warn('[SFS|CACHE] strip sample failed:', e); }
+
+        // During bulk loads suppress per-texture redraws — the caller fires
+        // one final drawViewport/refreshTexPickerLists when the batch ends.
+        if(!_bulkLoadActive){
+          drawViewport();
+          if(typeof refreshTexPickerLists === 'function') refreshTexPickerLists();
+          if(typeof _PSC !== 'undefined' && _PSC.open && typeof _pscScheduleDraw === 'function'){
+            _pscScheduleDraw();
           }
-          // Normalised CW angle: 0=East, increases clockwise, range 0..1
-          let cwAngle = Math.atan2(dy, dx) / (Math.PI*2);
-          if(cwAngle < 0) cwAngle += 1;
-          // CCW from East: flip so U=0=East and direction is counter-clockwise
-          const u = (1 - cwAngle) % 1;
-          // radFrac=0 (surface/inner) → texture bottom (SH-1)
-          // radFrac=1 (outer edge)    → texture top    (0)
-          const sx = Math.min(SW-1, Math.max(0, Math.round(u * (SW-1))));
-          const sy = Math.min(SH-1, Math.max(0, Math.round((1 - radFrac) * (SH-1))));
-          const si = (sy * SW + sx) * 4;
-          od[oi]   = srcD[si];
-          od[oi+1] = srcD[si+1];
-          od[oi+2] = srcD[si+2];
-          od[oi+3] = srcD[si+3];
         }
-      }
-      px2.putImageData(outD, 0, 0);
-      texPixelCache[name + '_atmoCanvas'] = pc;
-    } catch(e) { console.warn('[SFS|CACHE] atmo polar warp failed:', e); }
-    drawViewport();
-    // Also refresh comparison modal if it's open
-    if(typeof _PSC !== 'undefined' && _PSC.open && typeof _pscScheduleDraw === 'function'){
-      _pscScheduleDraw();
+        resolve();
+      };
+      img.onerror = () => {
+        console.warn('[SFS|CACHE] failed to decode:', name);
+        resolve();
+      };
+      img.src = dataUrl;
+    });
+
+    decoded++;
+    // Low-end: yield every texture.  High-end: yield every 8.
+    const yieldEvery = _lowMemDevice ? 1 : 8;
+    if(decoded % yieldEvery === 0){
+      await new Promise(r => setTimeout(r, _decodeYieldMs));
     }
-  };
-  img.src = dataUrl;
+  }
+
+  _decodeRunning = false;
+
+  // Queue drained — fire deferred notifications now.
+  if(_bulkLoadActive) return; // caller will fire them
+  drawViewport();
+  if(typeof refreshTexPickerLists === 'function') refreshTexPickerLists();
 }
 
 // ════════════════════════════════ ASSETS SYSTEM ════════════════════════════════
@@ -125,6 +121,7 @@ function handleFiles(files, type){
         cacheTexture(texName, ev.target.result);
         refreshTexPickerLists();
         updateAssetEmptyState();
+        if(typeof autosaveFlush === 'function') setTimeout(autosaveFlush, 500);
       };
       reader.readAsDataURL(file);
     } else if(type==='heightmaps' && /\.(png|jpe?g)$/i.test(file.name)){
@@ -133,6 +130,7 @@ function handleFiles(files, type){
         assets.heightmaps.push(entry);
         renderAssetRow(entry, 'heightmaps');
         injectCustomHeightmap(entry.name);
+        if(typeof autosaveFlush === 'function') setTimeout(autosaveFlush, 500);
       };
       reader.readAsDataURL(file);
     } else if(type==='heightmaps' || type==='other'){
@@ -141,6 +139,7 @@ function handleFiles(files, type){
         assets[type].push(entry);
         renderAssetRow(entry, type);
         if(type==='heightmaps') injectCustomHeightmap(entry.name);
+        if(typeof autosaveFlush === 'function') setTimeout(autosaveFlush, 500);
       };
       reader.readAsText(file);
     }
@@ -277,6 +276,94 @@ function allTexNames(){
   return [...new Set(uploaded)].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
 }
 
+// Returns aspect ratio (width/height) for a cached texture, or 1 if unknown.
+function _texAspect(name){
+  const img = textureCache[name];
+  if(img && img.naturalWidth && img.naturalHeight) return img.naturalWidth / img.naturalHeight;
+  // Fallback: check assets entry via an offscreen Image if not yet decoded.
+  // We can't block here, so just return 1 (neutral) for uncached textures.
+  return 1;
+}
+
+// Per-picker sort configs:
+//   keyword  – boost textures whose name includes this string (case-insensitive)
+//   aspect   – 'tall'   → portrait first (low ratio)
+//              'wide'   → landscape first (high ratio)
+//              'square' → closest to 1:1 first
+//   keyFirst – keyword matches float above aspect-preference matches
+// Special case: 'cl-tex' uses a custom 3-bucket sort (see sortTexForPicker).
+const TPICK_SORT = {
+  'av-tex':  { keyword: 'atmo',  aspect: 'tall',  keyFirst: true },
+  'fc-tex':  { keyword: 'cloud', aspect: 'square', keyFirst: true },
+  'rng-tex': { keyword: 'ring',  aspect: 'wide',   keyFirst: true },
+};
+
+// Score a texture for a given picker so lower = shown first.
+function _texSortScore(name, cfg){
+  const lower      = name.toLowerCase();
+  const hasKw      = lower.includes(cfg.keyword);
+  const ratio      = _texAspect(name);
+
+  let aspectScore;
+  if(cfg.aspect === 'tall'){
+    aspectScore = ratio;
+  } else if(cfg.aspect === 'wide'){
+    aspectScore = 1 / Math.max(ratio, 0.01);
+  } else { // 'square'
+    aspectScore = Math.abs(ratio - 1);
+  }
+
+  // Keyword matches get a large bucket offset → float to top
+  return (hasKw ? 0 : 1000) + aspectScore;
+}
+
+// cl-tex 3-bucket sort:
+//   bucket 0 – "cloud" keyword + least square (furthest from 1:1, i.e. wide/tall)
+//   bucket 1 – "cloud" keyword + squarer (closest to 1:1)
+//   bucket 2 – everything else (alpha)
+function _clTexSortScore(name){
+  const hasCloud = name.toLowerCase().includes('cloud');
+  const ratio    = _texAspect(name);
+  const squareness = Math.abs(ratio - 1); // 0 = perfect square, higher = less square
+
+  if(hasCloud){
+    // bucket 0: non-square cloud textures (sorted most-non-square first → descending squareness)
+    // bucket 1: square cloud textures (sorted most-square first → ascending squareness)
+    // We split at squareness threshold of 0.2 (ratio outside 0.83–1.2 = "not square")
+    const isSquare = squareness < 0.2;
+    if(!isSquare){
+      // bucket 0: sort descending squareness (least square = most stretched = first)
+      return { bucket: 0, sub: -squareness };
+    } else {
+      // bucket 1: sort ascending squareness (most square first)
+      return { bucket: 1, sub: squareness };
+    }
+  }
+  // bucket 2: alpha sort
+  return { bucket: 2, sub: 0 };
+}
+
+// Sort a list of texture names for a specific picker.
+function sortTexForPicker(names, pickId){
+  if(pickId === 'cl-tex'){
+    return names.slice().sort((a, b) => {
+      const sa = _clTexSortScore(a);
+      const sb = _clTexSortScore(b);
+      if(sa.bucket !== sb.bucket) return sa.bucket - sb.bucket;
+      if(sa.sub    !== sb.sub)    return sa.sub    - sb.sub;
+      return a.localeCompare(b, undefined, { sensitivity: 'base' });
+    });
+  }
+  const cfg = TPICK_SORT[pickId];
+  if(!cfg) return names; // no special ordering → unchanged (already alpha)
+  return names.slice().sort((a, b) => {
+    const sa = _texSortScore(a, cfg);
+    const sb = _texSortScore(b, cfg);
+    if(sa !== sb) return sa - sb;
+    return a.localeCompare(b, undefined, { sensitivity: 'base' });
+  });
+}
+
 function getTexThumb(name){
   // Check textureCache first (works for all built-ins and uploads)
   const img = textureCache[name];
@@ -288,9 +375,10 @@ function getTexThumb(name){
 }
 
 function buildDropdownItems(pickId, query){
-  const names = allTexNames();
   const q = query.toLowerCase();
-  const filtered = names.filter(n => !q || n.toLowerCase().includes(q));
+  // Get alphabetically-sorted base list, then apply per-picker smart ordering.
+  const sorted   = sortTexForPicker(allTexNames(), pickId);
+  const filtered = sorted.filter(n => !q || n.toLowerCase().includes(q));
   const dd = document.getElementById('tpd-'+pickId);
   if(!dd) return;
   // Bump token so any in-flight rAF chains from a previous build abort.
@@ -313,8 +401,8 @@ function buildDropdownItems(pickId, query){
     return;
   }
 
-  // Show at most 5 results — keeps DOM tiny and images small on mobile.
-  const MAX_VISIBLE = 5;
+  // Show at most 15 results
+  const MAX_VISIBLE = 15;
   const visible = filtered.slice(0, MAX_VISIBLE);
   visible.forEach(name => {
     const el = document.createElement('div');
@@ -354,21 +442,32 @@ function openTexPicker(pickId){
   const dd = document.getElementById('tpd-'+pickId);
   const inp = document.getElementById(pickId);
   if(!dd || !inp) return;
-  // On touch devices the dropdown is position:absolute (CSS override),
-  // so fixed coords are not needed and would be wrong after keyboard resize.
+  // Position dropdown with fixed coords — works for both desktop and touch since
+  // we now portal the dropdown to <body> on all devices.
+  // On touch we always place the dropdown ABOVE the input to clear the keyboard.
   const isTouch = window.matchMedia('(pointer: coarse)').matches;
-  if(!isTouch){
-    // Desktop: position dropdown using fixed coords (escapes overflow:auto sidebar)
+  {
     const rect = inp.getBoundingClientRect();
+    dd.style.position = 'fixed';
     dd.style.left  = rect.left + 'px';
     dd.style.width = rect.width + 'px';
-    const spaceBelow = window.innerHeight - rect.bottom;
-    if(spaceBelow >= 160 || spaceBelow > window.innerHeight - rect.top){
-      dd.style.top    = (rect.bottom + 2) + 'px';
-      dd.style.bottom = 'auto';
-    } else {
+    dd.style.zIndex = '999999';
+    if(isTouch){
+      // Always open above on mobile (keyboard takes up bottom half)
       dd.style.bottom = (window.innerHeight - rect.top + 2) + 'px';
       dd.style.top    = 'auto';
+      // Cap height so it doesn't overflow the top of the screen
+      dd.style.maxHeight = Math.min(rect.top - 56, window.innerHeight * 0.55) + 'px';
+    } else {
+      dd.style.maxHeight = '';
+      const spaceBelow = window.innerHeight - rect.bottom;
+      if(spaceBelow >= 160 || spaceBelow > window.innerHeight - rect.top){
+        dd.style.top    = (rect.bottom + 2) + 'px';
+        dd.style.bottom = 'auto';
+      } else {
+        dd.style.bottom = (window.innerHeight - rect.top + 2) + 'px';
+        dd.style.top    = 'auto';
+      }
     }
   }
   buildDropdownItems(pickId, '');
@@ -450,15 +549,9 @@ function initTexPickers(){
     let   dd  = document.getElementById('tpd-'+pickId);
     if(!inp || !dd) return;
 
-    // On desktop: move dropdown to <body> so it escapes the sidebar's
-    // transform stacking context (transform:translateX makes position:fixed
-    // relative to the sidebar, not the viewport).
-    // On touch: keep dropdown inside .tpick-wrap so that the CSS
-    // `position:absolute; bottom:calc(100% + 2px)` correctly places it
-    // above the input (above the software keyboard).
-    if(!isTouch){
-      document.body.appendChild(dd);
-    }
+    // Move dropdown to <body> on ALL devices — escapes sidebar overflow/transform
+    // clipping. Touch gets JS-calculated fixed position (above input, clears keyboard).
+    document.body.appendChild(dd);
 
     // mousedown on input: open picker, stop propagation so _tpickOutside doesn't
     // immediately close it on the same event.
@@ -477,11 +570,15 @@ function initTexPickers(){
     // Desktop gets a shorter delay (50 ms) for snappier feel; touch gets 150 ms.
     let _tpickTimer = null;
     inp.addEventListener('input', () => {
-      if(!isTouch){
-        // Reposition dropdown on desktop
-        const rect = inp.getBoundingClientRect();
-        dd.style.left  = rect.left + 'px';
-        dd.style.width = rect.width + 'px';
+      // Reposition on every keystroke (fixed-positioned dropdown can drift if keyboard resizes)
+      const rect = inp.getBoundingClientRect();
+      dd.style.left  = rect.left + 'px';
+      dd.style.width = rect.width + 'px';
+      if(isTouch){
+        dd.style.bottom = (window.innerHeight - rect.top + 2) + 'px';
+        dd.style.top    = 'auto';
+        dd.style.maxHeight = Math.min(rect.top - 56, window.innerHeight * 0.55) + 'px';
+      } else {
         const spaceBelow = window.innerHeight - rect.bottom;
         if(spaceBelow >= 160 || spaceBelow > window.innerHeight - rect.top){
           dd.style.top    = (rect.bottom + 2) + 'px';

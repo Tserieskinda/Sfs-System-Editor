@@ -169,15 +169,27 @@ const SFX = (() => {
     patch('replaceBodyPrompt', select);
     patch('hmInsertMap',       select);
     patch('openCalculator',    select);
+    patch('openImagePanel',    select);
+
     patch('toggleUtilsDropdown', select);
 
     // ── CLICK (neutral actions) ───────────────────────────────────
     patch('closeCalculator',   click);
+    patch('closeImagePanel',   click);
+    patch('imgBringForward',   click);
+    patch('imgSendBackward',   click);
+    patch('imgSelectFromList', select);
     patch('prsOnParentChange', click);
 
     // ── SELECT (toggle-style actions) ─────────────────────────────
     patch('astToggleEffect',   select);
     patch('calcSetTab',        select);
+    patch('calcToggleTool',    select);
+    patch('calcToggleSci',     select);
+    patch('bctxGroupSelect',   select);
+
+    // ── CLICK (context menu neutral) ──────────────────────────────
+    patch('bctxCopy',          click);
 
     // ── POSITIVE (meaningful confirms — 2 s cooldown) ─────────────
     patch('goNew',              positive);
@@ -200,6 +212,82 @@ const SFX = (() => {
     patch('astSetHeightRange',  select);
     patch('prsNext',            positive);
     patch('clearAssetCache',    positive);
+    patch('bctxPaste',          positive);
+    patch('imgDuplicateSelected', positive);
+    patch('imgTriggerFileInput',  select);
+
+    // ── PRECISE OBJECT PLACER ────────────────────────────────────
+    patch('openPlacer',          select);
+    patch('closePlacer',         click);
+    patch('placerToggleActive',  select);
+    patch('placerResetCount',    click);
+    patch('placerOnParentChange',click);
+    patch('placerOnPresetChange',select);
+    patch('placerOnDirChange',   select);
+    patch('placerOnEccInput',    click);
+
+    // ── LANDMARK FEATURES ────────────────────────────────────────
+    patch('openProceduralLandmarks',  select);
+    patch('closeProceduralLandmarks', click);
+    patch('runProceduralScan',        positive);
+    patch('plmReroll',                select);
+    patch('applyProceduralLandmarks', positive);
+    patch('openSuffixModal',          select);
+    patch('closeSuffixModal',         click);
+    patch('filterSuffixList',         click);
+    patch('selectSuffixTerm',         select);
+    patch('updateSuffixPreview',      click);
+    patch('applySuffix',              positive);
+
+    // ── HEIGHTMAP / TEXTURE TOOLS (hmt / htx) ────────────────────
+    patch('openHeightmapTools',  select);
+    patch('closeHeightmapTools', click);
+    patch('hmtSetTab',           select);
+    patch('hmtAddBreakpoint',    select);
+    patch('hmtRemoveBreakpoint', warning);
+    patch('hmtResetBreakpoints', warning);
+    patch('hmtLoadFile',         select);
+    patch('hmtSaveToAssets',     positive);
+    patch('hmtDownloadPNG',      positive);
+    patch('htxLoadFile',         select);
+    patch('htxReload',           click);
+    patch('htxSaveToAssets',     positive);
+    patch('htxDownloadPNG',      positive);
+    patch('htxUpdateHM',         click);
+    patch('htxSaveHMToAssets',   positive);
+    patch('htxDownloadHM',       positive);
+
+    // ── GROUP SELECT ─────────────────────────────────────────────
+    patch('enterGroupSelect',    select);
+    patch('exitGroupSelect',     click);
+    patch('groupSelToggle',      select);
+    patch('groupSelDeleteAll',   warning);
+    patch('groupSelInvert',      select);
+    patch('groupSelScaleSMA',    positive);
+    patch('groupSelScaleRadii',  positive);
+    patch('groupSelJitterSMA',   positive);
+    patch('groupSelJitterEcc',   positive);
+
+    // ── BODY SEARCH extras ────────────────────────────────────────
+    patch('bsearchZoom',       select);
+    patch('downloadBodyTxt',   positive);
+
+    // ── UI HUE PICKER ────────────────────────────────────────────
+    patch('onUiHuePick',  select);
+
+    // ── PROCGEN ───────────────────────────────────────────────────
+    patch('pgGenerate',         positive);
+    patch('pgClear',            warning);
+    patch('pgApply',            positive);
+    patch('pgSwitchTab',        select);
+    patch('pgToggleSeedLock',   select);
+    patch('openProceduralGen',  select);
+    patch('closeProceduralGen', click);
+    patch('pgToggleType',       select);
+    patch('pgToggleMode',       select);
+    patch('pgImportReplace',    positive);
+    patch('pgImportOrbit',      positive);
+    patch('pgImportMerge',      positive);
 
     // ── WARNING ───────────────────────────────────────────────────
     patch('confirmClearAll',   warning);
@@ -212,11 +300,18 @@ const SFX = (() => {
     patch('delFlatZone',       warning);
     patch('hmRemoveLine',      warning);
     patch('astClearCanvas',    warning);
+    patch('bctxCut',           warning);
 
     // ── Event delegation — elements without named global functions ─
     document.addEventListener('click', e => {
       const t   = e.target;
       const oc  = t.getAttribute ? (t.getAttribute('onclick') || '') : '';
+
+      // fs-btn (Featured Systems — Import / Open in Editor)
+      if (t.classList.contains('fs-btn')) {
+        if (t.classList.contains('fs-btn-open')) { positive(); return; }
+        if (t.classList.contains('fs-btn-dl'))   { select();   return; }
+      }
 
       // .tog toggles (atmos, rings, terrain, water, etc.)
       if (t.classList.contains('tog')) { select(); return; }
@@ -238,8 +333,8 @@ const SFX = (() => {
       // modal-*.classList.remove('open') dismiss buttons
       if (oc.includes("classList.remove('open')")) { click(); return; }
 
-      // TC.open() — texture creator launch
-      if (oc.includes('TC.open')) { select(); return; }
+      // TC.open() / PT.open() — texture creator launches
+      if (oc.includes('TC.open') || oc.includes('PT.open')) { select(); return; }
 
       // triggerFileInput — file pickers
       if (oc.startsWith('triggerFileInput') || (oc.startsWith('document.getElementById(') && oc.includes('.click()'))) {
@@ -315,4 +410,3 @@ function sfxSettingToggle(key) {
   const tog = document.getElementById('sfx-tog-' + key);
   if (tog) tog.classList.toggle('on', !_sfxMuted[key]);
 }
-
