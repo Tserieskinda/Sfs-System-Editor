@@ -3328,3 +3328,48 @@ body {
   .pt-preset-grid { grid-template-columns: repeat(2, 1fr); }
   .pt-color-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── Mobile: pin the canvas at the top as a persistent preview,
+   sidebar scrolls independently underneath. Scoped to .pt-window so
+   it doesn't touch TC's (atmosphere editor's) shared .tc-body layout. ── */
+@media (max-width: 860px) {
+  .pt-window .tc-body {
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  .pt-window .tc-canvas-area {
+    order: -1;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+    background: var(--void);
+    border-bottom: 1px solid var(--rim);
+    box-shadow: 0 10px 18px -10px rgba(0,0,0,.55);
+  }
+  .pt-window .pt-canvas-wrap {
+    padding: 10px 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pt-window .pt-canvas {
+    width: 100%;
+    max-width: min(78vw, 340px);
+    height: auto;
+    aspect-ratio: 1 / 1;
+    max-height: none;
+  }
+  .pt-window .tc-sidebar.pt-sidebar {
+    order: 2;
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: visible;
+    max-height: none;
+  }
+}
