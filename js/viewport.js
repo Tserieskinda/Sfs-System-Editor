@@ -3044,25 +3044,35 @@ function _drawViewportNow(){
         return { x: sp.x + rPx * Math.cos(rad), y: sp.y - rPx * Math.sin(rad), rPx };
       }
 
+      // Match the game's Math_Utility formulas exactly (see LandmarkData.cs):
+      //   AngularWidth = NormalizeAngleDegrees(endAngle - startAngle)      -> (-180, 180]
+      //   Center       = NormalizePositiveAngleDegrees(startAngle + AngularWidth/2) -> [0, 360)
+      // A naive (start+end)/2 + min/max breaks for arcs that cross the 0°/360° wrap
+      // (e.g. startAngle:353, endAngle:13), which is exactly what Utopia Planitia does.
+      function _lmNormAngleDeg(a){ while(a>180) a-=360; while(a<=-180) a+=360; return a; }
+      function _lmNormPosAngleDeg(a){ while(a>360) a-=360; while(a<0) a+=360; return a; }
+
       lms.forEach((lm, lmIdx) => {
         if(!lm.name) return;
         const neon = NEON_COLORS[lmIdx % NEON_COLORS.length];
-        const midDeg = (lm.startAngle + lm.endAngle) / 2;
+        const lmWidth  = _lmNormAngleDeg(lm.endAngle - lm.startAngle) || 0;
+        const midDeg   = _lmNormPosAngleDeg(lm.startAngle + lmWidth / 2);
         const { x: lx, y: ly } = _lmSurfaceXY(midDeg);
 
         // ── Full arc extent (neon glow) — follows terrain surface ──
         if(showLmArcs){
-          // Build a polyline along the terrain surface between startAngle and endAngle.
+          // Build a polyline along the terrain surface between startAngle and endAngle,
+          // walking in the direction given by the normalized width (handles wraparound).
           // Step every 1° so the arc hugs the terrain bumps.
-          const angMin = Math.min(lm.startAngle, lm.endAngle);
-          const angMax = Math.max(lm.startAngle, lm.endAngle);
-          const arcSteps = Math.max(2, Math.ceil(angMax - angMin));
+          const angStart = lm.startAngle;
+          const angSpan  = lmWidth; // signed: positive = CCW, negative = CW
+          const arcSteps = Math.max(2, Math.ceil(Math.abs(angSpan)));
 
           // Helper: build Path2D polyline along terrain surface for this arc
           function _buildLmArcPath(offset_px) {
             const p = new Path2D();
             for(let si = 0; si <= arcSteps; si++){
-              const deg = angMin + (si / arcSteps) * (angMax - angMin);
+              const deg = angStart + (si / arcSteps) * angSpan;
               const rad = deg * Math.PI / 180;
               let rPx = physR_px;
               if(_lmTerrRes){
