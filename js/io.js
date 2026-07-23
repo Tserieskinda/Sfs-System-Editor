@@ -1072,12 +1072,9 @@ const REMOTE_ASSETS_URLS = [
   { url: 'assets/Vanilla Presets + textures.zip',  name: 'Vanilla Presets + textures.zip' },
   { url: 'assets/Vanilla Textures 2.zip',           name: 'Vanilla Textures 2.zip' },
   { url: 'assets/Custom presets and Textures.zip',  name: 'Custom presets and Textures.zip' },
+  { url: 'assets/Custom and Terrain Files.zip',     name: 'Custom and Terrain Files.zip' },
   { url: 'assets/Terrain.zip',                      name: 'Terrain.zip' },
   { url: 'assets/Terrain Custom.zip',               name: 'Terrain Custom.zip' },
-  // 'Custom and Terrain Files.zip' intentionally left out — loaded 0 tex / 0 presets
-  // on last check, dated separately from the rest (09-07-2026 vs 27-06-2026), and
-  // its name overlaps two existing categories. Looks like a stray/WIP file rather
-  // than a real 6th asset pack. Re-add here once its contents are confirmed.
 ];
 
 // Auto-fetch remote asset zip on startup (online users only).
@@ -1176,6 +1173,24 @@ async function _replayFromCache(record, { showUI = false, progressLabel = '' } =
   return { totalTextures, totalPresets };
 }
 
+// Returns true if a cached/fresh payload actually contains something usable.
+// Used both to decide whether a freshly-downloaded zip is worth caching, and
+// to decide whether an existing cache record should count as a "hit" — a
+// zip that parsed to 0 textures/0 presets/0 heightmaps almost certainly means
+// something went wrong (wrong folder layout, corrupt download, parser
+// mismatch) rather than the zip genuinely being empty, so it's treated as
+// not-yet-loaded and retried instead of being trusted forever.
+function _payloadHasContent(p){
+  if(!p) return false;
+  return (p.textures    && p.textures.length    > 0) ||
+         (p.heightmaps  && p.heightmaps.length  > 0) ||
+         (p.namedSources && Object.keys(p.namedSources).length > 0) ||
+         (p.presets && (
+           Object.keys(p.presets.vanilla || {}).length > 0 ||
+           Object.keys(p.presets.custom  || {}).length > 0
+         ));
+}
+
 // Snapshot assets that were added during a fresh load so we can persist them.
 function _snapshotNewAssets(texBefore, presetsBefore, hmBefore){
   const textures = assets.textures.slice(texBefore);
@@ -1227,19 +1242,17 @@ async function autoLoadRemoteAssets(){
   let   anyCacheHit  = false;
   for(let i = 0; i < REMOTE_ASSETS_URLS.length; i++){
     const { url, name: fname } = REMOTE_ASSETS_URLS[i];
-    const cached = await idbCacheRead(url);
+    let cached = await idbCacheRead(url);
+    // A cache record that parsed to nothing usable (0 tex/presets/heightmaps)
+    // is treated as no cache at all, so it gets silently redownloaded below
+    // instead of being trusted forever as "fresh but empty".
+    if(cached && !_payloadHasContent(cached)){
+      console.log(`[SFS|IDB] Cached "${fname}" has no usable content — discarding and re-downloading`);
+      idbCacheDelete(url).catch(()=>{});
+      cached = null;
+    }
     cacheRecords.push(cached);
-    // A valid cache record just needs to exist — it may have textures, presets,
-    // heightmaps, or any combination. Don't gate on textures.length > 0.
-    const isCacheHit = cached && (
-      (cached.textures    && cached.textures.length    > 0) ||
-      (cached.heightmaps  && cached.heightmaps.length  > 0) ||
-      (cached.namedSources && Object.keys(cached.namedSources).length > 0) ||
-      (cached.presets && (
-        Object.keys(cached.presets.vanilla || {}).length > 0 ||
-        Object.keys(cached.presets.custom  || {}).length > 0
-      ))
-    );
+    const isCacheHit = _payloadHasContent(cached);
     if(isCacheHit){
       anyCacheHit = true;
       const label = `(${i+1}/${REMOTE_ASSETS_URLS.length}) ${fname}`;
@@ -1275,16 +1288,7 @@ async function autoLoadRemoteAssets(){
   for(let i = 0; i < REMOTE_ASSETS_URLS.length; i++){
     if(signal.aborted){ cancelled = true; break; }
     const cr = cacheRecords[i];
-    const alreadyServed = cr && (
-      (cr.textures    && cr.textures.length    > 0) ||
-      (cr.heightmaps  && cr.heightmaps.length  > 0) ||
-      (cr.namedSources && Object.keys(cr.namedSources).length > 0) ||
-      (cr.presets && (
-        Object.keys(cr.presets.vanilla || {}).length > 0 ||
-        Object.keys(cr.presets.custom  || {}).length > 0
-      ))
-    );
-    if(alreadyServed) continue; // already served from cache in Pass 1
+    if(_payloadHasContent(cr)) continue; // already served from cache in Pass 1
 
     const { url, name: fname } = REMOTE_ASSETS_URLS[i];
     setLoadingMsg(`(${i+1}/${REMOTE_ASSETS_URLS.length}) ${fname}`);
@@ -1339,14 +1343,12 @@ async function autoLoadRemoteAssets(){
       errors        += res.errors;
 
       const payload = _snapshotNewAssets(texBefore, presetsBefore, hmBefore);
-      const hasContent = payload.textures.length > 0 || payload.heightmaps.length > 0 ||
-        Object.keys(payload.presets.vanilla).length > 0 ||
-        Object.keys(payload.presets.custom).length  > 0 ||
-        Object.keys(payload.namedSources).length    > 0;
-      if(hasContent){
+      if(_payloadHasContent(payload)){
         idbCacheWrite(url, freshEtag, freshSize, payload).then(ok => {
           if(ok) console.log(`[SFS|IDB] Cached "${fname}" (${payload.textures.length} tex, etag=${freshEtag})`);
         });
+      } else {
+        console.warn(`[SFS|IO] "${fname}" downloaded but produced 0 textures/presets/heightmaps — not caching, will retry next load. Check the zip's internal folder structure (expects "Texture Data/", "Planet Data/", "Heightmap Data/" style paths).`);
       }
 
     } catch(err){
@@ -1423,8 +1425,12 @@ async function _revalidateCacheInBackground(urls, cacheRecords){
       };
       await _loadSFSAssetBuffer(buffer, fname, ()=>{}, ()=>{});
       const payload = _snapshotNewAssets(texBefore, presetsBefore, hmBefore);
-      await idbCacheWrite(url, freshEtag, freshSize, payload);
-      console.log(`[SFS|IDB] BG revalidate: "${fname}" cache updated`);
+      if(_payloadHasContent(payload)){
+        await idbCacheWrite(url, freshEtag, freshSize, payload);
+        console.log(`[SFS|IDB] BG revalidate: "${fname}" cache updated`);
+      } else {
+        console.warn(`[SFS|IDB] BG revalidate: "${fname}" re-downloaded but produced 0 textures/presets/heightmaps — not caching, will retry next load.`);
+      }
     } catch(e){
       // Offline or CORS — silently skip, try again next load
     }
