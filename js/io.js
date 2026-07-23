@@ -1169,7 +1169,11 @@ async function _replayFromCache(record, { showUI = false, progressLabel = '' } =
     }
   }
 
-  if(totalTextures > 0){ refreshTexPickerLists(); updateAssetEmptyState(); drawViewport(); }
+  if(totalTextures > 0){
+    refreshTexPickerLists();
+    updateAssetEmptyState();
+    if(typeof drawViewport === 'function') drawViewport();
+  }
   return { totalTextures, totalPresets };
 }
 
@@ -1423,13 +1427,33 @@ async function _revalidateCacheInBackground(urls, cacheRecords){
         vanilla: Object.keys(dynamicPresets.vanilla).length,
         custom:  Object.keys(dynamicPresets.custom).length,
       };
-      await _loadSFSAssetBuffer(buffer, fname, ()=>{}, ()=>{});
+      const res = await _loadSFSAssetBuffer(buffer, fname, ()=>{}, ()=>{});
       const payload = _snapshotNewAssets(texBefore, presetsBefore, hmBefore);
-      if(_payloadHasContent(payload)){
+      // Gate on the zip's own recognized-entry count, not on whether this
+      // parse happened to add anything NEW — by the time revalidation runs,
+      // Pass 1 has usually already loaded these assets from cache, so a
+      // healthy zip legitimately re-parses to 0 new items every time. Only
+      // treat it as broken/empty if the zip itself has no loadable content.
+      if(res.recognizedEntries === 0){
+        console.warn(`[SFS|IDB] BG revalidate: "${fname}" re-downloaded but the zip has no recognizable texture/preset/heightmap entries — not caching, will retry next load.`);
+      } else if(_payloadHasContent(payload)){
+        // Genuinely new/changed content this time — replace the cache entry.
         await idbCacheWrite(url, freshEtag, freshSize, payload);
-        console.log(`[SFS|IDB] BG revalidate: "${fname}" cache updated`);
+        console.log(`[SFS|IDB] BG revalidate: "${fname}" cache updated (${payload.textures.length} new texture(s))`);
+      } else if(cached){
+        // Content unchanged from what's already loaded (the normal case —
+        // everything in this zip was already in assets.textures/dynamicPresets
+        // from Pass 1). Keep the existing good payload; just refresh the
+        // etag/size stamp so we don't re-fetch again until it truly changes.
+        await idbCacheWrite(url, freshEtag, freshSize, {
+          textures: cached.textures || [], presets: cached.presets || { vanilla:{}, custom:{} },
+          heightmaps: cached.heightmaps || [], namedSources: cached.namedSources || {}
+        });
+        console.log(`[SFS|IDB] BG revalidate: "${fname}" etag refreshed (content unchanged)`);
       } else {
-        console.warn(`[SFS|IDB] BG revalidate: "${fname}" re-downloaded but produced 0 textures/presets/heightmaps — not caching, will retry next load.`);
+        // No prior cache to fall back on and nothing new was added — leave
+        // uncached rather than writing an empty record.
+        console.warn(`[SFS|IDB] BG revalidate: "${fname}" produced no new content and no prior cache exists — not caching, will retry next load.`);
       }
     } catch(e){
       // Offline or CORS — silently skip, try again next load
@@ -1504,6 +1528,23 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
     return ['png','jpg','jpeg','webp'].includes(ext) && !_forceHeightmap && !_isHeightmapPath(p) && !p.includes('planet data');
   }).length || 1;
   let texDone = 0;
+
+  // Independent count of entries this zip actually contains that we recognize
+  // as loadable content (texture image / preset .txt / heightmap file) —
+  // computed from the zip's raw contents, NOT from whether those items are
+  // "new" versus already present in assets.textures/dynamicPresets. Re-parsing
+  // a zip whose assets are already loaded will correctly add 0 *new* items,
+  // but that's not the same as the zip being empty/broken — this counter lets
+  // callers (background revalidation) tell the two cases apart.
+  const recognizedEntries = allEntries.filter(([path]) => {
+    const p = path.replace(/\\/g, '/').toLowerCase();
+    const filename = p.split('/').pop();
+    if(!filename) return false;
+    const ext = filename.split('.').pop();
+    if(_forceHeightmap || _isHeightmapPath(p)) return ext === 'txt' || ['png','jpg','jpeg'].includes(ext);
+    if(p.includes('planet data')) return ext === 'txt';
+    return ['png','jpg','jpeg','webp'].includes(ext);
+  }).length;
 
   for(let i = 0; i < allEntries.length; i++){
     const [path, data] = allEntries[i];
@@ -1595,8 +1636,12 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
   _bulkLoadActive = false;
   for(const entry of _thumbsDeferred) renderAssetThumb(entry);
 
-  if(totalTextures > 0){ refreshTexPickerLists(); updateAssetEmptyState(); drawViewport(); }
-  return { totalTextures, totalPresets, errors, legacyFiles };
+  if(totalTextures > 0){
+    refreshTexPickerLists();
+    updateAssetEmptyState();
+    if(typeof drawViewport === 'function') drawViewport();
+  }
+  return { totalTextures, totalPresets, errors, legacyFiles, recognizedEntries };
 }
 
 async function loadSFSAssetZips(files){
