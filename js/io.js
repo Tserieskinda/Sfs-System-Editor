@@ -1347,12 +1347,18 @@ async function autoLoadRemoteAssets(){
       errors        += res.errors;
 
       const payload = _snapshotNewAssets(texBefore, presetsBefore, hmBefore);
-      if(_payloadHasContent(payload)){
+      if(res.recognizedEntries === 0){
+        console.warn(`[SFS|IO] "${fname}" downloaded but the zip has no recognizable texture/preset/heightmap entries. Check the zip's internal folder structure (expects "Texture Data/", "Planet Data/", "Heightmap Data/" style paths).`);
+      } else if(_payloadHasContent(payload)){
         idbCacheWrite(url, freshEtag, freshSize, payload).then(ok => {
           if(ok) console.log(`[SFS|IDB] Cached "${fname}" (${payload.textures.length} tex, etag=${freshEtag})`);
         });
       } else {
-        console.warn(`[SFS|IO] "${fname}" downloaded but produced 0 textures/presets/heightmaps — not caching, will retry next load. Check the zip's internal folder structure (expects "Texture Data/", "Planet Data/", "Heightmap Data/" style paths).`);
+        // Zip has real content, but everything in it already matched names
+        // already present in assets.* (e.g. loaded moments earlier by another
+        // zip in this same run). Nothing new to persist, but this is not a
+        // failure — don't warn, don't write an empty record.
+        console.log(`[SFS|IO] "${fname}" downloaded — ${res.recognizedEntries} entries found, all already loaded (no new content to cache).`);
       }
 
     } catch(err){
