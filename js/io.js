@@ -1072,6 +1072,7 @@ const REMOTE_ASSETS_URLS = [
   { url: 'assets/Vanilla Presets + textures.zip',  name: 'Vanilla Presets + textures.zip' },
   { url: 'assets/Vanilla Textures 2.zip',           name: 'Vanilla Textures 2.zip' },
   { url: 'assets/Custom presets and Textures.zip',  name: 'Custom presets and Textures.zip' },
+  { url: 'assets/Custom and Terrain Files.zip',     name: 'Custom and Terrain Files.zip' },
   { url: 'assets/Terrain.zip',                      name: 'Terrain.zip' },
   { url: 'assets/Terrain Custom.zip',               name: 'Terrain Custom.zip' },
 ];
