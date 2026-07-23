@@ -1072,9 +1072,12 @@ const REMOTE_ASSETS_URLS = [
   { url: 'assets/Vanilla Presets + textures.zip',  name: 'Vanilla Presets + textures.zip' },
   { url: 'assets/Vanilla Textures 2.zip',           name: 'Vanilla Textures 2.zip' },
   { url: 'assets/Custom presets and Textures.zip',  name: 'Custom presets and Textures.zip' },
-  { url: 'assets/Custom and Terrain Files.zip',     name: 'Custom and Terrain Files.zip' },
   { url: 'assets/Terrain.zip',                      name: 'Terrain.zip' },
   { url: 'assets/Terrain Custom.zip',               name: 'Terrain Custom.zip' },
+  // 'Custom and Terrain Files.zip' intentionally left out — loaded 0 tex / 0 presets
+  // on last check, dated separately from the rest (09-07-2026 vs 27-06-2026), and
+  // its name overlaps two existing categories. Looks like a stray/WIP file rather
+  // than a real 6th asset pack. Re-add here once its contents are confirmed.
 ];
 
 // Auto-fetch remote asset zip on startup (online users only).
