@@ -1482,7 +1482,7 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
   const legacyFiles = []; // pre-1.5 format preset files found — skipped, reported by the caller
   // Treat every file in Terrain.zip / Terrain Custom.zip as heightmap assets
   const _zipNameLower = (zipName || '').toLowerCase();
-  const _forceHeightmap = _zipNameLower === 'terrain.zip' || _zipNameLower === 'terrain custom.zip';
+  const _forceHeightmap = _zipNameLower === 'Terrain 1.zip' | | _zipNameLower === 'Terrain 2.zip' || _zipNameLower === 'Terrain 3.zip' ;
 
   // Bulk mode: suppress per-texture redraws inside the decode queue.
   _bulkLoadActive = true;
