@@ -1070,9 +1070,9 @@ async function loadZipFromUrl(cdnUrl, displayName){
 // ─────────────────────────────────────────────────────────────────────────────
 const REMOTE_ASSETS_URLS = [
   { url: 'assets/Custom Planet Data.zip',  name: 'Custom Planet Data.zip' },
-  { url: 'assets/Custom Tex1.zip',           name: 'Custom Tex1.zip' },
-  { url: 'assets/Custom Tex2.zip',           name: 'Custom Tex2.zip' },
-  { url: 'assets/Custom Tex3.zip',           name: 'Custom Tex3.zip' },
+  { url: 'assets/Vanilla Tex1.zip',           name: 'Vanilla Tex1.zip' },
+  { url: 'assets/Vanilla Tex2.zip',           name: 'Vanilla Tex2.zip' },
+  { url: 'assets/Vanilla Tex3.zip',           name: 'Vanilla Tex3.zip' },
   { url: 'assets/Terrain 1.zip',             name: 'Terrain 1.zip' },
   { url: 'assets/Terrain 2.zip',             name: 'Terrain 2.zip' },
   { url: 'assets/Terrain 3.zip',        name: 'Terrain 3.zip' },
