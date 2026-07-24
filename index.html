@@ -5178,6 +5178,18 @@ document.addEventListener('keydown', function(e){
           color:rgba(100,160,255,.7);letter-spacing:.08em;text-transform:uppercase;align-self:center">generating…</div>
       </div>
 
+      <!-- Detection method toggle -->
+      <div id="wmk-method-btns" style="display:none;flex-direction:row;gap:6px;padding:0 16px 8px">
+        <button id="wmk-method-color" onclick="wmkSetMethod('color')"
+          style="font-family:'JetBrains Mono',monospace;font-size:.48rem;padding:6px 8px;
+          background:rgba(100,160,255,.18);border:1px solid rgba(100,160,255,.6);
+          color:rgba(100,160,255,.9);border-radius:3px;cursor:pointer;letter-spacing:.05em;flex:1">🎨 COLOR SAMPLE</button>
+        <button id="wmk-method-thresh" onclick="wmkSetMethod('thresh')"
+          style="font-family:'JetBrains Mono',monospace;font-size:.48rem;padding:6px 8px;
+          background:transparent;border:1px solid rgba(120,140,180,.3);
+          color:rgba(120,140,180,.6);border-radius:3px;cursor:pointer;letter-spacing:.05em;flex:1">◐ GRAYSCALE THRESHOLD</button>
+      </div>
+
       <!-- Sampling mode buttons -->
       <div id="wmk-sample-btns" style="display:none;flex-direction:row;gap:6px;padding:0 16px 10px;flex-wrap:wrap">
         <button id="wmk-btn-liq" onclick="wmkSetMode('liq')"
@@ -5192,6 +5204,39 @@ document.addEventListener('keydown', function(e){
           style="font-family:'JetBrains Mono',monospace;font-size:.5rem;padding:5px 10px;
           background:rgba(40,80,160,.25);border:1px solid rgba(100,160,255,.3);
           color:rgba(180,200,255,.8);border-radius:3px;cursor:pointer;letter-spacing:.06em;flex:1">⚙ GENERATE</button>
+      </div>
+
+      <!-- Grayscale threshold panel -->
+      <div id="wmk-thresh-panel" style="display:none;flex-direction:column;gap:6px;padding:0 16px 10px">
+        <div style="background:rgba(6,12,28,.5);border:1px solid rgba(40,100,200,.2);border-radius:4px;padding:10px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.47rem;color:rgba(120,140,180,.6);
+            letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">◐ GRAYSCALE THRESHOLD</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.44rem;color:rgba(120,140,180,.45);
+            letter-spacing:.03em;margin-bottom:8px">Converts the image to grayscale, then splits it into pure black
+            (water) / white (land) at the value below — same as GIMP's Threshold tool. Drag to preview live, then
+            Generate to run the coastal distance map.</div>
+          <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
+            letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            THRESHOLD <span id="wmk-thresh-val" style="color:rgba(180,200,255,.7)">128</span>
+            <input type="range" id="wmk-thresh-slider" min="0" max="255" value="128" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
+              oninput="wmkThreshPreview(this.value)">
+          </label>
+          <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
+            letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:6px;margin-bottom:8px">
+            <input type="checkbox" id="wmk-thresh-invert" onchange="wmkThreshPreview()" style="accent-color:rgba(100,160,255,.8);width:14px;height:14px">
+            INVERT (LIGHT = WATER)
+          </label>
+          <div style="display:flex;gap:6px">
+            <button onclick="wmkThreshAuto()"
+              style="font-family:'JetBrains Mono',monospace;font-size:.5rem;padding:6px 8px;flex:1;
+              background:transparent;border:1px solid rgba(120,140,180,.3);color:rgba(120,140,180,.7);
+              border-radius:3px;cursor:pointer;letter-spacing:.05em">⚡ AUTO (OTSU)</button>
+            <button onclick="wmkGenerateFromThreshold()"
+              style="font-family:'JetBrains Mono',monospace;font-size:.5rem;padding:6px 8px;flex:1;
+              background:rgba(40,80,160,.25);border:1px solid rgba(100,160,255,.3);
+              color:rgba(180,200,255,.8);border-radius:3px;cursor:pointer;letter-spacing:.06em">⚙ GENERATE</button>
+          </div>
+        </div>
       </div>
 
       <!-- Canvas -->
@@ -6317,6 +6362,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let wmkLiqSamples = [], wmkLandSamples = [], wmkMode = 'liq';
   let wmkDrawing = false, wmkPenMode = false, wmkEraseMode = false, wmkPenColor = 0;
   let wmkPending = null;
+  let wmkMethod = 'color', wmkGray = null;
 
   const $ = id => document.getElementById(id);
 
@@ -6364,10 +6410,12 @@ document.addEventListener('DOMContentLoaded', () => {
       $('wmk-water-count').textContent = $('wmk-land-count').textContent = '0';
       $('wmk-dropzone').style.display = 'none';
       $('wmk-stats').style.display = 'flex';
-      $('wmk-sample-btns').style.display = 'flex';
+      $('wmk-method-btns').style.display = 'flex';
       $('wmk-canvas-wrap').style.display = 'block';
       $('wmk-controls').style.display = 'flex';
       wmkGenerated = null; wmkEditLayer = null;
+      wmkGray = null;
+      wmkSetMethod('color');
     };
     img.src = URL.createObjectURL(file);
   };
@@ -6381,6 +6429,114 @@ document.addEventListener('DOMContentLoaded', () => {
     $('wmk-btn-land').style.background = !isLiq ? 'rgba(255,150,80,.15)' : 'transparent';
     $('wmk-btn-land').style.borderColor = !isLiq ? 'rgba(255,150,80,.5)' : 'rgba(120,140,180,.3)';
     $('wmk-btn-land').style.color = !isLiq ? 'rgba(255,150,80,.9)' : 'rgba(120,140,180,.6)';
+  };
+
+  // ── Detection method toggle (color sample vs grayscale threshold) ──
+  window.wmkSetMethod = function(method) {
+    wmkMethod = method;
+    const isColor = method === 'color';
+    $('wmk-method-color').style.background = isColor ? 'rgba(100,160,255,.18)' : 'transparent';
+    $('wmk-method-color').style.borderColor = isColor ? 'rgba(100,160,255,.6)' : 'rgba(120,140,180,.3)';
+    $('wmk-method-color').style.color = isColor ? 'rgba(100,160,255,.9)' : 'rgba(120,140,180,.6)';
+    $('wmk-method-thresh').style.background = !isColor ? 'rgba(100,160,255,.18)' : 'transparent';
+    $('wmk-method-thresh').style.borderColor = !isColor ? 'rgba(100,160,255,.6)' : 'rgba(120,140,180,.3)';
+    $('wmk-method-thresh').style.color = !isColor ? 'rgba(100,160,255,.9)' : 'rgba(120,140,180,.6)';
+    $('wmk-sample-btns').style.display = isColor ? 'flex' : 'none';
+    $('wmk-thresh-panel').style.display = isColor ? 'none' : 'flex';
+    if (!isColor) {
+      wmkBuildGray();
+      wmkThreshPreview();
+    } else if (wmkBaseImage) {
+      // Restore the plain source image behind the sample dots when switching back
+      wmkGetCtx().putImageData(wmkBaseImage, 0, 0);
+    }
+  };
+
+  // Luminosity-weighted grayscale (Rec.601), cached per loaded image
+  function wmkBuildGray() {
+    if (wmkGray || !wmkBaseImage) return;
+    const src = wmkBaseImage.data, n = src.length / 4;
+    wmkGray = new Uint8ClampedArray(n);
+    for (let i = 0, p = 0; p < n; i += 4, p++) {
+      wmkGray[p] = 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
+    }
+  }
+
+  // Live black/white preview on the canvas as the threshold slider is dragged —
+  // mirrors GIMP's Threshold dialog: grayscale → binary split at the cutoff.
+  window.wmkThreshPreview = function(val) {
+    if (!wmkBaseImage) return;
+    wmkBuildGray();
+    const t = val !== undefined ? +val : +$('wmk-thresh-slider').value;
+    $('wmk-thresh-val').textContent = t;
+    const inv = $('wmk-thresh-invert').checked;
+    const cv = wmkGetCanvas(), ctx = wmkGetCtx(), w = cv.width, h = cv.height;
+    const out = ctx.createImageData(w, h);
+    const d = out.data, n = wmkGray.length;
+    let waterCount = 0;
+    for (let p = 0, i = 0; p < n; p++, i += 4) {
+      let isWater = wmkGray[p] < t;
+      if (inv) isWater = !isWater;
+      const v = isWater ? 0 : 255;
+      if (isWater) waterCount++;
+      d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
+    }
+    ctx.putImageData(out, 0, 0);
+    $('wmk-water-count').textContent = waterCount;
+    $('wmk-land-count').textContent = n - waterCount;
+  };
+
+  // Otsu's method — automatically picks the threshold that best separates the
+  // grayscale histogram into two classes (maximises between-class variance).
+  window.wmkThreshAuto = function() {
+    if (!wmkBaseImage) return;
+    wmkBuildGray();
+    const hist = new Array(256).fill(0);
+    for (let p = 0; p < wmkGray.length; p++) hist[wmkGray[p]]++;
+    const total = wmkGray.length;
+    let sumAll = 0;
+    for (let i = 0; i < 256; i++) sumAll += i * hist[i];
+    let sumB = 0, wB = 0, best = 0, bestVar = -1;
+    for (let t = 0; t < 256; t++) {
+      wB += hist[t];
+      if (wB === 0) continue;
+      const wF = total - wB;
+      if (wF === 0) break;
+      sumB += t * hist[t];
+      const mB = sumB / wB, mF = (sumAll - sumB) / wF;
+      const between = wB * wF * (mB - mF) * (mB - mF);
+      if (between > bestVar) { bestVar = between; best = t; }
+    }
+    $('wmk-thresh-slider').value = best;
+    wmkThreshPreview(best);
+  };
+
+  // Commit the current grayscale/threshold split into wmkSeaMask, then reuse
+  // the exact same coastal distance-map + depth pipeline as color-sample mode.
+  window.wmkGenerateFromThreshold = function() {
+    if (!wmkBaseImage) return;
+    wmkBuildGray();
+    $('wmk-gen-status').style.display = 'flex';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const cv = wmkGetCanvas(), w = cv.width, h = cv.height;
+      const t = +$('wmk-thresh-slider').value;
+      const inv = $('wmk-thresh-invert').checked;
+      wmkSeaField = new Float32Array(w * h);
+      wmkSeaMask  = new Uint8Array(w * h);
+      let waterCount = 0;
+      for (let p = 0; p < w * h; p++) {
+        let isWater = wmkGray[p] < t;
+        if (inv) isWater = !isWater;
+        wmkSeaMask[p] = isWater ? 1 : 0;
+        wmkSeaField[p] = isWater ? 1 : -1;
+        if (isWater) waterCount++;
+      }
+      $('wmk-water-count').textContent = waterCount;
+      $('wmk-land-count').textContent = (w * h) - waterCount;
+      wmkComputeCoastDist();
+      wmkApplyDepth();
+      $('wmk-gen-status').style.display = 'none';
+    }));
   };
 
   window.wmkTogglePen = function() {
@@ -6541,7 +6697,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cv = $('wmk-canvas');
 
     cv.addEventListener('click', e => {
-      if (!wmkBaseImage || wmkPenMode || wmkEraseMode) return;
+      if (!wmkBaseImage || wmkPenMode || wmkEraseMode || wmkMethod !== 'color') return;
       const r=cv.getBoundingClientRect();
       const x=(e.clientX-r.left)*cv.width/r.width;
       const y=(e.clientY-r.top)*cv.height/r.height;

@@ -1069,11 +1069,17 @@ async function loadZipFromUrl(cdnUrl, displayName){
 // Format: https://cdn.jsdelivr.net/gh/{user}/{repo}@{branch}/{path}
 // ─────────────────────────────────────────────────────────────────────────────
 const REMOTE_ASSETS_URLS = [
-  { url: 'assets/Vanilla Presets + textures.zip',  name: 'Vanilla Presets + textures.zip' },
-  { url: 'assets/Vanilla Textures 2.zip',           name: 'Vanilla Textures 2.zip' },
-  { url: 'assets/Custom presets and Textures.zip',  name: 'Custom presets and Textures.zip' },
-  { url: 'assets/Terrain.zip',                      name: 'Terrain.zip' },
-  { url: 'assets/Terrain Custom.zip',               name: 'Terrain Custom.zip' },
+  { url: 'assets/Custom Planet Data.zip',  name: 'Custom Planet Data.zip' },
+  { url: 'assets/Custom Tex1.zip',           name: 'Custom Tex1.zip' },
+  { url: 'assets/Custom Tex2.zip',           name: 'Custom Tex2.zip' },
+  { url: 'assets/Custom Tex3.zip',           name: 'Custom Tex3.zip' },
+  { url: 'assets/Terrain 1.zip',             name: 'Terrain 1.zip' },
+  { url: 'assets/Terrain 2.zip',             name: 'Terrain 2.zip' },
+  { url: 'assets/Terrain 3.zip',        name: 'Terrain 3.zip' },
+  { url: 'assets/Custom Planet Data.zip',        name: 'Custom Planet Data.zip' },
+  { url: 'assets/Vanilla Planet Data.zip',        name: 'Vanilla Planet Data.zip' },
+  { url: 'assets/Custom Tex2.zip',        name: 'Custom Tex2.zip' },
+  { url: 'assets/Custom Tex1.zip',        name: 'Custom Tex1.zip' },
 ];
 
 // Auto-fetch remote asset zip on startup (online users only).
