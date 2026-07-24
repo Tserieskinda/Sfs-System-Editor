@@ -503,7 +503,7 @@ function _lcApplyZipAssetConversion(pending){
         if(!dynamicPresetSources[item.namedCategory]) dynamicPresetSources[item.namedCategory] = { presets: {}, zipName: item.zipName };
         dynamicPresetSources[item.namedCategory].presets[pname] = bodyData;
       } else {
-        const cat = (typeof _presetCategory === 'function' ? _presetCategory(item.pathLower || '') : null) || 'custom';
+        const cat = (typeof _presetCategory === 'function' ? _presetCategory(item.pathLower || '', (item.zipName || '').toLowerCase()) : null) || 'custom';
         dynamicPresets[cat][pname] = bodyData;
       }
       added.push(pname);
@@ -1069,12 +1069,16 @@ async function loadZipFromUrl(cdnUrl, displayName){
 // Format: https://cdn.jsdelivr.net/gh/{user}/{repo}@{branch}/{path}
 // ─────────────────────────────────────────────────────────────────────────────
 const REMOTE_ASSETS_URLS = [
-  { url: 'assets/Vanilla Presets + textures.zip',  name: 'Vanilla Presets + textures.zip' },
-  { url: 'assets/Vanilla Textures 2.zip',           name: 'Vanilla Textures 2.zip' },
-  { url: 'assets/Custom presets and Textures.zip',  name: 'Custom presets and Textures.zip' },
-  { url: 'assets/Custom and Terrain Files.zip',     name: 'Custom and Terrain Files.zip' },
-  { url: 'assets/Terrain.zip',                      name: 'Terrain.zip' },
-  { url: 'assets/Terrain Custom.zip',               name: 'Terrain Custom.zip' },
+  { url: 'assets/Vanilla Planet Data.zip', name: 'Vanilla Planet Data.zip' },
+  { url: 'assets/Vanilla Tex1.zip',        name: 'Vanilla Tex1.zip' },
+  { url: 'assets/Vanilla Tex2.zip',        name: 'Vanilla Tex2.zip' },
+  { url: 'assets/Vanilla Tex3.zip',        name: 'Vanilla Tex3.zip' },
+  { url: 'assets/Custom Planet Data.zip',  name: 'Custom Planet Data.zip' },
+  { url: 'assets/Custom Tex1.zip',         name: 'Custom Tex1.zip' },
+  { url: 'assets/Custom Tex2.zip',         name: 'Custom Tex2.zip' },
+  { url: 'assets/Terrain 1.zip',           name: 'Terrain 1.zip' },
+  { url: 'assets/Terrain 2.zip',           name: 'Terrain 2.zip' },
+  { url: 'assets/Terrain 3.zip',           name: 'Terrain 3.zip' },
 ];
 
 // Auto-fetch remote asset zip on startup (online users only).
@@ -1487,10 +1491,17 @@ function _isHeightmapPath(pathLower){
       || pathLower.endsWith('/terrain') || pathLower.endsWith('/terrain custom');
 }
 
-// Detect category from folder name in the zip path
-function _presetCategory(pathLower){
+// Detect category from folder name in the zip path, falling back to the
+// zip's own file name (new asset zips like "Vanilla Tex1.zip" / "Custom
+// Planet Data.zip" are flat — no internal "Vanilla/"/"Custom/" folders —
+// so the category has to come from the zip name itself).
+function _presetCategory(pathLower, zipNameLower){
   if(pathLower.includes('vanilla')) return 'vanilla';
   if(pathLower.includes('custom'))  return 'custom';
+  if(zipNameLower){
+    if(zipNameLower.includes('vanilla')) return 'vanilla';
+    if(zipNameLower.includes('custom'))  return 'custom';
+  }
   return null; // unknown — will be filed as custom
 }
 
@@ -1514,9 +1525,10 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
   const entries = await decompressEntries(rawEntries, onDecompProgress);
   let totalTextures = 0, totalPresets = 0, errors = 0;
   const legacyFiles = []; // pre-1.5 format preset files found — skipped, reported by the caller
-  // Treat every file in Terrain.zip / Terrain Custom.zip as heightmap assets
+  // Treat every file in any Terrain zip (Terrain 1.zip, Terrain 2.zip, Terrain
+  // 3.zip, legacy Terrain.zip / Terrain Custom.zip, etc.) as heightmap assets
   const _zipNameLower = (zipName || '').toLowerCase();
-  const _forceHeightmap = _zipNameLower === 'terrain.zip' || _zipNameLower === 'terrain custom.zip';
+  const _forceHeightmap = _zipNameLower.startsWith('terrain');
 
   // Bulk mode: suppress per-texture redraws inside the decode queue.
   _bulkLoadActive = true;
@@ -1542,13 +1554,14 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
   // a zip whose assets are already loaded will correctly add 0 *new* items,
   // but that's not the same as the zip being empty/broken — this counter lets
   // callers (background revalidation) tell the two cases apart.
+  const _forcePresets = _zipNameLower.includes('planet data');
   const recognizedEntries = allEntries.filter(([path]) => {
     const p = path.replace(/\\/g, '/').toLowerCase();
     const filename = p.split('/').pop();
     if(!filename) return false;
     const ext = filename.split('.').pop();
     if(_forceHeightmap || _isHeightmapPath(p)) return ext === 'txt' || ['png','jpg','jpeg'].includes(ext);
-    if(p.includes('planet data')) return ext === 'txt';
+    if(_forcePresets || p.includes('planet data')) return ext === 'txt';
     return ['png','jpg','jpeg','webp'].includes(ext);
   }).length;
 
@@ -1587,7 +1600,7 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
 
     const ext = filename.split('.').pop().toLowerCase();
 
-    if(ext === 'txt' && pathLower.includes('planet data')){
+    if(ext === 'txt' && (_forcePresets || pathLower.includes('planet data'))){
       const dec = new TextDecoder().decode(data);
       if(_isLegacyPlanetText(dec)){
         legacyFiles.push({ fileName: filename, raw: dec, pathLower, namedCategory, zipName });
@@ -1601,7 +1614,7 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
           if(!dynamicPresetSources[namedCategory]) dynamicPresetSources[namedCategory] = { presets:{}, zipName };
           dynamicPresetSources[namedCategory].presets[pname] = parsed;
         } else {
-          const cat = _presetCategory(pathLower) || 'custom';
+          const cat = _presetCategory(pathLower, _zipNameLower) || 'custom';
           dynamicPresets[cat][pname] = parsed;
         }
         totalPresets++;
@@ -1621,7 +1634,7 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
       cacheTexture(texName, url);
 
       if(!assets.textures.find(a=>a.name===filename)){
-        const isVanillaTex = _presetCategory(pathLower) === 'vanilla';
+        const isVanillaTex = _presetCategory(pathLower, _zipNameLower) === 'vanilla';
         const entry = { name:filename, url, size:data.length, vanilla:isVanillaTex };
         assets.textures.push(entry);
         _thumbsDeferred.push(entry); // render thumb after queue drains
