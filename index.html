@@ -5324,6 +5324,12 @@ document.addEventListener('keydown', function(e){
                 oninput="document.getElementById('wmk-spread-val').textContent=parseFloat(this.value).toFixed(1);wmkQueueApply()">
             </label>
             <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
+              letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px">
+              SEAFLOOR TEXTURE <span id="wmk-texture-val" style="color:rgba(180,200,255,.7)">35%</span>
+              <input type="range" id="wmk-texture" min="0" max="100" value="35" style="flex:1;accent-color:rgba(100,160,255,.8);min-height:18px"
+                oninput="document.getElementById('wmk-texture-val').textContent=this.value+'%';wmkQueueApply()">
+            </label>
+            <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
               letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:6px">
               <input type="checkbox" id="wmk-terrain-circle" onchange="wmkRenderFinal()" style="accent-color:rgba(100,160,255,.8);width:14px;height:14px">
               TERRAIN CIRCLE
@@ -6632,6 +6638,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function wmkApplyDepth() {
     if (!wmkSeaField) return;
+    // Ensure we have a grayscale read of the source even when the current
+    // detection method is 'color' (wmkBuildGray is normally only called
+    // lazily by the threshold panel) — the texture blend below needs it
+    // regardless of how the sea/land split was produced.
+    wmkBuildGray();
     const cv = wmkGetCanvas(), w=cv.width, h=cv.height, ctx=wmkGetCtx();
     wmkGenerated  = ctx.createImageData(w,h);
     wmkEditLayer  = ctx.createImageData(w,h);
@@ -6639,12 +6650,22 @@ document.addEventListener('DOMContentLoaded', () => {
     for(let i=0;i<ed.length;i+=4){ed[i]=ed[i+1]=ed[i+2]=0;ed[i+3]=0;}
     const cw=+$('wmk-coast').value, sp=+$('wmk-spread').value;
     const shallowV=+$('wmk-shallow').value, deepV=+$('wmk-deep').value;
+    const texAmt=+$('wmk-texture').value/100;
     for(let i=0,p=0;i<wmkGenerated.data.length;i+=4,p++){
       if(!wmkSeaMask[p]){wmkGenerated.data[i]=wmkGenerated.data[i+1]=wmkGenerated.data[i+2]=255;}
       else{
         let t=Math.min(1,wmkCoastDist[p]/cw);
         t=Math.pow(t,sp); t=t*t*(3-2*t);
-        const v=shallowV*(1-t)+deepV*t;
+        const flatV=shallowV*(1-t)+deepV*t;
+        // Blend the flat coastal-falloff value with the source pixel's own
+        // luminance so far-from-shore water keeps ocean-floor texture detail
+        // instead of collapsing to a single flat deep-water color. The blend
+        // strength ramps in with depth (t) and is scaled by the TEXTURE
+        // slider, and is re-centred on flatV so it can only add/remove local
+        // contrast around the depth value, not blow past the shallow/deep
+        // range entirely.
+        const texMix = texAmt * t;
+        const v = flatV + (wmkGray[p] - flatV) * texMix;
         wmkGenerated.data[i]=wmkGenerated.data[i+1]=wmkGenerated.data[i+2]=v;
       }
       wmkGenerated.data[i+3]=255;
