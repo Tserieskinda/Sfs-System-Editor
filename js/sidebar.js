@@ -2949,6 +2949,14 @@ function addDayNightCycle(opts){
 
   pushUndo();
 
+  // Push the host's own front clouds (if any) in front of the shadow disc,
+  // which sits at o.positionZ (default -5000). Without this the host's own
+  // FRONT_CLOUDS_DATA (typically positionZ 0) would composite behind the
+  // shadow instead of in front of it.
+  if(target.data?.FRONT_CLOUDS_DATA){
+    target.data.FRONT_CLOUDS_DATA.positionZ = 5000;
+  }
+
   const texName = _dncGenerateTexture(o.darkness);
 
   const invisRadius = targetRadius * o.invisRadiusMult;
