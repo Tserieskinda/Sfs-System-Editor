@@ -368,6 +368,30 @@
         </div>
       </div>
 
+      <!-- ── PLERCONICUS GALAXY ── -->
+      <div class="fs-card">
+        <span class="fs-card-new-badge">NEW</span>
+        <div class="fs-card-header">
+          <span class="fs-card-title">PLERCONICUS GALAXY</span>
+          <span class="fs-card-author">by Wacky-ass CSS builder</span>
+        </div>
+        <div class="fs-card-preview" style="padding:0;overflow:hidden;border-radius:6px">
+          <img src="featured/PG.png" alt="Plerconicus Galaxy Preview" style="width:100%;height:auto;display:block">
+        </div>
+        <div class="fs-card-desc">
+          A dwarf galaxy, far away from the Milky Way, with catalogued objects and many objects you can go to. You start in Tare, and head off from there.
+        </div>
+        <div class="fs-card-actions">
+          <button class="fs-btn fs-btn-dl" onclick="trackFeatured('pg','import');importFeatured('featured/PG.zip','PG.zip')">⬇ IMPORT</button>
+          <button class="fs-btn fs-btn-open" onclick="trackFeatured('pg','open');loadZipFromUrl('featured/PG.zip','PG.zip')">▶ OPEN IN EDITOR</button>
+        </div>
+        <div class="fs-card-stats" id="fsstats-pg">
+          <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-pg-import">…</span> imports</span>
+          <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-pg-open">…</span> opens</span>
+          <span class="fs-stat fs-stat-size">📦 <span class="fs-stat-num fs-stat-loading" id="fssz-pg">…</span> MB</span>
+        </div>
+      </div>
+
       <!-- ── BLANK CARD slot ── -->
       <div class="fs-card fs-card-empty">
         <div class="fs-empty-icon">＋</div>
@@ -6805,7 +6829,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const SB_KEY = 'sb_publishable_7UarYndVEPrKEg3qFrfevQ_jbMh3dbI';
   const HEADERS = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
 
-  const KEYS = ['sfs-default', 'bgh', 'htss', 'ys', 'ch', 'rs'];
+  const KEYS = ['sfs-default', 'bgh', 'htss', 'ys', 'ch', 'rs', 'pg'];
   const ACTS = ['import', 'open'];
 
   const ZIP_URLS = {
@@ -6815,6 +6839,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'ys':          'featured/YS.zip',
     'ch':          'featured/CH.zip',
     'rs':          'featured/RS.zip',
+    'pg':          'featured/PG.zip',
   };
 
   // ── Increment via RPC and update display ──
