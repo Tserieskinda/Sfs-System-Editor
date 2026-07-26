@@ -284,6 +284,21 @@ body {
 }
 .menu-cog-btn:hover { background: var(--ac30); box-shadow: 0 0 18px var(--ac40); transform: scale(1.06); }
 
+.menu-fs-btn { right: 76px; font-size: 1.25rem; }
+.menu-fs-btn.is-active { color: var(--sky); border-color: var(--sky); box-shadow: 0 0 12px var(--sky40, var(--ac20)); }
+
+/* Pseudo-fullscreen fallback (iOS Safari has no element/document Fullscreen API).
+   Pins the whole app to the viewport and pads a bit extra height so scrolling
+   to hide the address bar doesn't reveal blank space beneath the content. */
+body.pseudo-fullscreen {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 120%;
+  overflow: hidden;
+}
+
 /* ═══════════════════════════ NEW SYSTEM SCREEN ═══════════════════════════ */
 #s-new { flex-direction: column; align-items: stretch; }
 
@@ -2810,6 +2825,7 @@ body {
     width: 42px; height: 42px;
     font-size: 1.35rem;
   }
+  .menu-fs-btn { right: 64px; font-size: 1.15rem; }
 
   /* Menu buttons: full width, good tap height */
   .menu-btn {

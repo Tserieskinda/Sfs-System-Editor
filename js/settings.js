@@ -164,3 +164,65 @@ function clearAll(){
   drawViewport();
 }
 
+// ════════════════════════════════ FULLSCREEN TOGGLE ════════════════════════════════
+// Standard Fullscreen API where available. On platforms that don't support it for
+// arbitrary elements (notably iOS Safari — no element/document fullscreen API at
+// all), fall back to a "pseudo-fullscreen" mode: a fixed-position full-viewport
+// overlay class plus scrolling tricks to hide the address bar, so mobile users
+// still get an edge-to-edge, distraction-free view even without true fullscreen.
+function _fsEl(){
+  return document.documentElement;
+}
+function _fsIsNative(){
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+function _fsNativeSupported(){
+  const el = _fsEl();
+  return !!(el.requestFullscreen || el.webkitRequestFullscreen);
+}
+function _fsIsPseudo(){
+  return document.body.classList.contains('pseudo-fullscreen');
+}
+function _fsSyncBtn(){
+  const btn = document.getElementById('btn-fullscreen');
+  if(!btn) return;
+  const active = _fsIsNative() || _fsIsPseudo();
+  btn.classList.toggle('is-active', active);
+  btn.title = active ? 'Exit Fullscreen' : 'Fullscreen';
+  btn.textContent = active ? '⛶' : '⛶';
+}
+function _fsEnterPseudo(){
+  document.body.classList.add('pseudo-fullscreen');
+  // Nudge mobile browsers to collapse the address bar
+  window.scrollTo(0, 1);
+  setTimeout(() => window.scrollTo(0, 1), 300);
+}
+function _fsExitPseudo(){
+  document.body.classList.remove('pseudo-fullscreen');
+}
+function toggleAppFullscreen(){
+  if(_fsNativeSupported()){
+    if(_fsIsNative()){
+      (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+    } else {
+      const el = _fsEl();
+      (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el).catch(() => {
+        // Some mobile browsers advertise the API but reject the call (e.g. not
+        // triggered directly enough by a user gesture) — fall back gracefully.
+        _fsEnterPseudo();
+        _fsSyncBtn();
+      });
+    }
+  } else {
+    // No real fullscreen API (iOS Safari) — use the pseudo-fullscreen fallback.
+    _fsIsPseudo() ? _fsExitPseudo() : _fsEnterPseudo();
+  }
+  setTimeout(_fsSyncBtn, 50);
+}
+document.addEventListener('fullscreenchange', _fsSyncBtn);
+document.addEventListener('webkitfullscreenchange', _fsSyncBtn);
+document.addEventListener('DOMContentLoaded', () => {
+  if(!_fsNativeSupported() && !('standalone' in navigator)) return; // desktop w/o API: leave button, still works via pseudo mode
+  _fsSyncBtn();
+});
+
