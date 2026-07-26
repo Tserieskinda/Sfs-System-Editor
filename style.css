@@ -3373,3 +3373,56 @@ body {
     max-height: none;
   }
 }
+
+/* ════════════════════════════════════════════════════════════
+   DAY/NIGHT CYCLE TEXTURE CREATOR — reuses .tc-/.pt- shell;
+   only the bits with no existing equivalent live here.
+   ════════════════════════════════════════════════════════════ */
+.dc-window { }
+.dc-color-pair { display: flex; align-items: center; gap: 8px; }
+.dc-color-arrow { color: var(--ink4); font-size: .7rem; flex-shrink: 0; }
+.dc-color-hint { color: var(--ink4); font-size: .58rem; font-style: italic; }
+
+.dc-cloud-source-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.dc-cloud-source-label {
+  font-family: 'JetBrains Mono', monospace; font-size: .6rem;
+  color: var(--ink4); margin-bottom: 12px;
+}
+
+.dc-num-input {
+  background: var(--dp3); border: 1px solid var(--ac13); color: var(--ink2);
+  font-family: 'JetBrains Mono', monospace; font-size: .72rem;
+  padding: 6px 8px; border-radius: 4px; outline: none; width: 100%;
+}
+.dc-num-input:focus { border-color: var(--ac45); }
+
+.dc-layer-card {
+  background: var(--panel3); border: 1px solid var(--rim2); border-radius: 6px;
+  padding: 8px 10px 2px; margin-bottom: 10px;
+}
+.dc-layer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: 'JetBrains Mono', monospace; font-size: .6rem;
+  letter-spacing: .1em; color: var(--ink3); margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.dc-layer-remove {
+  background: none; border: none; color: var(--ink4); cursor: pointer;
+  font-size: .72rem; padding: 2px 4px; transition: color .12s;
+}
+.dc-layer-remove:hover { color: var(--rose); }
+
+.dc-add-layer-btn {
+  width: 100%; background: none; border: 1px dashed var(--rim2); border-radius: 4px;
+  color: var(--sky2); font-family: 'JetBrains Mono', monospace; font-size: .65rem;
+  letter-spacing: .05em; padding: 8px; cursor: pointer; margin-bottom: 8px;
+  transition: border-color .15s, background .15s;
+}
+.dc-add-layer-btn:hover { border-color: var(--sky); background: var(--ac10); }
+
+.dc-hint { color: var(--ink4); font-size: .58rem; line-height: 1.5; padding: 2px 0 8px; }
+
+@media (max-width: 640px) {
+  .dc-color-pair { gap: 6px; }
+  .dc-cloud-source-row { gap: 6px; }
+}
