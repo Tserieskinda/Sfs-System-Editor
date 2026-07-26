@@ -1394,6 +1394,7 @@ function fillSidebar(name){
   setSimpleKm('cl-w',CL.width); setSimpleKm('cl-h',CL.height); setSlider('cl-a', CL.alpha, 0, 1); setCloudVelDisplay(CL.velocity || 0);
   initSlider('cl-a',0,1);
   toggleAtmoSection('cl-fields','cl-has');
+  updateCloudStackPreview();
 
   // FRONT CLOUDS
   const FC = d.FRONT_CLOUDS_DATA||{};
@@ -2239,6 +2240,122 @@ function clWidthAutoSync(){
   if(input) input.value = rounded;
   if(preview) preview.textContent = `≈ ${rounded.toLocaleString()} m`;
   liveSync();
+}
+
+// ── Cloud stacking-bug fix ──────────────────────────────────────────────────
+// Known SFS bug: a custom CLOUDS texture whose Height is too small relative to
+// (Radius+GRADIENT.height) repeats/wraps multiple times, showing as several
+// stacked rings/bands instead of one. The community fix: count how many times
+// it repeats, multiply CLOUDS.height by that count, and pad the texture's own
+// pixel height by the same factor (original artwork unstretched, extra space
+// left transparent) so it reads as a single, non-wrapping pass. This is a
+// faithful implementation of that exact by-hand process, derived from and
+// verified algebraically against the confirmed real cloud formula (see the
+// 'exact' formulaMode in viewport.js and the RenderDoc-derived math it's
+// based on) — bottom-anchoring the original artwork in the padded texture
+// preserves the exact same absolute texture rows at every radius, it just
+// removes the wraparound that was causing the repeats, so this doesn't
+// change what the cloud LOOKS like, only removes the duplication.
+function _cloudStackInfo(){
+  const b = selectedBody && bodies[selectedBody];
+  if(!b) return null;
+  const d = b.data;
+  const CL = d.ATMOSPHERE_VISUALS_DATA?.CLOUDS;
+  if(!CL || !CL.texture || CL.texture === 'None') return null;
+
+  const radiusMult = (typeof getRadiusDifficultyMult === 'function') ? getRadiusDifficultyMult(d.BASE_DATA) : 1;
+  const atmoMult    = (typeof getAtmoDifficultyMult === 'function') ? getAtmoDifficultyMult(d) : 1;
+  const R      = ((d.BASE_DATA || {}).radius || 0) * radiusMult;
+  const atmoPhysH = (d.ATMOSPHERE_PHYSICS_DATA?.height || 0) * atmoMult;
+  const gradH  = (d.ATMOSPHERE_VISUALS_DATA?.GRADIENT?.height || atmoPhysH) * atmoMult;
+  const cloudH = Math.max(1, (CL.height || 1)) * atmoMult;
+
+  const cloudSizeY = (R + gradH) / cloudH;
+  const numRepeats = Math.max(1, Math.ceil(cloudSizeY - 1e-9)); // epsilon guards float noise at clean integers
+  return { CL, R, gradH, cloudH, cloudSizeY, numRepeats, needsFix: cloudSizeY > 1 + 1e-6 };
+}
+
+// Live preview shown under the Height field — call on any change to Height,
+// GRADIENT height, or when the sidebar (re)fills for a body.
+function updateCloudStackPreview(){
+  const preview = document.getElementById('cl-stack-preview');
+  const btn = document.getElementById('cl-stack-fix-btn');
+  if(!preview || !btn) return;
+  const info = _cloudStackInfo();
+  if(!info){
+    preview.textContent = '—';
+    btn.disabled = true;
+    return;
+  }
+  if(!info.needsFix){
+    preview.textContent = `cloudSizeY = ${info.cloudSizeY.toFixed(3)} — single pass, no stacking`;
+    preview.style.color = 'var(--ink4)';
+    btn.disabled = true;
+    return;
+  }
+  preview.textContent = `cloudSizeY = ${info.cloudSizeY.toFixed(3)} — repeats ${info.numRepeats}× (stacking bug present)`;
+  preview.style.color = 'var(--sky2)';
+  btn.disabled = false;
+}
+
+// The actual fix. Loads the current texture, pads it vertically by numRepeats
+// (original artwork bottom-anchored, new space above left transparent),
+// registers it as a new texture asset, and rewrites this body's CLOUDS.texture
+// + CLOUDS.height to use it.
+function fixCloudStacking(){
+  const b = selectedBody && bodies[selectedBody];
+  if(!b){ alert('Select a body first.'); return; }
+  const info = _cloudStackInfo();
+  if(!info){ alert('This body has no custom clouds texture set.'); return; }
+  if(!info.needsFix){ alert('No stacking detected — cloudSizeY is already ≤ 1.'); return; }
+
+  const oldName = info.CL.texture;
+  const img = (typeof textureCache !== 'undefined') ? textureCache[oldName] : null;
+  if(!img || !img.width || !img.height){
+    alert(`Texture "${oldName}" isn't loaded yet — open it in a texture picker preview first, then retry.`);
+    return;
+  }
+
+  const N = info.numRepeats;
+  const oldW = img.width, oldH = img.height;
+  const newH = oldH * N;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = oldW;
+  canvas.height = newH;
+  const ctx = canvas.getContext('2d');
+  // Canvas is transparent by default — only draw the original artwork,
+  // bottom-anchored; everything above it stays transparent padding.
+  ctx.drawImage(img, 0, newH - oldH, oldW, oldH);
+  const dataUrl = canvas.toDataURL('image/png');
+
+  // Unique name, avoiding collisions with existing assets
+  let baseName = `${oldName}_Fixed${N}x`;
+  let newName = baseName;
+  let n = 2;
+  while((typeof textureCache !== 'undefined' && textureCache[newName]) ||
+        (typeof assets !== 'undefined' && assets.textures.find(t => t.name.replace(/\.[^.]+$/,'') === newName))){
+    newName = `${baseName}_${n}`; n++;
+  }
+  const fileName = `${newName}.png`;
+
+  pushUndo();
+
+  if(typeof assets !== 'undefined'){
+    const entry = { name: fileName, url: dataUrl, size: dataUrl.length };
+    assets.textures.push(entry);
+    if(typeof renderAssetThumb === 'function') renderAssetThumb(entry);
+    if(typeof updateAssetEmptyState === 'function') updateAssetEmptyState();
+  }
+  if(typeof cacheTexture === 'function') cacheTexture(newName, dataUrl);
+  if(typeof refreshTexPickerLists === 'function') refreshTexPickerLists();
+
+  // Apply to this body: new texture, height scaled by the same factor N.
+  info.CL.texture = newName;
+  info.CL.height = info.cloudH * N;
+
+  fillSidebar(selectedBody);
+  drawViewport();
 }
 
 function syncCloudVel(){
