@@ -189,7 +189,7 @@ async function autosaveRestore() {
   ].join(';');
   const progIcon = document.createElement('div');
   progIcon.style.cssText = 'font-size:28px';
-  progIcon.textContent = '💾';
+  progIcon.innerHTML = '<svg class="icon" style="width:1em;height:1em"><use href="#icon-save"></use></svg>';
   const progMsg = document.createElement('div');
   progMsg.textContent = 'Restoring session…';
   prog.append(progIcon, progMsg);
@@ -339,7 +339,7 @@ function _asInjectRestoreBtn(rec) {
   const btnRestore = document.createElement('button');
   btnRestore.className = 'menu-btn primary menu-btn-restore';
   btnRestore.innerHTML =
-    `<span class="mico">💾</span>` +
+    `<span class="mico"><svg class="icon"><use href="#icon-save"></use></svg></span>` +
     `<span class="as-restore-label">` +
       `<span>RESTORE SESSION</span>` +
       `<span class="as-restore-sub">${parts.join(' · ')} · ${age}</span>` +

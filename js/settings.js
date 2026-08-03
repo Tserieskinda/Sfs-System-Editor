@@ -189,7 +189,9 @@ function _fsSyncBtn(){
   const active = _fsIsNative() || _fsIsPseudo();
   btn.classList.toggle('is-active', active);
   btn.title = active ? 'Exit Fullscreen' : 'Fullscreen';
-  btn.textContent = active ? '⛶' : '⛶';
+  btn.innerHTML = active
+    ? '<svg class="icon"><use href="#icon-minimize"></use></svg>'
+    : '<svg class="icon"><use href="#icon-expand"></use></svg>';
 }
 function _fsEnterPseudo(){
   document.body.classList.add('pseudo-fullscreen');

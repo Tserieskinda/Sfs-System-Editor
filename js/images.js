@@ -423,7 +423,7 @@ function _imgUpdateSidebar() {
   // Sync aspect lock button
   const alBtn = document.getElementById('img-d-aspect-lock');
   if(alBtn) {
-    alBtn.textContent = _imgAspectLocked ? '🔗' : '⛓️‍💥';
+    alBtn.innerHTML = _imgAspectLocked ? '<svg class="icon"><use href="#icon-link"></use></svg>' : '<svg class="icon"><use href="#icon-unlink"></use></svg>';
     alBtn.style.borderColor = _imgAspectLocked ? 'var(--ac65)' : 'var(--ac20)';
     alBtn.style.background  = _imgAspectLocked ? 'var(--hp1)'  : 'var(--dp3)';
     alBtn.title = _imgAspectLocked ? 'Aspect ratio locked' : 'Aspect ratio unlocked';
@@ -511,7 +511,7 @@ function imgToggleAspectLock() {
   _imgAspectLocked = !_imgAspectLocked;
   const btn = document.getElementById('img-d-aspect-lock');
   if(btn) {
-    btn.textContent = _imgAspectLocked ? '🔗' : '⛓️‍💥';
+    btn.innerHTML = _imgAspectLocked ? '<svg class="icon"><use href="#icon-link"></use></svg>' : '<svg class="icon"><use href="#icon-unlink"></use></svg>';
     btn.style.borderColor = _imgAspectLocked ? 'var(--ac65)' : 'var(--ac20)';
     btn.style.background  = _imgAspectLocked ? 'var(--hp1)'  : 'var(--dp3)';
     btn.title = _imgAspectLocked ? 'Aspect ratio locked' : 'Aspect ratio unlocked';
@@ -565,7 +565,7 @@ function _imgRebuildList() {
       <img src="${ov.img.src}" class="img-list-thumb" alt="">
       <span class="img-list-name">${ov.name}</span>
       ${ov.clickThrough ? '<span class="img-list-badge">click-thru</span>' : ''}
-      ${ov.lockToBody && ov.lockToBody !== 'None' ? '<span class="img-list-badge lock">🔒</span>' : ''}
+      ${ov.lockToBody && ov.lockToBody !== 'None' ? '<span class="img-list-badge lock"><svg class="icon"><use href="#icon-lock"></use></svg></span>' : ''}
     </div>
   `).join('');
 }

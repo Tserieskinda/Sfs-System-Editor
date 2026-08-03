@@ -394,10 +394,10 @@ const DC = (() => {
   <div class="tc-header">
     <div class="tc-header-left">
       <button class="tc-back-btn" id="dc-close">‹ BACK</button>
-      <span class="tc-title"><span class="tc-title-accent">☀</span>DAY / NIGHT CYCLE TEXTURE CREATOR</span>
+      <span class="tc-title"><span class="tc-title-accent"><svg class="icon"><use href="#icon-sun"></use></svg></span>DAY / NIGHT CYCLE TEXTURE CREATOR</span>
     </div>
     <div class="tc-header-right">
-      <button class="tc-load-btn" id="dc-copy">⎘ COPY TO CLIPBOARD</button>
+      <button class="tc-load-btn" id="dc-copy"><svg class="icon"><use href="#icon-copy"></use></svg> COPY TO CLIPBOARD</button>
       <button class="tc-export-btn" id="dc-export">⬇ EXPORT & ADD TO ASSETS</button>
     </div>
   </div>

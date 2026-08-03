@@ -7,21 +7,21 @@ const AU = 1.496e11;
 const PG = {
   types: {
     // Stars (by spectral class + special types)
-    star_O:           { label:'O-class Star',       icon:'⭐', enabled:false, weight:0,  color:'#a0c0ff', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'O' },
-    star_B:           { label:'B-class Star',       icon:'⭐', enabled:false, weight:0,  color:'#b8d0ff', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'B' },
-    star_A:           { label:'A-class Star',       icon:'⭐', enabled:false, weight:0,  color:'#d8e8ff', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'A' },
-    star_F:           { label:'F-class Star',       icon:'⭐', enabled:false, weight:0,  color:'#f8f8ff', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'F' },
-    star_G:           { label:'G-class Star (Sun)', icon:'⭐', enabled:true,  weight:20, color:'#ffd060', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'Sun' },
-    star_K:           { label:'K-class Star',       icon:'⭐', enabled:false, weight:0,  color:'#ffb060', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'K' },
-    star_M:           { label:'M-class Star',       icon:'⭐', enabled:false, weight:0,  color:'#ff8040', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'M' },
-    star_blue_giant:  { label:'Blue Giant',         icon:'💠', enabled:false, weight:0,  color:'#6090ff', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'Blue Giant' },
-    star_white_dwarf: { label:'White Dwarf',        icon:'⚪', enabled:false, weight:0,  color:'#e8e8ff', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'White Dwarf' },
+    star_O:           { label:'O-class Star',       icon:'<svg class="icon"><use href="#icon-star"></use></svg>', enabled:false, weight:0,  color:'#a0c0ff', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'O' },
+    star_B:           { label:'B-class Star',       icon:'<svg class="icon"><use href="#icon-star"></use></svg>', enabled:false, weight:0,  color:'#b8d0ff', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'B' },
+    star_A:           { label:'A-class Star',       icon:'<svg class="icon"><use href="#icon-star"></use></svg>', enabled:false, weight:0,  color:'#d8e8ff', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'A' },
+    star_F:           { label:'F-class Star',       icon:'<svg class="icon"><use href="#icon-star"></use></svg>', enabled:false, weight:0,  color:'#f8f8ff', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'F' },
+    star_G:           { label:'G-class Star (Sun)', icon:'<svg class="icon"><use href="#icon-star"></use></svg>', enabled:true,  weight:20, color:'#ffd060', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'Sun' },
+    star_K:           { label:'K-class Star',       icon:'<svg class="icon"><use href="#icon-star"></use></svg>', enabled:false, weight:0,  color:'#ffb060', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'K' },
+    star_M:           { label:'M-class Star',       icon:'<svg class="icon"><use href="#icon-star"></use></svg>', enabled:false, weight:0,  color:'#ff8040', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'M' },
+    star_blue_giant:  { label:'Blue Giant',         icon:'<svg class="icon"><use href="#icon-gem"></use></svg>', enabled:false, weight:0,  color:'#6090ff', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'Blue Giant' },
+    star_white_dwarf: { label:'White Dwarf',        icon:'<svg class="icon"><use href="#icon-circle"></use></svg>', enabled:false, weight:0,  color:'#e8e8ff', eccMax:0.05, soiScale:1.0, isStar:true, presetName:'White Dwarf' },
     // Regular bodies
-    planet:      { label:'Planets',      icon:'🌍', enabled:true,  weight:55, color:'#4488ff', eccMax:0.15, soiScale:1.0 },
-    moon:        { label:'Moons',        icon:'🌙', enabled:true,  weight:18, color:'#aaaaaa', eccMax:0.05, soiScale:1.0 },
-    asteroid:    { label:'Asteroids',    icon:'☄️', enabled:false, weight:0,  color:'#886644', eccMax:0.55, soiScale:0.3 },
-    brown_dwarf: { label:'Brown Dwarfs', icon:'🟤', enabled:false, weight:0,  color:'#cc6622', eccMax:0.10, soiScale:1.0 },
-    blackhole:   { label:'Black Holes',  icon:'⚫', enabled:false, weight:0,  color:'#8800ff', eccMax:0.05, soiScale:2.0 },
+    planet:      { label:'Planets',      icon:'<svg class="icon"><use href="#icon-globe"></use></svg>', enabled:true,  weight:55, color:'#4488ff', eccMax:0.15, soiScale:1.0 },
+    moon:        { label:'Moons',        icon:'<svg class="icon"><use href="#icon-moon"></use></svg>', enabled:true,  weight:18, color:'#aaaaaa', eccMax:0.05, soiScale:1.0 },
+    asteroid:    { label:'Asteroids',    icon:'<svg class="icon"><use href="#icon-flame"></use></svg>', enabled:false, weight:0,  color:'#886644', eccMax:0.55, soiScale:0.3 },
+    brown_dwarf: { label:'Brown Dwarfs', icon:'<svg class="icon"><use href="#icon-circle-dot"></use></svg>', enabled:false, weight:0,  color:'#cc6622', eccMax:0.10, soiScale:1.0 },
+    blackhole:   { label:'Black Holes',  icon:'<svg class="icon"><use href="#icon-circle"></use></svg>', enabled:false, weight:0,  color:'#8800ff', eccMax:0.05, soiScale:2.0 },
   },
   modes: {
     asteroid_cluster: { label:'Asteroid Cluster', enabled:false, weight:0 },
@@ -56,7 +56,9 @@ function pgToggleSeedLock() {
   _pgSeedLocked = !_pgSeedLocked;
   const btn = document.getElementById('pg-seed-lock-btn');
   if (btn) {
-    btn.textContent = _pgSeedLocked ? '🔒 SEED' : '🔓 SEED';
+    btn.innerHTML = _pgSeedLocked
+      ? '<svg class="icon"><use href="#icon-lock"></use></svg> SEED'
+      : '<svg class="icon"><use href="#icon-unlock"></use></svg> SEED';
     btn.classList.toggle('seed-locked', _pgSeedLocked);
     btn.title = _pgSeedLocked
       ? 'Seed locked — GEN will reuse the same layout. Click to unlock.'
@@ -65,7 +67,7 @@ function pgToggleSeedLock() {
   if (_pgSeedLocked && !_pgSavedSeed) {
     pgShowStatus('⚠ Generate first to capture a seed.', 'warn');
     _pgSeedLocked = false;
-    if (btn) { btn.textContent = '🔓 SEED'; btn.classList.remove('seed-locked'); }
+    if (btn) { btn.innerHTML = '<svg class="icon"><use href="#icon-unlock"></use></svg> SEED'; btn.classList.remove('seed-locked'); }
   } else {
     pgShowStatus(_pgSeedLocked ? '🔒 Seed locked — layout will be preserved on next GEN' : '🔓 Seed unlocked', _pgSeedLocked ? 'ok' : 'info');
   }
@@ -211,7 +213,7 @@ function pgRenderBodyTypeGrid() {
       <div class="pg-body-row">
         <label class="pg-body-btn ${m.enabled?'pg-body-btn--on':''}" data-type="${key}"
           onclick="pgToggleMode('${key}',this)">
-          <span class="pg-body-icon">${m.label.includes('Asteroid') ? '☄️☄️' : '⭐⭐'}</span>
+          <span class="pg-body-icon">${m.label.includes('Asteroid') ? '<svg class="icon"><use href="#icon-flame"></use></svg><svg class="icon"><use href="#icon-flame"></use></svg>' : '<svg class="icon"><use href="#icon-star"></use></svg><svg class="icon"><use href="#icon-star"></use></svg>'}</span>
           <span class="pg-body-label">${m.label}</span>
           <span class="pg-body-check">${m.enabled?'✓':''}</span>
         </label>
@@ -288,7 +290,7 @@ function pgRenderFrequencyControls() {
     html += enabledModes.map(([key,m]) => {
       const pct = totalW > 0 ? Math.round((m.weight/totalW)*100) : 0;
       return `<div class="pg-freq-row">
-        <span class="pg-freq-icon">${key.includes('asteroid') ? '☄️' : '⭐'}</span>
+        <span class="pg-freq-icon">${key.includes('asteroid') ? '<svg class="icon"><use href="#icon-flame"></use></svg>' : '<svg class="icon"><use href="#icon-star"></use></svg>'}</span>
         <span class="pg-freq-name">${m.label}</span>
         <input type="range" class="pg-freq-slider" min="0" max="100" value="${m.weight}"
           oninput="pgSetModeWeight('${key}',this.value)" style="accent-color:#888">
@@ -511,7 +513,7 @@ async function pgGenerate() {
       orbitSMA: 0,
       radius:   (chosenParentBody.data?.BASE_DATA?.radius || 34817000),
       color:    chosenParentBody.color || '#ffd060',
-      icon:     chosenParentBody.icon  || '⭐',
+      icon:     chosenParentBody.icon  || '<svg class="icon"><use href="#icon-star"></use></svg>',
       _angle:   0,
       children: [],
     };
@@ -530,7 +532,7 @@ async function pgGenerate() {
       orbitSMA: 0,
       radius:   (centerPreset.data.BASE_DATA?.radius || 34817000),
       color:    PG.types[centerType]?.color || '#ffd060',
-      icon:     PG.types[centerType]?.icon  || '⭐',
+      icon:     PG.types[centerType]?.icon  || '<svg class="icon"><use href="#icon-star"></use></svg>',
       _angle:   0,
       children: [],
     };
@@ -589,7 +591,7 @@ async function pgGenerate() {
             parent: centerName, orbitSMA: sma, orbitEcc: ecc,
             orbitDir: _pgRand() > 0.1 ? 1 : -1,
             orbitAoP: _pgRand() * 360,
-            radius, color: '#886644', icon: '☄️',
+            radius, color: '#886644', icon: '<svg class="icon"><use href="#icon-flame"></use></svg>',
             _angle: _pgRand() * Math.PI * 2, children: [],
           };
           center.children.push(body);
@@ -613,7 +615,7 @@ async function pgGenerate() {
           parent: centerName, orbitSMA: sma, orbitEcc: ecc,
           orbitDir: 1, orbitAoP: _pgRand() * 360,
           radius, color: PG.types[starType]?.color || '#ffd060',
-          icon: PG.types[starType]?.icon || '⭐',
+          icon: PG.types[starType]?.icon || '<svg class="icon"><use href="#icon-star"></use></svg>',
           _angle: _pgRand() * Math.PI * 2, children: [],
         };
         center.children.push(body);
@@ -647,7 +649,7 @@ async function pgGenerate() {
         orbitAoP: _pgRand() * 360,
         radius,
         color: PG.types[type]?.color || '#aaaaaa',
-        icon:  PG.types[type]?.icon  || '🌍',
+        icon:  PG.types[type]?.icon  || '<svg class="icon"><use href="#icon-globe"></use></svg>',
         _angle: _pgRand() * Math.PI * 2,
         children: [],
       };
@@ -669,7 +671,7 @@ async function pgGenerate() {
             orbitDir: 1,
             radius:   (moonPreset.data?.BASE_DATA?.radius || 300000) * 0.3,
             color:    '#999999',
-            icon:     '🌙',
+            icon:     '<svg class="icon"><use href="#icon-moon"></use></svg>',
             _angle:   _pgRand() * Math.PI * 2,
             children: [],
           };
@@ -1374,8 +1376,7 @@ function pgClear() {
   _pgRngPool    = null;
   _pgRngRecord  = null;
   const btn = document.getElementById('pg-seed-lock-btn');
-  if (btn) { btn.textContent = '🔓 SEED'; btn.classList.remove('seed-locked'); }
-  pgShowStatus('', '');
+  if (btn) { btn.innerHTML = '<svg class="icon"><use href="#icon-unlock"></use></svg> SEED'; btn.classList.remove('seed-locked'); }
 }
 
 function pgShowStatus(msg, type) {
@@ -1676,7 +1677,7 @@ function pgPresetsRender() {
       ? `<button class="pg-preset-del-btn" onclick="pgPresetsRemove(${JSON.stringify(p.name)})" title="Remove preset">✕</button>`
       : '';
     return `<div class="pg-preset-row${isUser ? ' pg-preset-row--user' : ''}">
-      <span class="pg-preset-row-icon">${p.icon || '🌑'}</span>
+      <span class="pg-preset-row-icon">${p.icon || '<svg class="icon"><use href="#icon-orbit"></use></svg>'}</span>
       <span class="pg-preset-row-name" title="${p.name}">${p.name}</span>
       <span class="pg-preset-row-tag${isUser ? ' pg-preset-row-tag--user' : ''}">${tagLabel}</span>
       ${delBtn}

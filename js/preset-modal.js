@@ -294,7 +294,7 @@ function prsRefreshNamedTabs(){
   Object.keys(dynamicPresetSources).forEach(label => {
     const btn = document.createElement('button');
     btn.className = 'prs-tab prs-tab-named';
-    btn.textContent = '🚀 ' + label;
+    btn.innerHTML = '<svg class="icon"><use href="#icon-rocket"></use></svg> ' + label;
     btn.onclick = function(){ prsSetTab(label, this); };
     // Insert before the system tab
     const sysTab = document.getElementById('prs-tab-system');
@@ -307,7 +307,7 @@ function prsRefreshSystemTab(){
   if(!btn) return;
   const hasSystem = Object.keys(systemPresets).length > 0;
   btn.style.display = hasSystem ? '' : 'none';
-  btn.textContent = hasSystem ? `🚀 ${systemPresetsName || 'SYSTEM'}` : '';
+  btn.innerHTML = hasSystem ? `<svg class="icon"><use href="#icon-rocket"></use></svg> ${systemPresetsName || 'SYSTEM'}` : '';
   // If currently on system tab but system was cleared, fall back to all
   if(!hasSystem && _prsTab === 'system'){
     _prsTab = 'all';
@@ -361,7 +361,7 @@ function prsRebuild(){
     if(vanillaItems.length){
       const hdr = document.createElement('div');
       hdr.className = 'prs-group-hdr';
-      hdr.textContent = '🌍 Vanilla Solar System';
+      hdr.innerHTML = '<svg class="icon"><use href="#icon-globe"></use></svg> Vanilla Solar System';
       grid.appendChild(hdr);
       vanillaItems.forEach(p => grid.appendChild(makePrsCard(p)));
     }
@@ -375,7 +375,7 @@ function prsRebuild(){
     if(systemItems.length){
       const hdr = document.createElement('div');
       hdr.className = 'prs-group-hdr';
-      hdr.textContent = `🚀 ${systemPresetsName || 'Loaded System'}`;
+      hdr.innerHTML = `<svg class="icon"><use href="#icon-rocket"></use></svg> ${systemPresetsName || 'Loaded System'}`;
       grid.appendChild(hdr);
       systemItems.forEach(p => grid.appendChild(makePrsCard(p)));
     }
@@ -386,7 +386,7 @@ function prsRebuild(){
         if(!namedItems.length) return;
         const hdr = document.createElement('div');
         hdr.className = 'prs-group-hdr';
-        hdr.textContent = '🚀 ' + label;
+        hdr.innerHTML = '<svg class="icon"><use href="#icon-rocket"></use></svg> ' + label;
         grid.appendChild(hdr);
         namedItems.forEach(p => grid.appendChild(makePrsCard(p)));
       });
@@ -431,7 +431,7 @@ function makeClipboardCard(entry, idx){
   card.innerHTML =
     `<span class="prs-card-name">${entry.name}</span>` +
     (sub ? `<span class="prs-card-sub">${sub}</span>` : '') +
-    `<span class="prs-card-badge" style="background:rgba(255,160,50,.18);color:rgba(255,190,80,.9);border-color:rgba(255,160,50,.3)">📋</span>` +
+    `<span class="prs-card-badge" style="background:rgba(255,160,50,.18);color:rgba(255,190,80,.9);border-color:rgba(255,160,50,.3)"><svg class="icon"><use href="#icon-clipboard"></use></svg></span>` +
     `<button class="prs-clip-del" title="Remove from clipboard" onclick="event.stopPropagation();clipboardRemove(${idx})">✕</button>`;
   card.insertBefore(ic, card.firstChild);
 

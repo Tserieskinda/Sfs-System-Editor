@@ -643,14 +643,14 @@ const PT = (() => {
 
               <div class="pt-section">Quick Palettes</div>
               <div class="pt-preset-grid" id="pt-presets">
-                <button class="pt-preset-btn" data-preset="earth">🌍 Earth</button>
-                <button class="pt-preset-btn" data-preset="mars">🟠 Mars</button>
-                <button class="pt-preset-btn" data-preset="ice">❄️ Ice World</button>
-                <button class="pt-preset-btn" data-preset="volcanic">🌋 Volcanic</button>
-                <button class="pt-preset-btn" data-preset="toxic">☣️ Toxic</button>
-                <button class="pt-preset-btn" data-preset="ocean">🌊 Ocean World</button>
-                <button class="pt-preset-btn" data-preset="barren">🪨 Barren Rock</button>
-                <button class="pt-preset-btn" data-preset="comet">☄️ Comet</button>
+                <button class="pt-preset-btn" data-preset="earth"><svg class="icon"><use href="#icon-globe"></use></svg> Earth</button>
+                <button class="pt-preset-btn" data-preset="mars"><svg class="icon"><use href="#icon-circle"></use></svg> Mars</button>
+                <button class="pt-preset-btn" data-preset="ice"><svg class="icon"><use href="#icon-snowflake"></use></svg> Ice World</button>
+                <button class="pt-preset-btn" data-preset="volcanic"><svg class="icon"><use href="#icon-mountain-snow"></use></svg> Volcanic</button>
+                <button class="pt-preset-btn" data-preset="toxic"><svg class="icon"><use href="#icon-biohazard"></use></svg> Toxic</button>
+                <button class="pt-preset-btn" data-preset="ocean"><svg class="icon"><use href="#icon-waves"></use></svg> Ocean World</button>
+                <button class="pt-preset-btn" data-preset="barren"><svg class="icon"><use href="#icon-mountain"></use></svg> Barren Rock</button>
+                <button class="pt-preset-btn" data-preset="comet"><svg class="icon"><use href="#icon-flame"></use></svg> Comet</button>
               </div>
 
               <div class="pt-section">Projection & Geometry</div>

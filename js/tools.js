@@ -177,7 +177,7 @@ function enterDragOrbitMode(){
       padding:6px 16px;font-family:'JetBrains Mono',monospace;font-size:.6rem;
       color:rgba(255,180,80,.85);letter-spacing:.07em;z-index:150;pointer-events:none;
       box-shadow:0 4px 16px rgba(0,0,0,.6)`;
-    hint.textContent = '🪐  DRAG ORBIT  —  drag any body to reposition its orbit';
+    hint.innerHTML = '<svg class="icon"><use href="#icon-orbit"></use></svg>  DRAG ORBIT  —  drag any body to reposition its orbit';
     document.body.appendChild(hint);
   }
   hint.style.display = 'block';
@@ -190,7 +190,7 @@ function exitDragOrbitMode(){
 
   const btn = document.getElementById('btn-tools');
   if(btn){
-    btn.innerHTML = '🔧';
+    btn.innerHTML = '<svg class="icon"><use href="#icon-wrench"></use></svg>';
     btn.style.borderColor = 'rgba(255,180,80,.35)';
     btn.style.color = '#ffb850';
     btn.style.background = '';
@@ -1670,7 +1670,7 @@ function _updateClipboardBadge(){
   const tab = document.getElementById('prs-tab-clipboard');
   if(!tab) return;
   const n = _bodyClipboard.length;
-  tab.textContent = n > 0 ? `📋 CLIPBOARD (${n})` : '📋 CLIPBOARD';
+  tab.innerHTML = n > 0 ? `<svg class="icon"><use href="#icon-clipboard"></use></svg> CLIPBOARD (${n})` : '<svg class="icon"><use href="#icon-clipboard"></use></svg> CLIPBOARD';
 }
 
 function bctxCut(){

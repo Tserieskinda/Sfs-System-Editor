@@ -126,44 +126,44 @@ function _metaForId(id, name){
   const n = (name || '').toLowerCase();
   switch(id){
     case 'blackhole':
-      return {id:'blackhole',   icon:'🕳️', color:'#220044,#000000', glow:'#8800ff'};
+      return {id:'blackhole',   icon:'<svg class="icon"><use href="#icon-disc"></use></svg>', color:'#220044,#000000', glow:'#8800ff'};
     case 'barycentre':
-      return {id:'barycentre',  icon:'⊕',  color:'#8888aa,#444466', glow:'#8888aa'};
+      return {id:'barycentre',  icon:'<svg class="icon"><use href="#icon-crosshair"></use></svg>',  color:'#8888aa,#444466', glow:'#8888aa'};
     case 'star':
       if(n.includes('brown') || n.includes('dwarf'))
-        return {id:'star', icon:'🌑', color:'#884422,#442200', glow:'#cc6622'};
+        return {id:'star', icon:'<svg class="icon"><use href="#icon-circle"></use></svg>', color:'#884422,#442200', glow:'#cc6622'};
       if(n.includes('neutron'))
-        return {id:'star', icon:'💫', color:'#aabbff,#6688ff', glow:'#aaccff'};
+        return {id:'star', icon:'<svg class="icon"><use href="#icon-sparkle"></use></svg>', color:'#aabbff,#6688ff', glow:'#aaccff'};
       if(n==='o' || n.includes('o type') || n==='blue giant' || n.includes('blue'))
-        return {id:'star', icon:'🔵', color:'#88aaff,#4466dd', glow:'#aaccff'};
+        return {id:'star', icon:'<svg class="icon"><use href="#icon-circle"></use></svg>', color:'#88aaff,#4466dd', glow:'#aaccff'};
       if(n==='b' || n.includes('b type'))
-        return {id:'star', icon:'🔵', color:'#aabbff,#6688ff', glow:'#ccddff'};
+        return {id:'star', icon:'<svg class="icon"><use href="#icon-circle"></use></svg>', color:'#aabbff,#6688ff', glow:'#ccddff'};
       if(n==='a' || n.includes('a type'))
-        return {id:'star', icon:'⚪', color:'#ffffff,#ddddff', glow:'#eeeeff'};
+        return {id:'star', icon:'<svg class="icon"><use href="#icon-circle"></use></svg>', color:'#ffffff,#ddddff', glow:'#eeeeff'};
       if(n==='f' || n.includes('f type'))
-        return {id:'star', icon:'🌟', color:'#ffffcc,#ffff88', glow:'#ffffaa'};
+        return {id:'star', icon:'<svg class="icon"><use href="#icon-star"></use></svg>', color:'#ffffcc,#ffff88', glow:'#ffffaa'};
       if(n==='k' || n.includes('k type'))
-        return {id:'star', icon:'🟠', color:'#ffaa44,#cc6622', glow:'#ffbb44'};
+        return {id:'star', icon:'<svg class="icon"><use href="#icon-circle"></use></svg>', color:'#ffaa44,#cc6622', glow:'#ffbb44'};
       if(n==='m' || n.includes('m type'))
-        return {id:'star', icon:'🔴', color:'#ff6633,#cc2200', glow:'#ff6644'};
+        return {id:'star', icon:'<svg class="icon"><use href="#icon-circle"></use></svg>', color:'#ff6633,#cc2200', glow:'#ff6644'};
       // G-type / Sun / generic
-      return {id:'star',        icon:'☀️', color:'#ffd060,#ff8800', glow:'#ff9900'};
+      return {id:'star',        icon:'<svg class="icon"><use href="#icon-sun"></use></svg>', color:'#ffd060,#ff8800', glow:'#ff9900'};
     case 'ringedgiant':
-      return {id:'ringedgiant', icon:'🪐', color:'#bb9944,#886622', glow:'#ccaa55'};
+      return {id:'ringedgiant', icon:'<svg class="icon"><use href="#icon-orbit"></use></svg>', color:'#bb9944,#886622', glow:'#ccaa55'};
     case 'gasgiant':
-      return {id:'gasgiant',    icon:'🪐', color:'#cc8833,#886633', glow:'#ffaa44'};
+      return {id:'gasgiant',    icon:'<svg class="icon"><use href="#icon-orbit"></use></svg>', color:'#cc8833,#886633', glow:'#ffaa44'};
     case 'planet':
-      return {id:'planet',      icon:'🌍', color:'#4488ff,#226622', glow:'#4488ff'};
+      return {id:'planet',      icon:'<svg class="icon"><use href="#icon-globe"></use></svg>', color:'#4488ff,#226622', glow:'#4488ff'};
     case 'marslike':
-      return {id:'marslike',    icon:'🔴', color:'#884422,#552211', glow:'#aa5533'};
+      return {id:'marslike',    icon:'<svg class="icon"><use href="#icon-circle"></use></svg>', color:'#884422,#552211', glow:'#aa5533'};
     case 'mercurylike':
-      return {id:'mercurylike', icon:'🪨', color:'#776655,#443322', glow:'#998866'};
+      return {id:'mercurylike', icon:'<svg class="icon"><use href="#icon-mountain"></use></svg>', color:'#776655,#443322', glow:'#998866'};
     case 'moon':
-      return {id:'moon',        icon:'🌑', color:'#888888,#444444', glow:'#999999'};
+      return {id:'moon',        icon:'<svg class="icon"><use href="#icon-circle"></use></svg>', color:'#888888,#444444', glow:'#999999'};
     case 'asteroid':
-      return {id:'asteroid',    icon:'☄️', color:'#554433,#332211', glow:'#776655'};
+      return {id:'asteroid',    icon:'<svg class="icon"><use href="#icon-flame"></use></svg>', color:'#554433,#332211', glow:'#776655'};
     default:
-      return {id:'moon',        icon:'🌑', color:'#888888,#444444', glow:'#999999'};
+      return {id:'moon',        icon:'<svg class="icon"><use href="#icon-circle"></use></svg>', color:'#888888,#444444', glow:'#999999'};
   }
 }
 

@@ -414,7 +414,7 @@ function _lcApplyZipImportConversion(pending){
       };
       bodies[baryName] = {
         data: { BASE_DATA: { radius: 1000, gravity: 0, gravityDifficultyScale: {}, radiusDifficultyScale: {}, bodyType: 0 } },
-        preset: 'asteroid', isCenter: true, color: '#aaaaaa', glow: false, icon: '⚫'
+        preset: 'asteroid', isCenter: true, color: '#aaaaaa', glow: false, icon: '<svg class="icon"><use href="#icon-crosshair"></use></svg>'
       };
     } else if(ctx.opt === 'b'){
       targetRef.ORBIT_DATA = {
@@ -1925,7 +1925,7 @@ async function importSystemZip(file){
                        radiusDifficultyScale: {}, bodyType: 0 }
         },
         preset: 'asteroid', isCenter: true,
-        color: '#aaaaaa', glow: false, icon: '⚫'
+        color: '#aaaaaa', glow: false, icon: '<svg class="icon"><use href="#icon-crosshair"></use></svg>'
       };
 
     } else if(opt === 'b'){

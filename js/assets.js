@@ -165,7 +165,7 @@ function renderAssetRow(entry, type){
   const div = document.createElement('div');
   div.className = 'asset-row'; div.id='asset-'+type+'-'+sanitize(entry.name);
   div.dataset.name = entry.name.replace(/\.[^.]+$/,'').toLowerCase();
-  const icon = type==='heightmaps' ? '📊' : '📎';
+  const icon = type==='heightmaps' ? '<svg class="icon"><use href="#icon-bar-chart"></use></svg>' : '<svg class="icon"><use href="#icon-paperclip"></use></svg>';
   const kb = Math.round((entry.size||0)/1024*10)/10;
   div.innerHTML = `<span class="asset-row-icon">${icon}</span>
     <span class="asset-row-name">${entry.name}</span>

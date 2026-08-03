@@ -723,7 +723,7 @@ function replaceBodyPrompt(){
   const descEl = document.getElementById('mp-desc');
 
   descEl.innerHTML = `Replace <strong style="color:var(--sky2)">${selectedBody}</strong> — orbit and satellites are preserved`;
-  confirmBtn.textContent = '⇄ REPLACE BODY';
+  confirmBtn.innerHTML = '<svg class="icon"><use href="#icon-repeat"></use></svg> REPLACE BODY';
 
   // Override confirm action
   const originalOnClick = confirmBtn.onclick;
@@ -3165,3 +3165,319 @@ if(typeof selectBody === 'function'){
     _dncSyncPanelForSelection(name);
   };
 }
+
+// ════════════════════════════════ MULTIPLAYER EDITING ════════════════════════════════
+// Glue between the sidebar's existing edit pipeline (selectBody / fillSidebar / liveSync)
+// and Collab (js/collab.js), which only handles transport + lock arbitration and knows
+// nothing about `bodies`, DOM ids, or sidebar internals.
+//
+//   1. Selection -> locking. Selecting a body requests a lock. A body already locked by
+//      someone else (per Collab.isLockedByOther — Collab's own ground truth) is opened
+//      read-only with a banner instead of being blocked outright, so you can still watch
+//      the other person's edits land live.
+//   2. Local edits -> broadcast. liveSync() already rebuilds `bodies[selectedBody].data`
+//      wholesale from the DOM on every keystroke/toggle/drag — rather than re-deriving
+//      individual field changes ourselves, we diff that object against a snapshot taken
+//      at the start of the edit session into dot-path patches and hand them to
+//      Collab.broadcastEdit. Diffing against the *session-start* snapshot (not the
+//      previous tick) matters: Collab's per-body throttle replaces any still-pending
+//      patch with the latest one rather than merging them, so each patch we send must be
+//      a complete, idempotent "this body should now look like X" — not a delta since the
+//      last call, or a dropped intermediate tick would lose data.
+//   3. Remote edits -> apply. Incoming patches are applied straight to `bodies[body].data`.
+//      If that body is currently open, fillSidebar() re-renders it — its own
+//      `liveSync._filling` guard (see fillSidebar/liveSync above) keeps that re-render
+//      from bouncing straight back out as another broadcast.
+//   4. Presence. Lock ownership + roster are mirrored locally purely so the banner can
+//      show *who* is editing — Collab.isLockedByOther() remains the source of truth for
+//      whether local edits are actually allowed to go out.
+
+(function(){
+  if(typeof Collab === 'undefined') return; // collab.js not loaded — nothing to wire up
+
+  const roster = new Map();      // peerId -> {name,color} — display only
+  const lockOwner = new Map();   // bodyName -> peerId — display only
+  let myLockedBody = null;       // body we currently hold (or optimistically assume we hold)
+  let _editBaseline = null;      // { body, data } snapshot taken at the start of this edit session
+
+  function _active(){ return Collab.isActive(); }
+
+  // ── Dot-path diff / apply ──
+  // A sentinel (rather than `undefined`, which most serializers drop silently) marking a
+  // key that existed in `before` but not `after` — i.e. "delete this", not "set to nothing".
+  const DELETE = '\u0000__mp_delete__\u0000';
+
+  function _isPlainObj(v){ return !!v && typeof v === 'object' && !Array.isArray(v); }
+
+  function _deepEqual(a, b){
+    if(a === b) return true;
+    if(Array.isArray(a) || Array.isArray(b)){
+      if(!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+      return a.every((v,i) => _deepEqual(v, b[i]));
+    }
+    if(_isPlainObj(a) && _isPlainObj(b)){
+      const ka = Object.keys(a), kb = Object.keys(b);
+      if(ka.length !== kb.length) return false;
+      return ka.every(k => k in b && _deepEqual(a[k], b[k]));
+    }
+    return false;
+  }
+
+  // Recurses into plain objects only — a changed leaf inside a nested section (e.g.
+  // ORBIT_DATA.semiMajorAxis) becomes its own small patch entry instead of resending the
+  // whole parent object. Arrays and primitives are sent as one leaf value each: SFS's own
+  // arrays here (flat zones, landmarks, terrain formulas, difficulty keys) are small and
+  // always rewritten wholesale by the UI anyway, so index-level diffing wouldn't pay for
+  // its own complexity.
+  function _diff(before, after, prefix, out){
+    out = out || {};
+    before = before || {};
+    after = after || {};
+    const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+    for(const k of keys){
+      const path = prefix ? `${prefix}.${k}` : k;
+      if(!(k in after)){ out[path] = DELETE; continue; }
+      if(!(k in before)){ out[path] = after[k]; continue; }
+      const bv = before[k], av = after[k];
+      if(_deepEqual(bv, av)) continue;
+      if(_isPlainObj(bv) && _isPlainObj(av)) _diff(bv, av, path, out);
+      else out[path] = av;
+    }
+    return out;
+  }
+
+  function _applyPatch(target, patch){
+    for(const path in patch){
+      const val = patch[path];
+      const parts = path.split('.');
+      const last = parts.pop();
+      let node = target;
+      for(const p of parts){
+        if(!_isPlainObj(node[p])) node[p] = {};
+        node = node[p];
+      }
+      if(val === DELETE) delete node[last];
+      else node[last] = val;
+    }
+  }
+
+  // ── Broadcasting local edits ──
+  // liveSync()'s real work happens in _liveSyncNow(); wrap that (not liveSync itself) so
+  // we run exactly once per already-throttled/rAF'd pass, after `bodies[body].data` has
+  // been fully rebuilt from the DOM for this tick.
+  const _origLiveSyncNow = _liveSyncNow;
+  _liveSyncNow = function(){
+    const body = selectedBody;
+    _origLiveSyncNow();
+    if(!_active() || !body || !bodies[body]) return;
+    if(Collab.isLockedByOther(body)) return; // not ours to edit — don't send anything
+    if(!_editBaseline || _editBaseline.body !== body){
+      _editBaseline = { body, data: JSON.parse(JSON.stringify(bodies[body].data)) };
+    }
+    const patch = _diff(_editBaseline.data, bodies[body].data);
+    if(Object.keys(patch).length){
+      // Sliders are the one control that fires a rapid burst of oninput while dragging —
+      // everything else reaching liveSync (typed text on blur, toggles, selects, color
+      // pickers) is already a settled "final" value, so send it unthrottled. Collab's own
+      // throttle still coalesces the slider-drag case (leading send + trailing send).
+      const immediate = document.activeElement?.type !== 'range';
+      Collab.broadcastEdit(body, patch, immediate);
+    }
+  };
+
+  // ── Applying remote edits ──
+  Collab.on('remote-edit', d => {
+    if(d.peerId === Collab.getMyInfo().peerId) return; // self-echo (see collab.js: the host
+      // relays its own local edits through the same _hostOnMessage path it uses for peers)
+    const b = bodies[d.body];
+    if(!b) return; // edit for a body we don't know about — shouldn't happen host-authoritatively
+    _applyPatch(b.data, d.patch);
+    // A few fields on the body object itself (not body.data) mirror RINGS_DATA for the
+    // viewport's own size/hit-testing math — liveSync keeps these in sync for local edits,
+    // so do the same here for remote ones.
+    if(b.data.RINGS_DATA){
+      b.hasRings = true;
+      b.ringsInner = b.data.RINGS_DATA.startRadius;
+      b.ringsOuter = b.data.RINGS_DATA.endRadius;
+    } else {
+      b.hasRings = false;
+    }
+    if(typeof invalidateTerrainCache === 'function') invalidateTerrainCache(d.body);
+    ['_cloudCache','_waterCache','_atmoPolarCache','_fcCache','_fogCache','_surfCache','_terrCache']
+      .forEach(k => { if(drawViewport[k]) drawViewport[k] = {}; });
+    if(selectedBody === d.body){
+      fillSidebar(d.body); // liveSync._filling (set inside fillSidebar) prevents an echo broadcast
+      if(typeof fillTagRow === 'function') fillTagRow(d.body);
+    }
+    if(typeof drawViewport === 'function') drawViewport();
+    if(document.getElementById('modal-body-search')?.classList.contains('open') && typeof _bsearchRebuildNow === 'function')
+      _bsearchRebuildNow();
+  });
+
+  // ── Applying a full state snapshot (freshly joined peers only) ──
+  // The host is already the source of truth for `bodies` — only a peer that just joined
+  // needs to adopt the host's snapshot. Mirrors what undoAction() does when restoring a
+  // stack entry: swap `bodies` wholesale and refresh every dependent view.
+  Collab.on('state-sync', d => {
+    roster.clear();
+    for(const [pid, info] of Object.entries(d.roster || {})) roster.set(pid, info);
+    const me = Collab.getMyInfo();
+    if(me.peerId && !roster.has(me.peerId)) roster.set(me.peerId, { name: me.name, color: me.color });
+
+    lockOwner.clear();
+    for(const [body, lock] of Object.entries(d.locks || {})) lockOwner.set(body, lock.peerId);
+
+    if(!me.isHost && d.bodies){
+      bodies = d.bodies;
+      selectedBody = null;
+      _editBaseline = null;
+      myLockedBody = null;
+      closeSidebar();
+      if(typeof syncAddBodyBtn === 'function') syncAddBodyBtn();
+      if(typeof tagDdSyncBtn === 'function') tagDdSyncBtn();
+      if(typeof updateStatusBar === 'function') updateStatusBar();
+      if(typeof resizeViewport === 'function') resizeViewport();
+      if(typeof drawViewport === 'function') drawViewport();
+      if(document.getElementById('modal-body-search')?.classList.contains('open') && typeof _bsearchRebuildNow === 'function')
+        _bsearchRebuildNow();
+    }
+  });
+
+  Collab.on('hosted', () => {
+    const me = Collab.getMyInfo();
+    roster.set(me.peerId, { name: me.name, color: me.color });
+  });
+  Collab.on('peer-joined', d => { roster.set(d.peerId, d.info || { name: 'Peer' }); });
+  Collab.on('peer-left', d => { roster.delete(d.peerId); }); // any locks they held arrive as explicit 'unlock's
+
+  // Host-side lock truth (see collab.js: the host's own select/deselect never round-trips
+  // through 'lock-ack'/'lock-deny' — only 'locks-changed' fires locally for it).
+  Collab.on('locks-changed', snapshot => {
+    lockOwner.clear();
+    for(const [body, lock] of Object.entries(snapshot)) lockOwner.set(body, lock.peerId);
+    if(selectedBody) _mpRenderLockState(selectedBody);
+  });
+  // Peer-side lock truth, delivered over the wire.
+  Collab.on('lock-ack', d => {
+    lockOwner.set(d.body, d.peerId);
+    if(d.mine) myLockedBody = d.body;
+    if(selectedBody === d.body) _mpRenderLockState(d.body);
+  });
+  Collab.on('lock-deny', d => {
+    lockOwner.set(d.body, d.lockedBy);
+    if(myLockedBody === d.body) myLockedBody = null;
+    if(selectedBody === d.body) _mpRenderLockState(d.body);
+  });
+  Collab.on('unlock', d => {
+    lockOwner.delete(d.body);
+    if(myLockedBody === d.body) myLockedBody = null;
+    // The body just became free — if we're the one looking at it, claim it so editing
+    // can continue without having to reselect it.
+    if(selectedBody === d.body && _active() && !Collab.isLockedByOther(d.body)){
+      Collab.requestLock(d.body);
+      myLockedBody = d.body;
+      lockOwner.set(d.body, Collab.getMyInfo().peerId);
+      _editBaseline = bodies[d.body] ? { body: d.body, data: JSON.parse(JSON.stringify(bodies[d.body].data)) } : null;
+    }
+    if(selectedBody === d.body) _mpRenderLockState(d.body);
+  });
+  Collab.on('left', () => {
+    roster.clear();
+    lockOwner.clear();
+    myLockedBody = null;
+    _editBaseline = null;
+    if(selectedBody) _mpRenderLockState(selectedBody);
+  });
+
+  // ── Read-only banner + styling ──
+  let _bannerEl = null, _bannerDotEl = null, _bannerNameEl = null;
+  function _mpEnsureBanner(){
+    if(_bannerEl) return;
+    const style = document.createElement('style');
+    style.textContent = `
+      #mp-lock-banner{
+        display:none; align-items:center; gap:7px; margin:0 14px 8px; padding:6px 10px;
+        background:rgba(255,160,60,.08); border:1px solid rgba(255,160,60,.3); border-radius:5px;
+        font-family:'JetBrains Mono',monospace; font-size:.6rem; letter-spacing:.03em;
+        color:rgba(255,205,150,.9);
+      }
+      #mp-lock-banner .mp-lock-dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+      #sidebar.mp-readonly .sb-body,
+      #sidebar.mp-readonly #sbb-name-input,
+      #sidebar.mp-readonly #sbb-tag-row,
+      #sidebar.mp-readonly #sbb-tag-add-btn{
+        pointer-events:none; opacity:.55; filter:grayscale(.35);
+      }
+    `;
+    document.head.appendChild(style);
+
+    _bannerEl = document.createElement('div');
+    _bannerEl.id = 'mp-lock-banner';
+    _bannerEl.innerHTML = `<span class="mp-lock-dot"></span><svg class="icon"><use href="#icon-lock"></use></svg> <span id="mp-lock-name"></span>&nbsp;is editing this body — read-only`;
+    const sbBodyEl = document.querySelector('#sidebar .sb-body');
+    if(sbBodyEl) sbBodyEl.parentNode.insertBefore(_bannerEl, sbBodyEl);
+    _bannerDotEl = _bannerEl.querySelector('.mp-lock-dot');
+    _bannerNameEl = _bannerEl.querySelector('#mp-lock-name');
+  }
+
+  function _mpRenderLockState(name){
+    _mpEnsureBanner();
+    const sidebarEl = document.getElementById('sidebar');
+    if(!_active() || !name){
+      sidebarEl.classList.remove('mp-readonly');
+      if(_bannerEl) _bannerEl.style.display = 'none';
+      return;
+    }
+    const locked = Collab.isLockedByOther(name);
+    sidebarEl.classList.toggle('mp-readonly', locked);
+    if(!_bannerEl) return;
+    if(locked){
+      const ownerId = lockOwner.get(name);
+      const info = ownerId ? roster.get(ownerId) : null;
+      _bannerDotEl.style.background = info?.color || '#888';
+      _bannerNameEl.textContent = info?.name || 'Another editor';
+      _bannerEl.style.display = 'flex';
+    } else {
+      _bannerEl.style.display = 'none';
+    }
+  }
+
+  // ── Wire selection / close / fill into the locking + banner flow ──
+  const _origSelectBodyMP = selectBody;
+  selectBody = function(name){
+    const prev = selectedBody;
+    if(_active() && prev && prev !== name && myLockedBody === prev){
+      Collab.releaseLock(prev);
+      myLockedBody = null;
+    }
+    _origSelectBodyMP(name);
+    if(_active() && name){
+      if(!Collab.isLockedByOther(name)){
+        // Optimistic: claim it locally right away (0-latency selection feel per collab.js's
+        // documented locking model); a later lock-deny rolls this back automatically.
+        Collab.requestLock(name);
+        myLockedBody = name;
+        lockOwner.set(name, Collab.getMyInfo().peerId);
+      }
+    }
+    _editBaseline = (name && bodies[name]) ? { body: name, data: JSON.parse(JSON.stringify(bodies[name].data)) } : null;
+    _mpRenderLockState(name);
+  };
+
+  const _origCloseSidebarMP = closeSidebar;
+  closeSidebar = function(){
+    if(_active() && myLockedBody){
+      Collab.releaseLock(myLockedBody);
+      myLockedBody = null;
+    }
+    _editBaseline = null;
+    _origCloseSidebarMP();
+    _mpRenderLockState(null);
+  };
+
+  const _origFillSidebarMP = fillSidebar;
+  fillSidebar = function(name){
+    _origFillSidebarMP(name);
+    _mpRenderLockState(name);
+  };
+})();

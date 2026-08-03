@@ -1,151 +1,143 @@
-# SFS System Editor
+# Tutorial 
+(How to start + Features and uses)
 
-**A browser-based solar system editor for Spaceflight Simulator**
+## How to use Online- (Auto-updated)
+1) Go to the website https://tserieskinda.github.io/Sfs-System-Editor/
+2) Wait for the assets to load automatically.
+3) Now you can Use the program, no external zip needed From the website.
 
-# 🌐 **[Open in Browser — https://tserieskinda.github.io/Sfs-System-Editor/](https://tserieskinda.github.io/Sfs-System-Editor/)**
-> Always up to date. No installation required. Works on PC and mobile.
+If you have Bad internet, click on cancel and load manually or Just Read "How to use offline"
 
----
+If you're on mobile/weak device You might have to wait a bit more for loading.
 
-## Getting Started (Online)
+## How to use without internet (complicated and not autoupdated)
+Skip if using online
 
-1. Go to the website above
-2. Wait for assets to load automatically
-3. Start editing — no zip upload needed
+1) Download these 3 things-
+- All editor files from github (html, css, js) and put them in a folder the same way as this repo's main.
+- Assets Zip https://github.com/Tserieskinda/Sfs-System-Editor/releases/download/v5_0/SFS.Textures.+.Presets.zip
+- (For android) Install Simple HTTP from playstore
+- (For PC) Install Python
+- In Iphone/mac, any app that can allow you to host local web servers, (i dont have an apple device to test)
 
-> **Slow connection?** Click Cancel on the asset loader and upload the assets zip manually, or see the offline section at the bottom.
+2) Extract the Editor zip
 
----
+3) for Android-
+- Either use Speck editor OR
+- Open simple HTTPS and select the root folder to the one you just extracted, Example- Download/SFS Editor (where you can see the .js and .css files)
+- Click on start server and copy the web adress shown in the app
+- Paste the adress in a browser, the program will load and now you can insert the presets/textures zip by the button
 
-## Features
+ PC-
+ - Press Win+X and open Terminal 
+ - Navigate to the Extracted Editor folder with this command- 
+    ```cd "{yourfilepath}\SFS Editor"```
+- Paste this into the terminal-
+    ```python -m http.server 8000```
+- Open your Web broser and go to-
+    ```http://localhost:8000```
+- Upload the textures + presets zip you downloaded, done
 
-### Viewport
-- Renders planets with terrain, atmosphere, water, clouds, rings, and post-processing
-- Zoom and pan with scroll wheel / touch drag, or **WASD** (PC)
-- Double-click a planet to zoom to it
-- **Body Search** — search and jump to any planet in large systems
-- **Difficulty Viewer** — preview the system at different SFS difficulty levels (affects SOI display)
-- **Environments toggle** (globe icon) — individually disable SOI circles, atmosphere, water, fog, post-processing, clouds, front clouds, and surface textures to reduce lag or isolate elements
+# Creating a new system-
+- Select a system centre, you can choose from the many presets available from the zip.
+- Add body- allows you to add a body orbiting whatever you just selected
+- Search tool- download induvidual txt files of the planets in your system or zoom into them if you have lots of bodies.
+- Double click to zoom into a planet
+- Shortcut keys (pc) WASD to move, (you can also use scroll wheel), R to replace, B to add body, Z to zoom and delete key to delete.
 
-### Toolbar
-| Tool | Description |
-|---|---|
-| Drag Orbit | Physically drag a planet to reposition it; orbital values update automatically |
-| High-Res Surface | Toggle high-resolution terrain rendering |
-| Change Centre | Re-parent the system hierarchy around a different body |
-| WASD Speed | Adjust camera pan speed |
-| Icon Size | Control planet icon size when zoomed out |
-| Lock Sidebar | Locks the editing panel open — useful on mobile when exploring |
+### Difficulty Changer-
+Allows you to view the solar system in different difficulties
 
-### Editing Sidebar
-Opens when you click a planet. Tabs include:
+## Tool bar- has 4 options, 
+1. Drag to adjust orbit, allows you to physically move a planbet by your finger and itll automatically calculate the orbital values, 
+(if they do not appear at that position the same in game, its because the world starts at time 11 day, but the program shows the world at time 0, so make orbital direction 0 so the planet does not move)
+2. High Resolution surface, self explanatory
+3. WASD Speed- adjust speed of camera movement
+4. Icon Size (adjust the size of planet icon when seen from far)
 
-- **Basic** — name, mass, radius, colour, type
-- **Orbit** — SMA, eccentricity, argument of periapsis, orbital direction
-- **Terrain** — formula-based terrain with per-difficulty support and live preview
-- **Heightmap** — upload PNG heightmaps with live updating; adjust terrain resolution percentage for performance
-- **Atmosphere** — height, colour, fog, gradients
-- **Water** — water level with land/water interaction preview
-- **Clouds** — disc and front cloud layers with texture support
-- **Rings** — ring system with inner/outer radius and texture
-- **Post-processing** — bloom, sun flare, colour grading
-- **Landmarks** — add named surface landmarks with angular position and width controls
+## Editing sidebar- 
+Appears when you click on a planet
+has planet editing options like rings, water, terrain, and everything needed to make a custom planet.
 
-### System Panel
-- Set system name, author, and version
-- Configure space center planet and location
-- Adjust import/compatibility settings
+### Assets button-
+allows you to upload custom textures for planet editing
 
-### Assets
-- Upload custom textures, heightmaps, and presets via the Assets button
-- Textures are cached in IndexedDB and persist between sessions
+### Settings- 
+3 background themes if you think the twinkling stars are too boring
 
-### Procedural Tools (in Utils and Tools)
-- - **Procedural Asteroids** — Procedural asteorid generator
-- **Procedural Landmark Generator** — auto-place named landmarks based on terrain scan
-- **Procgen System** — generate randomised solar systems with configurable star type, planet count, and distribution
+### Clear all,
+Undo- Self explanatory
 
-### Featured Systems
-- Load curated community systems directly from the Featured tab — no zip hunting required
-- Includes SFS Default System by Team Curiosity, BGH by Cyn/Athlea Lyrae, HTSS by Hexastream, and more later
+### System button- 
+Allows to edit things like import settins, space center location and version and author>
 
-### Import & Export
-- **Open Existing System** — load any SFS system by zipping its folder and uploading
-- **Export** — downloads a ready-to-use system zip; make sure a space center is set or the system won't load in-game
-- **Auto-save** — progress is periodically saved to IndexedDB so accidental closes don't wipe your work
+### Export button- 
+Exports the system you just made, make sure to set the space center on a planet or the system wont load.
 
-### Extra Tools
-- **Polar → Equirectangular transformer** — convert polar-projection textures for use as planet surfaces
-- **Bump map / heightmap converter** Convert image to hieghtmap with matched planet texture at high resolution 
-- **Asteroid drawing → heightmap tool**
-Draw an asteroid, add add-on effects and applynto a body
----
+## Environments (Globe) icon-
+Allows to disable certain rendering Like
+Disable SOI Circle, Atmosphere, Water, Fog, Post processing,
+Clouds, Front clouds, Surface Texture 
 
-## Performance Tips
+# Open existing system- 
+Used to edit an already made system (1.5+)
+1) Locate the system folder you want to load
+2) Compress it into a zip, like- system.zip
+3) Open the progrma in a browser, load ths SFS assets that i provided.
+4) After the assets have loaded, click on "Open existing system" button.
+5) Select the system.zip you just compressed.
+6) You can explore the system in the editor and make changes to it.
 
-- Disable post-processing and fog in the Environments toggle (globe icon) on weak devices
-- Lower the terrain resolution percentage (next to the terrain button) when editing heightmaps
-- Lock the sidebar on mobile while viewing planet terrain up close (opening the editing sidebar causes lag)
-- Use a Chromium-based browser for best canvas performance
+## How to reduce lag
+1) Use a different browser
+2) Turn off some things in the environments icon (Globe Icon) like Disable post processing and Fog if your device is weak.
+<<<<<<< HEAD
+=======
+3) If you encounter lag while editing hieghtmaps, you can Turn down the Percentage next to the terrain button.
+4) If youre lagging while viewing hieghtmaps and exploring, Just lock the Planet Sidebar (Bottombarbar on mobile) in tools icon at the top
+>>>>>>> 519f86e4b7b0c04d54430aa429db39a3ad607038
 
----
+## How to make your own presets-
+1) Get your custom body, and all the textures it uses.
+2) Download the latest zip from releases.
+3) Extract it
+4) Put the TXT file in Custom presets> Planet Data
+5) Put the textures and hieghtmaps in their respective folders.
+6) Compress the Zip and load it in the editor, your custom preset will appear.
 
-## Known Issues
+# Terrain-
+Press terrain button at the topbar to show terrain
+Live hieghtmap updating in Hmap Tab
+Water land interactions(approximate)
 
-- Heightmap rendering has some inaccuracies
-- Water/land interaction is approximate
-- Clouds are broken (persistent issue, help would be appreciated)
-- Systems from SFS 1.4 and below are not supported
+# Known Bugs-
+Innacurate SOI
+Cloud related bugs
+Hieghtmap Related bugs
+Minor UI Issues
+4 Million solar mass black hole preset is broken, Do not use it
+Landmarks are a bit Broken
+- Innacurate SOI
+- Cloud related bugs
+- Hieghtmap Related bugs
+- Minor UI Issues
+- Water-land Interaction inconsistencies
 
----
+## Warning
+Any unsaved progress will be deleted and progress will be lost if you exit the program. Save progess by clicking Export.zip, and you can load the same zip later
 
-## Making Custom Presets
+# Credits
+***(Im not responsible if you steal and edit someone's system without their given permission OR steal and provide the SFS assets that i provided.)***
 
-1. Get your custom body's `.txt` planet file and all textures it uses
-2. Download the latest assets zip from [Releases](https://github.com/Tserieskinda/Sfs-System-Editor/releases)
-3. Extract it
-4. Place the `.txt` file in `Custom Presets/Planet Data/`
-5. Place textures and heightmaps in their respective folders
-6. Clear asset cache button in main menu, then reload site and Cancel the auto downloading, then upload manually in step 7.
-7. Re-zip and load in the editor — your preset will appear in the list
 
----
+things may break, bugs may appear, so i do not reccomend you to make a giant system witht this.
+Its still beta and has limited support for clouds and hieghtmaps, also it does not support 1.4~ and below systems.
+Its aimed to support both pc and mobile.
 
-## Offline / Local Setup (technical)
+Before you say, it is **99% vibecoded.**
 
-Only needed if you want to run without internet access. The online version at the link above is always preferred.
-
-### Android
-- Download project files drom github
-- Either Use **Simple HTTP Server** (Play Store) and Enter the extracted editor folder,
-- Copy paste the local address shown into your browser.
-  ---
-- Or use Speck editor, download code zip from github and open it in speck editor, then click run.
-
-### PC
-- Download project files from github and extract in a folder.
-- Download python and type these two one by one in terminal.
-```
-cd "path\to\SFS Editor"
-
-python -m http.server 8000
-```
-Then open `http://localhost:8000` in your browser and upload the assets zip.
-
-### iPhone / Mac
-Any app that can host a local web server. Exact steps vary by app.
-
----
-
-## Credits
-
-Thanks to **Hexastream** and **Neverger** (creator of TTS) and the Celestia community for the zip assets.
-
-**Initial beta testers & contributors:** Krameter, Mistiy, ReoreyBoi, Akselajin, Cyn, Cresign, Razan T3, Hexastream  
-**Promoter:** JJC Aerospace on YouTube  
-**Code help:** Floating Fuel on forums (hieghtmap visualizer), SFS Forums community Advice and explanations on forums 
-**Community:** [SFS Forums thread](https://sfsforum.com/index.php?threads/sfs-system-editor-beta.18444/)
-
-> *Not responsible for unauthorised redistribution of someone else's system or the provided SFS assets.*  
-> It is **99% vibecoded.**
-> enjoy :)
+Thanks to Astray Galaxy and Neverger (creator of tts) and the Celestia community for the Zip assets.
+Initial Beta testers and contributors- Krameter, Mistiy, ReoreyBoi, Akselajin, Cyn, Cresign, Razan T3, Astray
+Promoter- JJC Aerospace on youtube
+Hieghtmap code learning- Floating Fuel, SFS Forums community
+And everyone on this [**SFS Forums Page*](https://sfsforum.com/index.php?threads/sfs-system-editor-beta.18444/) !

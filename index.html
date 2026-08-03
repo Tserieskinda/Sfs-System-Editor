@@ -7,6 +7,403 @@
 <link rel="stylesheet" href="style.css?v=5.13">
 </head>
 <body>
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="icon-archive" viewBox="0 0 24 24">
+    <rect width="20" height="5" x="2" y="3" rx="1" />
+  <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+  <path d="M10 12h4" />
+  </symbol>
+  <symbol id="icon-ban" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10" />
+  <path d="M4.929 4.929 19.07 19.071" />
+  </symbol>
+  <symbol id="icon-bar-chart" viewBox="0 0 24 24">
+    <path d="M5 21v-6" />
+  <path d="M12 21V9" />
+  <path d="M19 21V3" />
+  </symbol>
+  <symbol id="icon-biohazard" viewBox="0 0 24 24">
+    <circle cx="12" cy="11.9" r="2" />
+  <path d="M6.7 3.4c-.9 2.5 0 5.2 2.2 6.7C6.5 9 3.7 9.6 2 11.6" />
+  <path d="m8.9 10.1 1.4.8" />
+  <path d="M17.3 3.4c.9 2.5 0 5.2-2.2 6.7 2.4-1.2 5.2-.6 6.9 1.5" />
+  <path d="m15.1 10.1-1.4.8" />
+  <path d="M16.7 20.8c-2.6-.4-4.6-2.6-4.7-5.3-.2 2.6-2.1 4.8-4.7 5.2" />
+  <path d="M12 13.9v1.6" />
+  <path d="M13.5 5.4c-1-.2-2-.2-3 0" />
+  <path d="M17 16.4c.7-.7 1.2-1.6 1.5-2.5" />
+  <path d="M5.5 13.9c.3.9.8 1.8 1.5 2.5" />
+  </symbol>
+  <symbol id="icon-calculator" viewBox="0 0 24 24">
+    <rect width="16" height="20" x="4" y="2" rx="2" />
+  <line x1="8" x2="16" y1="6" y2="6" />
+  <line x1="16" x2="16" y1="14" y2="18" />
+  <path d="M16 10h.01" />
+  <path d="M12 10h.01" />
+  <path d="M8 10h.01" />
+  <path d="M12 14h.01" />
+  <path d="M8 14h.01" />
+  <path d="M12 18h.01" />
+  <path d="M8 18h.01" />
+  </symbol>
+  <symbol id="icon-circle" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10" />
+  </symbol>
+  <symbol id="icon-circle-dot" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10" />
+  <circle cx="12" cy="12" r="1" />
+  </symbol>
+  <symbol id="icon-clipboard" viewBox="0 0 24 24">
+    <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
+  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+  </symbol>
+  <symbol id="icon-cloud" viewBox="0 0 24 24">
+    <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+  </symbol>
+  <symbol id="icon-cloud-fog" viewBox="0 0 24 24">
+    <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" />
+  <path d="M16 17H7" />
+  <path d="M17 21H9" />
+  </symbol>
+  <symbol id="icon-cloud-sun" viewBox="0 0 24 24">
+    <path d="M12 2v2" />
+  <path d="m4.93 4.93 1.41 1.41" />
+  <path d="M20 12h2" />
+  <path d="m19.07 4.93-1.41 1.41" />
+  <path d="M15.947 12.65a4 4 0 0 0-5.925-4.128" />
+  <path d="M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z" />
+  </symbol>
+  <symbol id="icon-corner-down-right" viewBox="0 0 24 24">
+    <path d="m15 10 5 5-5 5" />
+  <path d="M4 4v7a4 4 0 0 0 4 4h12" />
+  </symbol>
+  <symbol id="icon-crosshair" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10" />
+  <line x1="22" x2="18" y1="12" y2="12" />
+  <line x1="6" x2="2" y1="12" y2="12" />
+  <line x1="12" x2="12" y1="6" y2="2" />
+  <line x1="12" x2="12" y1="22" y2="18" />
+  </symbol>
+  <symbol id="icon-dice-6" viewBox="0 0 24 24">
+    <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+  <path d="M16 8h.01" />
+  <path d="M16 12h.01" />
+  <path d="M16 16h.01" />
+  <path d="M8 8h.01" />
+  <path d="M8 12h.01" />
+  <path d="M8 16h.01" />
+  </symbol>
+  <symbol id="icon-disc" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10" />
+  <circle cx="12" cy="12" r="2" />
+  </symbol>
+  <symbol id="icon-droplet" viewBox="0 0 24 24">
+    <path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z" />
+  </symbol>
+  <symbol id="icon-expand" viewBox="0 0 24 24">
+    <path d="m15 15 6 6" />
+  <path d="m15 9 6-6" />
+  <path d="M21 16v5h-5" />
+  <path d="M21 8V3h-5" />
+  <path d="M3 16v5h5" />
+  <path d="m3 21 6-6" />
+  <path d="M3 8V3h5" />
+  <path d="M9 9 3 3" />
+  </symbol>
+  <symbol id="icon-flame" viewBox="0 0 24 24">
+    <path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4" />
+  </symbol>
+  <symbol id="icon-folder" viewBox="0 0 24 24">
+    <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+  </symbol>
+  <symbol id="icon-folder-open" viewBox="0 0 24 24">
+    <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" />
+  </symbol>
+  <symbol id="icon-gamepad-2" viewBox="0 0 24 24">
+    <line x1="6" x2="10" y1="11" y2="11" />
+  <line x1="8" x2="8" y1="9" y2="13" />
+  <line x1="15" x2="15.01" y1="12" y2="12" />
+  <line x1="18" x2="18.01" y1="10" y2="10" />
+  <path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z" />
+  </symbol>
+  <symbol id="icon-gem" viewBox="0 0 24 24">
+    <path d="M10.5 3 8 9l4 13 4-13-2.5-6" />
+  <path d="M17 3a2 2 0 0 1 1.6.8l3 4a2 2 0 0 1 .013 2.382l-7.99 10.986a2 2 0 0 1-3.247 0l-7.99-10.986A2 2 0 0 1 2.4 7.8l2.998-3.997A2 2 0 0 1 7 3z" />
+  <path d="M2 9h20" />
+  </symbol>
+  <symbol id="icon-globe" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10" />
+  <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+  <path d="M2 12h20" />
+  </symbol>
+  <symbol id="icon-haze" viewBox="0 0 24 24">
+    <path d="m5.2 6.2 1.4 1.4" />
+  <path d="M2 13h2" />
+  <path d="M20 13h2" />
+  <path d="m17.4 7.6 1.4-1.4" />
+  <path d="M22 17H2" />
+  <path d="M22 21H2" />
+  <path d="M16 13a4 4 0 0 0-8 0" />
+  <path d="M12 5V2.5" />
+  </symbol>
+  <symbol id="icon-hexagon" viewBox="0 0 24 24">
+    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+  </symbol>
+  <symbol id="icon-image" viewBox="0 0 24 24">
+    <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+  <circle cx="9" cy="9" r="2" />
+  <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+  </symbol>
+  <symbol id="icon-lightbulb" viewBox="0 0 24 24">
+    <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+  <path d="M9 18h6" />
+  <path d="M10 22h4" />
+  </symbol>
+  <symbol id="icon-link" viewBox="0 0 24 24">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+  </symbol>
+  <symbol id="icon-minimize" viewBox="0 0 24 24">
+    <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+  <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+  <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+  <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+  </symbol>
+  <symbol id="icon-message-circle" viewBox="0 0 24 24">
+    <path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" />
+  </symbol>
+  <symbol id="icon-copy" viewBox="0 0 24 24">
+    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+  <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+  </symbol>
+  <symbol id="icon-keyboard" viewBox="0 0 24 24">
+    <path d="M10 8h.01" />
+  <path d="M12 12h.01" />
+  <path d="M14 8h.01" />
+  <path d="M16 12h.01" />
+  <path d="M18 8h.01" />
+  <path d="M6 8h.01" />
+  <path d="M7 16h10" />
+  <path d="M8 12h.01" />
+  <rect width="20" height="16" x="2" y="4" rx="2" />
+  </symbol>
+  <symbol id="icon-eye" viewBox="0 0 24 24">
+    <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+  <circle cx="12" cy="12" r="3" />
+  </symbol>
+  <symbol id="icon-user-x" viewBox="0 0 24 24">
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+  <circle cx="9" cy="7" r="4" />
+  <line x1="17" x2="22" y1="8" y2="13" />
+  <line x1="22" x2="17" y1="8" y2="13" />
+  </symbol>
+  <symbol id="icon-lock" viewBox="0 0 24 24">
+    <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </symbol>
+  <symbol id="icon-map" viewBox="0 0 24 24">
+    <path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z" />
+  <path d="M15 5.764v15" />
+  <path d="M9 3.236v15" />
+  </symbol>
+  <symbol id="icon-map-pin" viewBox="0 0 24 24">
+    <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
+  <circle cx="12" cy="10" r="3" />
+  </symbol>
+  <symbol id="icon-moon" viewBox="0 0 24 24">
+    <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
+  </symbol>
+  <symbol id="icon-mountain" viewBox="0 0 24 24">
+    <path d="m8 3 4 8 5-5 5 15H2L8 3z" />
+  </symbol>
+  <symbol id="icon-mountain-snow" viewBox="0 0 24 24">
+    <path d="m8 3 4 8 5-5 5 15H2L8 3z" />
+  <path d="M4.14 15.08c2.62-1.57 5.24-1.43 7.86.42 2.74 1.94 5.49 2 8.23.19" />
+  </symbol>
+  <symbol id="icon-octagon" viewBox="0 0 24 24">
+    <path d="M2.586 16.726A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2h6.624a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586z" />
+  </symbol>
+  <symbol id="icon-orbit" viewBox="0 0 24 24">
+    <path d="M20.341 6.484A10 10 0 0 1 10.266 21.85" />
+  <path d="M3.659 17.516A10 10 0 0 1 13.74 2.152" />
+  <circle cx="12" cy="12" r="3" />
+  <circle cx="19" cy="5" r="2" />
+  <circle cx="5" cy="19" r="2" />
+  </symbol>
+  <symbol id="icon-package" viewBox="0 0 24 24">
+    <path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" />
+  <path d="M12 22V12" />
+  <polyline points="3.29 7 12 12 20.71 7" />
+  <path d="m7.5 4.27 9 5.15" />
+  </symbol>
+  <symbol id="icon-palette" viewBox="0 0 24 24">
+    <path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z" />
+  <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+  <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+  <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+  <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
+  </symbol>
+  <symbol id="icon-paperclip" viewBox="0 0 24 24">
+    <path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551" />
+  </symbol>
+  <symbol id="icon-pencil" viewBox="0 0 24 24">
+    <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+  <path d="m15 5 4 4" />
+  </symbol>
+  <symbol id="icon-pin" viewBox="0 0 24 24">
+    <path d="M12 17v5" />
+  <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+  </symbol>
+  <symbol id="icon-refresh-cw" viewBox="0 0 24 24">
+    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+  <path d="M21 3v5h-5" />
+  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+  <path d="M8 16H3v5" />
+  </symbol>
+  <symbol id="icon-repeat" viewBox="0 0 24 24">
+    <path d="m17 2 4 4-4 4" />
+  <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+  <path d="m7 22-4-4 4-4" />
+  <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+  </symbol>
+  <symbol id="icon-rocket" viewBox="0 0 24 24">
+    <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+  <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09" />
+  <path d="M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z" />
+  <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05" />
+  </symbol>
+  <symbol id="icon-ruler" viewBox="0 0 24 24">
+    <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z" />
+  <path d="m14.5 12.5 2-2" />
+  <path d="m11.5 9.5 2-2" />
+  <path d="m8.5 6.5 2-2" />
+  <path d="m17.5 15.5 2-2" />
+  </symbol>
+  <symbol id="icon-satellite" viewBox="0 0 24 24">
+    <path d="m13.5 6.5-3.148-3.148a1.205 1.205 0 0 0-1.704 0L6.352 5.648a1.205 1.205 0 0 0 0 1.704L9.5 10.5" />
+  <path d="M16.5 7.5 19 5" />
+  <path d="m17.5 10.5 3.148 3.148a1.205 1.205 0 0 1 0 1.704l-2.296 2.296a1.205 1.205 0 0 1-1.704 0L13.5 14.5" />
+  <path d="M9 21a6 6 0 0 0-6-6" />
+  <path d="M9.352 10.648a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l4.296-4.296a1.205 1.205 0 0 0 0-1.704l-2.296-2.296a1.205 1.205 0 0 0-1.704 0z" />
+  </symbol>
+  <symbol id="icon-save" viewBox="0 0 24 24">
+    <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+  <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
+  <path d="M7 3v4a1 1 0 0 0 1 1h7" />
+  </symbol>
+  <symbol id="icon-scale" viewBox="0 0 24 24">
+    <path d="M12 3v18" />
+  <path d="m19 8 3 8a5 5 0 0 1-6 0zV7" />
+  <path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1" />
+  <path d="m5 8 3 8a5 5 0 0 1-6 0zV7" />
+  <path d="M7 21h10" />
+  </symbol>
+  <symbol id="icon-search" viewBox="0 0 24 24">
+    <path d="m21 21-4.34-4.34" />
+  <circle cx="11" cy="11" r="8" />
+  </symbol>
+  <symbol id="icon-settings" viewBox="0 0 24 24">
+    <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
+  <circle cx="12" cy="12" r="3" />
+  </symbol>
+  <symbol id="icon-shuffle" viewBox="0 0 24 24">
+    <path d="m18 14 4 4-4 4" />
+  <path d="m18 2 4 4-4 4" />
+  <path d="M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22" />
+  <path d="M2 6h1.972a4 4 0 0 1 3.6 2.2" />
+  <path d="M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45" />
+  </symbol>
+  <symbol id="icon-snowflake" viewBox="0 0 24 24">
+    <path d="m10 20-1.25-2.5L6 18" />
+  <path d="M10 4 8.75 6.5 6 6" />
+  <path d="m14 20 1.25-2.5L18 18" />
+  <path d="m14 4 1.25 2.5L18 6" />
+  <path d="m17 21-3-6h-4" />
+  <path d="m17 3-3 6 1.5 3" />
+  <path d="M2 12h6.5L10 9" />
+  <path d="m20 10-1.5 2 1.5 2" />
+  <path d="M22 12h-6.5L14 15" />
+  <path d="m4 10 1.5 2L4 14" />
+  <path d="m7 21 3-6-1.5-3" />
+  <path d="m7 3 3 6h4" />
+  </symbol>
+  <symbol id="icon-sparkle" viewBox="0 0 24 24">
+    <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" />
+  </symbol>
+  <symbol id="icon-sparkles" viewBox="0 0 24 24">
+    <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" />
+  <path d="M20 2v4" />
+  <path d="M22 4h-4" />
+  <circle cx="4" cy="20" r="2" />
+  </symbol>
+  <symbol id="icon-square" viewBox="0 0 24 24">
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+  </symbol>
+  <symbol id="icon-star" viewBox="0 0 24 24">
+    <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" />
+  </symbol>
+  <symbol id="icon-sun" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="4" />
+  <path d="M12 2v2" />
+  <path d="M12 20v2" />
+  <path d="m4.93 4.93 1.41 1.41" />
+  <path d="m17.66 17.66 1.41 1.41" />
+  <path d="M2 12h2" />
+  <path d="M20 12h2" />
+  <path d="m6.34 17.66-1.41 1.41" />
+  <path d="m19.07 4.93-1.41 1.41" />
+  </symbol>
+  <symbol id="icon-swords" viewBox="0 0 24 24">
+    <polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5" />
+  <line x1="13" x2="19" y1="19" y2="13" />
+  <line x1="16" x2="20" y1="16" y2="20" />
+  <line x1="19" x2="21" y1="21" y2="19" />
+  <polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5" />
+  <line x1="5" x2="9" y1="14" y2="18" />
+  <line x1="7" x2="4" y1="17" y2="20" />
+  <line x1="3" x2="5" y1="19" y2="21" />
+  </symbol>
+  <symbol id="icon-tag" viewBox="0 0 24 24">
+    <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+  <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+  </symbol>
+  <symbol id="icon-trash-2" viewBox="0 0 24 24">
+    <path d="M10 11v6" />
+  <path d="M14 11v6" />
+  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+  <path d="M3 6h18" />
+  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+  </symbol>
+  <symbol id="icon-unlink" viewBox="0 0 24 24">
+    <path d="m18.84 12.25 1.72-1.71h-.02a5.004 5.004 0 0 0-.12-7.07 5.006 5.006 0 0 0-6.95 0l-1.72 1.71" />
+  <path d="m5.17 11.75-1.71 1.71a5.004 5.004 0 0 0 .12 7.07 5.006 5.006 0 0 0 6.95 0l1.71-1.71" />
+  <line x1="8" x2="8" y1="2" y2="5" />
+  <line x1="2" x2="5" y1="8" y2="8" />
+  <line x1="16" x2="16" y1="19" y2="22" />
+  <line x1="19" x2="22" y1="16" y2="16" />
+  </symbol>
+  <symbol id="icon-unlock" viewBox="0 0 24 24">
+    <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+  <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+  </symbol>
+  <symbol id="icon-waves" viewBox="0 0 24 24">
+    <path d="M2 12q2.5 2 5 0t5 0 5 0 5 0" />
+  <path d="M2 19q2.5 2 5 0t5 0 5 0 5 0" />
+  <path d="M2 5q2.5 2 5 0t5 0 5 0 5 0" />
+  </symbol>
+  <symbol id="icon-wind" viewBox="0 0 24 24">
+    <path d="M12.8 19.6A2 2 0 1 0 14 16H2" />
+  <path d="M17.5 8a2.5 2.5 0 1 1 2 4H2" />
+  <path d="M9.8 4.4A2 2 0 1 1 11 8H2" />
+  </symbol>
+  <symbol id="icon-wrench" viewBox="0 0 24 24">
+    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z" />
+  </symbol>
+  <symbol id="icon-zap" viewBox="0 0 24 24">
+    <path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z" />
+  </symbol>
+</svg>
+
 
 <canvas id="bg"></canvas>
 
@@ -28,23 +425,27 @@
       <span class="arr">›</span>
     </button>
     <button id="btn-load-assets" class="menu-btn" onclick="triggerFileInput('fi-sfs-assets')" title="Load one or more SFS asset zips — textures and presets are detected and loaded automatically">
-      <span class="mico">🗂️</span>LOAD SFS ASSETS
+      <span class="mico"><svg class="icon"><use href="#icon-folder-open"></use></svg></span>LOAD SFS ASSETS
       <span class="arr">›</span>
     </button>
     <button class="menu-btn menu-btn-create-tex" onclick="goCreateTextures()">
-      <span class="mico">🎨</span>CREATE TEXTURES
+      <span class="mico"><svg class="icon"><use href="#icon-palette"></use></svg></span>CREATE TEXTURES
       <span class="arr">›</span>
     </button>
     <button class="menu-btn" style="border-color:var(--sky)" onclick="goFeatured()">
       <span class="mico">⭐</span>FEATURED SYSTEMS
       <span class="arr">›</span>
     </button>
+    <button class="menu-btn" id="btn-multiplayer" style="border-color:#4fc3f7" onclick="MP.openModal()">
+      <span class="mico"><svg class="icon"><use href="#icon-globe"></use></svg></span>MULTIPLAYER<span class="beta-tag">BETA</span>
+      <span class="arr">›</span>
+    </button>
   </nav>
 
   <!-- ── Settings: small cog icon box, pinned top-right ── -->
-  <button class="menu-cog-btn" onclick="openAppSettings()" title="Settings">⚙</button>
+  <button class="menu-cog-btn" onclick="openAppSettings()" title="Settings"><svg class="icon"><use href="#icon-settings"></use></svg></button>
   <!-- ── Fullscreen toggle, pinned top-right next to settings ── -->
-  <button class="menu-cog-btn menu-fs-btn" id="btn-fullscreen" onclick="toggleAppFullscreen()" title="Fullscreen">⛶</button>
+  <button class="menu-cog-btn menu-fs-btn" id="btn-fullscreen" onclick="toggleAppFullscreen()" title="Fullscreen"><svg class="icon"><use href="#icon-expand"></use></svg></button>
 
   <!-- ── Create Textures sub-menu ── -->
   <nav class="menu-list" id="s-start-create-nav" style="display:none">
@@ -53,27 +454,27 @@
       <span class="menu-create-title">CREATE TEXTURES</span>
     </div>
     <button class="menu-btn primary" onclick="TC.open()">
-      <span class="mico">🌫️</span>CREATE ATMOSPHERE TEXTURE
+      <span class="mico"><svg class="icon"><use href="#icon-haze"></use></svg></span>CREATE ATMOSPHERE TEXTURE
       <span class="arr">›</span>
     </button>
     <button class="menu-btn" onclick="DC.open()">
-      <span class="mico">☀️</span>CREATE DAY/NIGHT TEXTURE
+      <span class="mico"><svg class="icon"><use href="#icon-sun"></use></svg></span>CREATE DAY/NIGHT TEXTURE
       <span class="arr">›</span>
     </button>
     <button class="menu-btn menu-btn-soon" disabled title="Coming soon">
-      <span class="mico">🌊</span>CREATE OCEAN TEXTURE
+      <span class="mico"><svg class="icon"><use href="#icon-waves"></use></svg></span>CREATE OCEAN TEXTURE
       <span class="coming-soon-badge">COMING SOON™</span>
     </button>
     <button class="menu-btn menu-btn-soon" disabled title="Coming soon">
-      <span class="mico">☁️</span>CREATE CLOUD TEXTURE
+      <span class="mico"><svg class="icon"><use href="#icon-cloud"></use></svg></span>CREATE CLOUD TEXTURE
       <span class="coming-soon-badge">COMING SOON™</span>
     </button>
     <button class="menu-btn menu-btn-soon" disabled title="Coming soon">
-      <span class="mico">💫</span>CREATE RING TEXTURE
+      <span class="mico"><svg class="icon"><use href="#icon-sparkle"></use></svg></span>CREATE RING TEXTURE
       <span class="coming-soon-badge">COMING SOON™</span>
     </button>
     <button class="menu-btn" onclick="PT.open()">
-      <span class="mico">🌋</span>CREATE PLANET TEXTURE
+      <span class="mico"><svg class="icon"><use href="#icon-mountain-snow"></use></svg></span>CREATE PLANET TEXTURE
       <span class="arr">›</span>
     </button>
   </nav>
@@ -99,7 +500,7 @@
       <!-- ── Environment dropdown ── -->
       <div id="env-dropdown-wrap" style="position:relative;display:inline-block">
         <button class="tb-btn" id="btn-env" onclick="toggleEnvDropdown()" title="Environment render toggles"
-          style="border-color:rgba(64,200,255,.3);color:var(--sky2);font-size:.88rem;padding:7px 11px">🌐</button>
+          style="border-color:rgba(64,200,255,.3);color:var(--sky2);font-size:.88rem;padding:7px 11px"><svg class="icon"><use href="#icon-globe"></use></svg></button>
       </div>
       <div style="position:relative;display:inline-flex;align-items:stretch">
         <button class="tb-btn env-off" id="env-btn-heightmaps" onclick="toggleEnvFlag('heightmaps')" title="Toggle terrain heightmap rendering"
@@ -109,27 +510,27 @@
           <span id="terrain-detail-label">30%</span><span style="font-size:.6rem;opacity:.6">&#9662;</span>
         </button>
       </div>
-      <button class="tb-btn" onclick="openBodySearch()" title="Search bodies in system" style="border-color:rgba(64,200,255,.3);color:var(--sky2);font-size:.85rem;padding:7px 10px">🔍</button>
-      <button class="tb-btn" id="btn-difficulty" onclick="cycleDifficulty()" title="Switch orbit display difficulty" style="border-color:rgba(255,200,64,.3);color:#ffd060;min-width:96px">⚖ NORMAL</button>
-      <button class="tb-btn" id="btn-dist-rings" onclick="toggleDistRings()" title="Toggle AU distance rings around selected body" style="border-color:rgba(120,200,255,.3);color:rgba(120,200,255,.75);font-size:.75rem;letter-spacing:.05em;padding:7px 10px">⊙ AU</button><button class="tb-btn" onclick="openDistRingsMenu()" title="Configure ring distances" style="border-color:rgba(120,200,255,.2);color:rgba(120,200,255,.5);font-size:.7rem;padding:7px 7px;margin-left:-6px;border-left:none;border-radius:0 5px 5px 0">⚙</button>
+      <button class="tb-btn" onclick="openBodySearch()" title="Search bodies in system" style="border-color:rgba(64,200,255,.3);color:var(--sky2);font-size:.85rem;padding:7px 10px"><svg class="icon"><use href="#icon-search"></use></svg></button>
+      <button class="tb-btn" id="btn-difficulty" onclick="cycleDifficulty()" title="Switch orbit display difficulty" style="border-color:rgba(255,200,64,.3);color:#ffd060;min-width:96px"><svg class="icon"><use href="#icon-scale"></use></svg> NORMAL</button>
+      <button class="tb-btn" id="btn-dist-rings" onclick="toggleDistRings()" title="Toggle AU distance rings around selected body" style="border-color:rgba(120,200,255,.3);color:rgba(120,200,255,.75);font-size:.75rem;letter-spacing:.05em;padding:7px 10px">⊙ AU</button><button class="tb-btn" onclick="openDistRingsMenu()" title="Configure ring distances" style="border-color:rgba(120,200,255,.2);color:rgba(120,200,255,.5);font-size:.7rem;padding:7px 7px;margin-left:-6px;border-left:none;border-radius:0 5px 5px 0"><svg class="icon"><use href="#icon-settings"></use></svg></button>
       <button class="tb-btn" id="btn-add-body" onclick="addBodyPrompt()" title="Add a body to the system (requires a system center first)" style="border-color:rgba(100,220,120,.6);color:#7defa0;font-weight:700;background:rgba(100,220,120,.12);letter-spacing:.08em">＋ ADD</button>
       <!-- ── Tag dropdown ── -->
       <div id="tag-dropdown-wrap" style="position:relative;display:inline-block">
         <button class="tb-btn" id="btn-tag" onclick="toggleTagDropdown()" title="Tag bodies"
-          style="border-color:rgba(255,220,80,.35);color:#ffd050;font-size:.72rem;letter-spacing:.06em;padding:7px 11px">🏷 TAG</button>
+          style="border-color:rgba(255,220,80,.35);color:#ffd050;font-size:.72rem;letter-spacing:.06em;padding:7px 11px"><svg class="icon"><use href="#icon-tag"></use></svg> TAG</button>
       </div>
       <!-- ── Tools dropdown ── -->
       <div id="tools-dropdown-wrap" style="position:relative;display:inline-block">
         <button class="tb-btn" id="btn-tools" onclick="toggleToolsDropdown()" title="Tools"
-          style="border-color:rgba(255,180,80,.35);color:#ffb850;font-size:.88rem;padding:7px 11px">🔧</button>
+          style="border-color:rgba(255,180,80,.35);color:#ffb850;font-size:.88rem;padding:7px 11px"><svg class="icon"><use href="#icon-wrench"></use></svg></button>
       </div>
       <!-- ── Utils dropdown ── -->
       <div id="utils-dropdown-wrap" style="position:relative;display:inline-block">
         <button class="tb-btn" id="btn-utils" onclick="toggleUtilsDropdown()" title="Utilities"
           style="border-color:rgba(100,220,180,.35);color:#64dcb4;font-size:.78rem;letter-spacing:.06em;padding:7px 11px">⊞ UTILS</button>
       </div>
-      <button class="tb-btn" onclick="openAssets()" title="Assets">📁 ASSETS</button>
-      <button class="tb-btn" onclick="openSysSettings()" title="System settings" style="font-size:.88rem;padding:7px 11px">⚙</button>
+      <button class="tb-btn" onclick="openAssets()" title="Assets"><svg class="icon"><use href="#icon-folder"></use></svg> ASSETS</button>
+      <button class="tb-btn" onclick="openSysSettings()" title="System settings" style="font-size:.88rem;padding:7px 11px"><svg class="icon"><use href="#icon-settings"></use></svg></button>
       <button class="tb-btn save" onclick="exportSystem()" title="Export system ZIP">⬇ EXPORT</button>
     </div>
   </div>
@@ -177,7 +578,7 @@
       ondragleave="this.classList.remove('drag-over')"
       ondrop="handleZipDrop(event)"
       onclick="triggerFileInput('fi-zip')">
-      <span class="dico">🗜️</span>
+      <span class="dico"><svg class="icon"><use href="#icon-archive"></use></svg></span>
       <p>Drop a system <strong>.zip</strong> here, or click to browse</p>
       <small style="color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.65rem">
         Must contain Planet Data/, Heightmap Data/, Texture Data/ folders
@@ -185,7 +586,7 @@
     </div>
     <button class="mf-btn ok" style="width:100%;margin-top:12px" onclick="goNewFromOpen()">START WITH EMPTY SYSTEM</button>
     <button class="mf-btn" style="width:100%;margin-top:8px;border-color:rgba(160,100,255,.45);color:rgba(190,140,255,.9);background:rgba(160,100,255,.07)" onclick="openImportSystemModal()" id="btn-import-system">
-      <span style="margin-right:6px">🔀</span>IMPORT SYSTEM
+      <span style="margin-right:6px"><svg class="icon"><use href="#icon-shuffle"></use></svg></span>IMPORT SYSTEM
     </button>
   </div>
 </div>
@@ -204,7 +605,7 @@
 
     <!-- Conditions note -->
     <div class="fs-info-bar">
-      <span class="fs-info-label">📋 CONDITIONS</span>
+      <span class="fs-info-label"><svg class="icon"><use href="#icon-clipboard"></use></svg> CONDITIONS</span>
       All assets are free to use — but please give credit to the original creator.
       &nbsp;·&nbsp; Want your system featured here? DM me! (Must be high quality.)
       &nbsp;·&nbsp; Already featured? Remind me if you'd like to update it.
@@ -241,7 +642,7 @@
         <div class="fs-card-stats" id="fsstats-sfs-default">
           <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-sfs-default-import">…</span> imports</span>
           <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-sfs-default-open">…</span> opens</span>
-          <span class="fs-stat fs-stat-size">📦 <span class="fs-stat-num fs-stat-loading" id="fssz-sfs-default">…</span> MB</span>
+          <span class="fs-stat fs-stat-size"><svg class="icon"><use href="#icon-package"></use></svg> <span class="fs-stat-num fs-stat-loading" id="fssz-sfs-default">…</span> MB</span>
         </div>
       </div>
 
@@ -264,7 +665,7 @@
         <div class="fs-card-stats" id="fsstats-bgh">
           <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-bgh-import">…</span> imports</span>
           <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-bgh-open">…</span> opens</span>
-          <span class="fs-stat fs-stat-size">📦 <span class="fs-stat-num fs-stat-loading" id="fssz-bgh">…</span> MB</span>
+          <span class="fs-stat fs-stat-size"><svg class="icon"><use href="#icon-package"></use></svg> <span class="fs-stat-num fs-stat-loading" id="fssz-bgh">…</span> MB</span>
         </div>
       </div>
 
@@ -287,7 +688,7 @@
         <div class="fs-card-stats" id="fsstats-htss">
           <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-htss-import">…</span> imports</span>
           <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-htss-open">…</span> opens</span>
-          <span class="fs-stat fs-stat-size">📦 <span class="fs-stat-num fs-stat-loading" id="fssz-htss">…</span> MB</span>
+          <span class="fs-stat fs-stat-size"><svg class="icon"><use href="#icon-package"></use></svg> <span class="fs-stat-num fs-stat-loading" id="fssz-htss">…</span> MB</span>
         </div>
       </div>
 
@@ -311,7 +712,7 @@
         <div class="fs-card-stats" id="fsstats-ys">
           <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-ys-import">…</span> imports</span>
           <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-ys-open">…</span> opens</span>
-          <span class="fs-stat fs-stat-size">📦 <span class="fs-stat-num fs-stat-loading" id="fssz-ys">…</span> MB</span>
+          <span class="fs-stat fs-stat-size"><svg class="icon"><use href="#icon-package"></use></svg> <span class="fs-stat-num fs-stat-loading" id="fssz-ys">…</span> MB</span>
         </div>
       </div>
 
@@ -342,7 +743,7 @@
         <div class="fs-card-stats" id="fsstats-ch">
           <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-ch-import">…</span> imports</span>
           <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-ch-open">…</span> opens</span>
-          <span class="fs-stat fs-stat-size">📦 <span class="fs-stat-num fs-stat-loading" id="fssz-ch">…</span> MB</span>
+          <span class="fs-stat fs-stat-size"><svg class="icon"><use href="#icon-package"></use></svg> <span class="fs-stat-num fs-stat-loading" id="fssz-ch">…</span> MB</span>
         </div>
       </div>
 
@@ -366,7 +767,7 @@
         <div class="fs-card-stats" id="fsstats-rs">
           <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-rs-import">…</span> imports</span>
           <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-rs-open">…</span> opens</span>
-          <span class="fs-stat fs-stat-size">📦 <span class="fs-stat-num fs-stat-loading" id="fssz-rs">…</span> MB</span>
+          <span class="fs-stat fs-stat-size"><svg class="icon"><use href="#icon-package"></use></svg> <span class="fs-stat-num fs-stat-loading" id="fssz-rs">…</span> MB</span>
         </div>
       </div>
 
@@ -390,7 +791,7 @@
         <div class="fs-card-stats" id="fsstats-pg">
           <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-pg-import">…</span> imports</span>
           <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-pg-open">…</span> opens</span>
-          <span class="fs-stat fs-stat-size">📦 <span class="fs-stat-num fs-stat-loading" id="fssz-pg">…</span> MB</span>
+          <span class="fs-stat fs-stat-size"><svg class="icon"><use href="#icon-package"></use></svg> <span class="fs-stat-num fs-stat-loading" id="fssz-pg">…</span> MB</span>
         </div>
       </div>
 
@@ -409,7 +810,7 @@
 <!-- ══════════════ BODY SEARCH MODAL ══════════════ -->
 <div id="modal-body-search">
   <div class="mpanel" id="mpanel-body-search" style="max-width:480px;width:92vw;max-height:80vh;display:flex;flex-direction:column">
-    <h2 style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:var(--sky2);letter-spacing:.15em;margin-bottom:10px">🔍 FIND BODY</h2>
+    <h2 style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:var(--sky2);letter-spacing:.15em;margin-bottom:10px"><svg class="icon"><use href="#icon-search"></use></svg> FIND BODY</h2>
     <div style="position:relative;margin-bottom:8px">
       <input id="bsearch-input" class="prs-search" placeholder="Search bodies…" autocomplete="off" oninput="bsearchRebuild()" style="width:100%;box-sizing:border-box">
     </div>
@@ -462,15 +863,15 @@
     <!-- Tab bar -->
     <div class="prs-tabs">
       <button class="prs-tab on" onclick="prsSetTab('all',this)">ALL</button>
-      <button class="prs-tab" onclick="prsSetTab('vanilla',this)">🌍 VANILLA</button>
+      <button class="prs-tab" onclick="prsSetTab('vanilla',this)"><svg class="icon"><use href="#icon-globe"></use></svg> VANILLA</button>
       <button class="prs-tab" onclick="prsSetTab('custom',this)">⭐ CUSTOM</button>
-      <button class="prs-tab" id="prs-tab-system" onclick="prsSetTab('system',this)" style="display:none">🚀 SYSTEM</button>
-      <button class="prs-tab prs-tab-clipboard" id="prs-tab-clipboard" onclick="prsSetTab('clipboard',this)">📋 CLIPBOARD</button>
+      <button class="prs-tab" id="prs-tab-system" onclick="prsSetTab('system',this)" style="display:none"><svg class="icon"><use href="#icon-rocket"></use></svg> SYSTEM</button>
+      <button class="prs-tab prs-tab-clipboard" id="prs-tab-clipboard" onclick="prsSetTab('clipboard',this)"><svg class="icon"><use href="#icon-clipboard"></use></svg> CLIPBOARD</button>
     </div>
     <!-- Search -->
     <div class="prs-search-wrap">
       <input class="prs-search" id="prs-search" placeholder="Search presets…" autocomplete="off" oninput="prsRebuild()">
-      <span class="prs-search-ico">⌕</span>
+      <span class="prs-search-ico"><svg class="icon"><use href="#icon-search"></use></svg></span>
     </div>
     <!-- Grid -->
     <div class="prs-grid" id="prs-grid"></div>
@@ -510,7 +911,7 @@
 <div id="sidebar">
   <div class="sb-head">
     <div class="sb-identity">
-      <div class="sb-badge" id="sbb-icon">☀️</div>
+      <div class="sb-badge" id="sbb-icon"><svg class="icon"><use href="#icon-sun"></use></svg></div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px">
           <input id="sbb-name-input"
@@ -525,7 +926,7 @@
         </div>
         <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
           <div class="sb-type" id="sbb-type">Star · System Center</div>
-          <button class="namegen-dice" onclick="NameGen.roll()" title="Generate a random name">⚄</button>
+          <button class="namegen-dice" onclick="NameGen.roll()" title="Generate a random name"><svg class="icon"><use href="#icon-dice-6"></use></svg></button>
         </div>
       </div>
     </div>
@@ -574,7 +975,7 @@
       <div style="display:flex;gap:5px">
         <button onclick="if(selectedBody) zoomToBody(selectedBody)" title="Zoom viewport to this body" style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.05em;padding:3px 7px;border:1px solid rgba(64,200,255,.5);border-radius:2px;background:rgba(64,200,255,.12);color:#60d8ff;cursor:pointer">⊕ ZOOM</button>
         <button onclick="addBodyPrompt()" title="Add a body orbiting this one" style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.05em;padding:3px 7px;border:1px solid rgba(100,220,120,.4);border-radius:2px;background:rgba(100,220,120,.07);color:#7defa0;cursor:pointer">+ ADD</button>
-        <button onclick="replaceBodyPrompt()" title="Replace this body with a different preset" style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.05em;padding:3px 7px;border:1px solid rgba(255,200,64,.35);border-radius:2px;background:rgba(255,200,64,.07);color:#ffd060;cursor:pointer">⇄ REPLACE</button>
+        <button onclick="replaceBodyPrompt()" title="Replace this body with a different preset" style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.05em;padding:3px 7px;border:1px solid rgba(255,200,64,.35);border-radius:2px;background:rgba(255,200,64,.07);color:#ffd060;cursor:pointer"><svg class="icon"><use href="#icon-repeat"></use></svg> REPLACE</button>
         <button onclick="confirmDeleteBody()" title="Delete this body and all its satellites" style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.05em;padding:3px 7px;border:1px solid rgba(255,64,96,.35);border-radius:2px;background:rgba(255,64,96,.07);color:var(--rose);cursor:pointer">✕ DELETE</button>
       </div>
     </div>
@@ -925,7 +1326,7 @@
           <div id="hm-library-wrap">
             <div id="hm-loaded-list" style="margin-top:4px"></div>
             <div id="hm-empty-hint" style="font-size:.62rem;color:var(--ink4);padding:10px 8px;line-height:1.8;background:var(--bg2);border-radius:6px;text-align:center">
-              <div style="font-size:1.4rem;margin-bottom:4px">🗺️</div>
+              <div style="font-size:1.4rem;margin-bottom:4px"><svg class="icon"><use href="#icon-map"></use></svg></div>
               <strong style="color:var(--ink2);font-size:.65rem">No heightmaps loaded yet</strong><br>
               Heightmaps shape your planet's terrain.<br>
               Click <strong style="color:var(--sky2)">+ ADD FILE</strong> to upload a<br>
@@ -1286,7 +1687,7 @@
         <div id="lm-list"></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="add-btn" onclick="addLandmark()" style="flex:1">+ ADD LANDMARK</button>
-          <button class="add-btn" onclick="openProceduralLandmarks()" style="flex:1;color:var(--jade);border-color:rgba(68,170,119,.35)" title="Scan heightmap & texture to auto-generate scientific landmarks">⬡ PROCEDURAL</button>
+          <button class="add-btn" onclick="openProceduralLandmarks()" style="flex:1;color:var(--jade);border-color:rgba(68,170,119,.35)" title="Scan heightmap & texture to auto-generate scientific landmarks"><svg class="icon"><use href="#icon-hexagon"></use></svg> PROCEDURAL</button>
         </div>
       </div>
       <div class="fsec">
@@ -1315,7 +1716,7 @@
         <div class="fsec-title" style="display:flex;align-items:center;justify-content:space-between">
           RAW JSON
           <div style="display:flex;gap:6px">
-            <button class="add-btn" style="margin:0;padding:5px 10px;font-size:.58rem;width:auto;border-color:rgba(255,64,96,.3);color:var(--rose)" onclick="refreshJsonView()">↺ REFRESH</button>
+            <button class="add-btn" style="margin:0;padding:5px 10px;font-size:.58rem;width:auto;border-color:rgba(255,64,96,.3);color:var(--rose)" onclick="refreshJsonView()"><svg class="icon"><use href="#icon-refresh-cw"></use></svg> REFRESH</button>
           </div>
         </div>
         <div id="json-error" style="display:none;font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--rose);padding:6px 0;margin-bottom:4px"></div>
@@ -1357,7 +1758,7 @@
     <!-- TEXTURES — single flat panel with search -->
     <div class="asset-panel on" id="apanel-textures">
       <div class="asset-drop" ondragover="event.preventDefault()" ondrop="handleDrop(event,'textures')" onclick="document.getElementById('fi-textures').click()">
-        <span>🖼️</span><p>Drop texture images here or click to browse</p>
+        <span><svg class="icon"><use href="#icon-image"></use></svg></span><p>Drop texture images here or click to browse</p>
         <small>PNG / JPG / WEBP — appears in all texture search pickers immediately</small>
       </div>
       <input type="file" id="fi-textures" multiple accept=".png,.jpg,.jpeg,.webp" style="display:none" onchange="handleFiles(this.files,'textures')">
@@ -1373,7 +1774,7 @@
     <!-- HEIGHTMAPS -->
     <div class="asset-panel" id="apanel-heightmaps">
       <div class="asset-drop" ondragover="event.preventDefault()" ondrop="handleDrop(event,'heightmaps')" onclick="document.getElementById('fi-heightmaps').click()">
-        <span>📊</span><p>Drop heightmap .txt or .png files here or click to browse</p>
+        <span><svg class="icon"><use href="#icon-bar-chart"></use></svg></span><p>Drop heightmap .txt or .png files here or click to browse</p>
         <small>Terrain heightmap data files used in terrain formula expressions</small>
       </div>
       <input type="file" id="fi-heightmaps" multiple accept=".txt,.png,.jpg,.jpeg" style="display:none" onchange="handleFiles(this.files,'heightmaps')">
@@ -1389,7 +1790,7 @@
     <!-- OTHER -->
     <div class="asset-panel" id="apanel-other">
       <div class="asset-drop" ondragover="event.preventDefault()" ondrop="handleDrop(event,'other')" onclick="document.getElementById('fi-other').click()">
-        <span>📎</span><p>Drop any other system files here</p>
+        <span><svg class="icon"><use href="#icon-paperclip"></use></svg></span><p>Drop any other system files here</p>
         <small>Space Center data, version files, import settings…</small>
       </div>
       <input type="file" id="fi-other" multiple style="display:none" onchange="handleFiles(this.files,'other')">
@@ -1528,7 +1929,7 @@
           style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--ac20);
                  background:var(--dp3);color:var(--ink2);font-family:'Orbitron',sans-serif;font-size:.65rem;
                  letter-spacing:.1em;cursor:pointer;transition:all .18s;text-align:left;width:100%">
-          <span style="font-size:1.4rem">🎮</span>
+          <span style="font-size:1.4rem"><svg class="icon"><use href="#icon-gamepad-2"></use></svg></span>
           <span>
             <span style="display:block;font-size:.68rem;color:var(--ink3)">GAMELIKE <span style="color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.56rem;letter-spacing:.04em">(DEFAULT)</span></span>
             <span style="display:block;font-size:.58rem;color:var(--ink4);margin-top:2px;font-family:'JetBrains Mono',monospace">Pure black + in-game-style stars that dim near atmospheres, just like SFS itself</span>
@@ -1538,7 +1939,7 @@
           style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--ac20);
                  background:var(--dp3);color:var(--ink2);font-family:'Orbitron',sans-serif;font-size:.65rem;
                  letter-spacing:.1em;cursor:pointer;transition:all .18s;text-align:left;width:100%">
-          <span style="font-size:1.4rem">🌌</span>
+          <span style="font-size:1.4rem"><svg class="icon"><use href="#icon-orbit"></use></svg></span>
           <span>
             <span style="display:block;font-size:.68rem;color:var(--ink3)">NEBULA DRIFT</span>
             <span style="display:block;font-size:.58rem;color:var(--ink4);margin-top:2px;font-family:'JetBrains Mono',monospace">Glowing cosmic clouds in motion</span>
@@ -1548,7 +1949,7 @@
           style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--ac20);
                  background:var(--dp3);color:var(--ink2);font-family:'Orbitron',sans-serif;font-size:.65rem;
                  letter-spacing:.1em;cursor:pointer;transition:all .18s;text-align:left;width:100%">
-          <span style="font-size:1.4rem">🌌</span>
+          <span style="font-size:1.4rem"><svg class="icon"><use href="#icon-orbit"></use></svg></span>
           <span>
             <span style="display:block;font-size:.68rem;color:var(--ink3)">AURORA BOREALIS</span>
             <span style="display:block;font-size:.58rem;color:var(--ink4);margin-top:2px;font-family:'JetBrains Mono',monospace">Green & teal light curtains in space</span>
@@ -1560,7 +1961,7 @@
             style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--ac20);
                    background:var(--dp3);color:var(--ink2);font-family:'Orbitron',sans-serif;font-size:.65rem;
                    letter-spacing:.1em;cursor:pointer;transition:all .18s;text-align:left;width:100%">
-            <span style="font-size:1.4rem">🖼</span>
+            <span style="font-size:1.4rem"><svg class="icon"><use href="#icon-image"></use></svg></span>
             <span>
               <span style="display:block;font-size:.68rem;color:var(--ink3)">CUSTOM IMAGE</span>
               <span id="custom-bg-label" style="display:block;font-size:.58rem;color:var(--ink4);margin-top:2px;font-family:'JetBrains Mono',monospace">Upload any image as background</span>
@@ -1702,6 +2103,68 @@
   </div>
 </div>
 
+<!-- ══════════════ MULTIPLAYER MODAL ══════════════ -->
+<div id="modal-multiplayer">
+  <div class="mpanel" style="width:380px;max-height:90vh;overflow-y:auto">
+    <h2><svg class="icon"><use href="#icon-globe"></use></svg> MULTIPLAYER</h2>
+    <p>Edit a system together in real time — no account, no server to set up.</p>
+
+    <!-- Tab bar (Host / Join) -->
+    <div id="mp-tabbar" style="display:flex;gap:0;margin:10px 0 18px;border-bottom:1px solid var(--ac18)">
+      <button id="mp-tab-host" onclick="MP.switchTab('host')" style="flex:1;padding:9px 0;background:var(--ac13);border:1px solid var(--ac28);border-bottom:none;color:var(--sky2);font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.08em;cursor:pointer;border-radius:4px 4px 0 0;margin-right:2px">HOST</button>
+      <button id="mp-tab-join" onclick="MP.switchTab('join')" style="flex:1;padding:9px 0;background:transparent;border:1px solid transparent;border-bottom:none;color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.08em;cursor:pointer;border-radius:4px 4px 0 0">JOIN</button>
+    </div>
+
+    <!-- Shared name field -->
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.06em;color:var(--ink4);margin-bottom:6px">YOUR DISPLAY NAME</label>
+      <input type="text" id="mp-name" maxlength="20" placeholder="e.g. Alex" value="Player"
+        style="width:100%;padding:10px 12px;background:var(--dp3);border:1px solid var(--ac22);border-radius:4px;color:var(--ink2);font-family:'JetBrains Mono',monospace;font-size:.78rem;box-sizing:border-box">
+    </div>
+
+    <!-- HOST tab content -->
+    <div id="mp-host-content">
+      <div id="mp-host-idle">
+        <p style="font-size:.68rem;line-height:1.6;color:var(--ink4);margin-bottom:16px">
+          You'll get a short code to share. Anyone who enters it joins your session directly — your browser is the host, nothing is uploaded anywhere.
+        </p>
+        <button class="menu-btn primary" style="width:100%" onclick="MP.startHost()">
+          <span class="mico">▶</span>START HOSTING
+        </button>
+      </div>
+      <div id="mp-host-active" style="display:none;text-align:center">
+        <p style="font-size:.6rem;letter-spacing:.08em;color:var(--ink4);margin-bottom:8px">SHARE THIS CODE</p>
+        <div id="mp-code-display" style="font-family:'JetBrains Mono',monospace;font-size:1.8rem;letter-spacing:.18em;color:var(--sky2);background:var(--dp3);border:1.5px solid var(--ac30);border-radius:6px;padding:14px 8px;margin-bottom:10px;user-select:all;cursor:pointer" onclick="MP.copyCode()" title="Tap to copy">— — — — —</div>
+        <button class="mf-btn" style="width:100%;margin-bottom:14px" onclick="MP.copyCode()" id="mp-copy-btn"><svg class="icon"><use href="#icon-clipboard"></use></svg> COPY CODE</button>
+        <div id="mp-peer-list" style="text-align:left;margin-bottom:14px"></div>
+        <button class="mf-btn" style="width:100%;border-color:rgba(255,64,96,.5);color:var(--rose);background:rgba(255,64,96,.08)" onclick="MP.leave()">END SESSION</button>
+      </div>
+    </div>
+
+    <!-- JOIN tab content -->
+    <div id="mp-join-content" style="display:none">
+      <div id="mp-join-idle">
+        <label style="display:block;font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.06em;color:var(--ink4);margin-bottom:6px">SESSION CODE</label>
+        <input type="text" id="mp-code-input" maxlength="5" placeholder="XXXXX" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false"
+          style="width:100%;padding:12px;background:var(--dp3);border:1px solid var(--ac22);border-radius:4px;color:var(--ink2);font-family:'JetBrains Mono',monospace;font-size:1.1rem;letter-spacing:.15em;text-align:center;text-transform:uppercase;box-sizing:border-box;margin-bottom:14px">
+        <button class="menu-btn primary" style="width:100%" onclick="MP.startJoin()">
+          <span class="mico">▶</span>JOIN SESSION
+        </button>
+        <p id="mp-join-error" style="display:none;font-size:.65rem;color:var(--rose);margin-top:10px;text-align:center"></p>
+      </div>
+      <div id="mp-join-active" style="display:none;text-align:center">
+        <p style="font-size:.68rem;color:var(--jade);margin-bottom:14px">✓ Connected</p>
+        <div id="mp-peer-list-join" style="text-align:left;margin-bottom:14px"></div>
+        <button class="mf-btn" style="width:100%;border-color:rgba(255,64,96,.5);color:var(--rose);background:rgba(255,64,96,.08)" onclick="MP.leave()">LEAVE SESSION</button>
+      </div>
+    </div>
+
+    <div class="modal-footer" style="justify-content:center;margin-top:16px">
+      <button class="mf-btn" onclick="MP.closeModal()">CLOSE</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════ CLEAR ALL MODAL ══════════════ -->
 <div id="modal-clear">
   <div class="mpanel" style="width:400px;text-align:center">
@@ -1718,7 +2181,7 @@
 <!-- ══════════════ DELETE BODY MODAL ══════════════ -->
 <div id="modal-delete">
   <div class="mpanel" style="width:440px;text-align:center">
-    <div style="font-size:2.2rem;margin-bottom:12px">🗑️</div>
+    <div style="font-size:2.2rem;margin-bottom:12px"><svg class="icon"><use href="#icon-trash-2"></use></svg></div>
     <h2 style="margin-bottom:8px">DELETE <span id="del-name" style="color:var(--rose)">BODY</span>?</h2>
     <p style="margin-bottom:8px;line-height:1.7" id="del-desc">This body and all its satellites will be permanently removed.</p>
     <p style="margin-bottom:24px;font-size:.75rem;color:var(--ink4)" id="del-satellites"></p>
@@ -1745,7 +2208,7 @@
 <!-- ══════════════ IMPORT SYSTEM MODAL ══════════════ -->
 <div id="modal-import-system">
   <div class="mpanel" style="width:520px;max-width:96vw">
-    <div style="font-size:2rem;margin-bottom:10px">🔀</div>
+    <div style="font-size:2rem;margin-bottom:10px"><svg class="icon"><use href="#icon-shuffle"></use></svg></div>
     <h2 style="margin-bottom:6px">IMPORT SYSTEM</h2>
     <p style="margin-bottom:18px;font-size:.75rem;color:var(--ink4);line-height:1.7">
       Merge a second system zip into the current session.<br>
@@ -1759,7 +2222,7 @@
       <label id="imp-opt-a" class="imp-opt-card imp-opt-sel" onclick="selectImportOpt('a')">
         <div class="imp-opt-radio"></div>
         <div>
-          <div class="imp-opt-title">⚖ Shared Barycentre</div>
+          <div class="imp-opt-title"><svg class="icon"><use href="#icon-scale"></use></svg> Shared Barycentre</div>
           <div class="imp-opt-desc">
             Both system centres orbit a new barycentre body at a distance large enough that neither system's SOI is disrupted.
           </div>
@@ -1777,7 +2240,7 @@
       <label id="imp-opt-b" class="imp-opt-card" onclick="selectImportOpt('b')">
         <div class="imp-opt-radio"></div>
         <div>
-          <div class="imp-opt-title">🌐 New Centre Orbits Existing Centre</div>
+          <div class="imp-opt-title"><svg class="icon"><use href="#icon-globe"></use></svg> New Centre Orbits Existing Centre</div>
           <div class="imp-opt-desc">
             The imported system's centre is given an orbit around the current system's centre.
             All imported bodies keep their relative orbits intact.
@@ -1796,7 +2259,7 @@
       <label id="imp-opt-c" class="imp-opt-card" onclick="selectImportOpt('c')">
         <div class="imp-opt-radio"></div>
         <div>
-          <div class="imp-opt-title">🪐 New Centre Orbits a Specific Body</div>
+          <div class="imp-opt-title"><svg class="icon"><use href="#icon-orbit"></use></svg> New Centre Orbits a Specific Body</div>
           <div class="imp-opt-desc">
             The imported system's centre orbits a body you choose from the existing system.
           </div>
@@ -1819,7 +2282,7 @@
     <div class="modal-footer" style="gap:10px">
       <button class="mf-btn" onclick="closeImportSystemModal()">CANCEL</button>
       <button class="mf-btn" style="border-color:rgba(160,100,255,.45);color:rgba(190,140,255,.9);background:rgba(160,100,255,.07)"
-        onclick="triggerFileInput('fi-import-zip')">📂 PICK ZIP &amp; IMPORT →</button>
+        onclick="triggerFileInput('fi-import-zip')"><svg class="icon"><use href="#icon-folder-open"></use></svg> PICK ZIP &amp; IMPORT →</button>
     </div>
   </div>
 </div>
@@ -1857,6 +2320,8 @@
   </div>
 </div>
 
+<!-- PeerJS: WebRTC wrapper used for serverless multiplayer signaling (see js/collab.js) -->
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="js/background.js?v=5.13"></script>
 <script src="js/ui-hue.js?v=5.13"></script>
 <script src="js/nav-state.js?v=5.13"></script>
@@ -1867,13 +2332,17 @@
 <script src="js/io.js?v=5.14"></script>
 <script src="js/presets.js?v=5.13"></script>
 <script src="js/state.js?v=5.13"></script>
+<script src="js/collab.js?v=1.0"></script>
+<script src="js/collab-ui.js?v=1.0"></script>
+<script src="js/collab-sync.js"></script>
+<script src="js/collab-debug.js?v=1.0"></script>
 <script src="js/autosave.js?v=5.13"></script>
 <script src="js/settings.js?v=5.13"></script>
 <script src="js/preset-modal.js?v=5.13"></script>
 <script src="js/viewport.js?v=5.15"></script>
 <script src="js/tools.js?v=5.13"></script>
 <script src="js/units.js?v=5.13"></script>
-<script src="js/sidebar.js?v=5.14"></script>
+<script src="js/sidebar.js?v=5.15"></script>
 <script src="js/export.js?v=5.13"></script>
 <script src="js/body-search.js?v=5.13"></script>
 <script src="js/namegen.js?v=5.13"></script>
@@ -1918,13 +2387,13 @@
   <div style="padding:5px 10px 4px;font-family:'Orbitron',sans-serif;font-size:.5rem;
     color:rgba(64,200,255,.5);letter-spacing:.12em;border-bottom:1px solid rgba(64,200,255,.1)">ENVIRONMENT</div>
   <button id="env-btn-soi"      onclick="toggleEnvFlag('soi')"     class="env-row">◎ <span>SOI circles</span></button>
-  <button id="env-btn-atmo"     onclick="toggleEnvFlag('atmo')"    class="env-row">🌫 <span>Atmosphere</span></button>
-  <button id="env-btn-clouds"   onclick="toggleEnvFlag('clouds')"  class="env-row">☁ <span>Cloud band</span></button>
-  <button id="env-btn-fclouds"  onclick="toggleEnvFlag('fclouds')" class="env-row">🌥 <span>Front clouds</span></button>
-  <button id="env-btn-fog"      onclick="toggleEnvFlag('fog')"     class="env-row">🌁 <span>Fog</span></button>
-  <button id="env-btn-water"    onclick="toggleEnvFlag('water')"   class="env-row">🌊 <span>Water</span></button>
-  <button id="env-btn-surface"  onclick="toggleEnvFlag('surface')" class="env-row">🗺 <span>Surface texture</span></button>
-  <button id="env-btn-postProc" onclick="toggleEnvFlag('postProc')" class="env-row">🎨 <span>Post processing</span></button>
+  <button id="env-btn-atmo"     onclick="toggleEnvFlag('atmo')"    class="env-row"><svg class="icon"><use href="#icon-haze"></use></svg> <span>Atmosphere</span></button>
+  <button id="env-btn-clouds"   onclick="toggleEnvFlag('clouds')"  class="env-row"><svg class="icon"><use href="#icon-cloud"></use></svg> <span>Cloud band</span></button>
+  <button id="env-btn-fclouds"  onclick="toggleEnvFlag('fclouds')" class="env-row"><svg class="icon"><use href="#icon-cloud-sun"></use></svg> <span>Front clouds</span></button>
+  <button id="env-btn-fog"      onclick="toggleEnvFlag('fog')"     class="env-row"><svg class="icon"><use href="#icon-cloud-fog"></use></svg> <span>Fog</span></button>
+  <button id="env-btn-water"    onclick="toggleEnvFlag('water')"   class="env-row"><svg class="icon"><use href="#icon-waves"></use></svg> <span>Water</span></button>
+  <button id="env-btn-surface"  onclick="toggleEnvFlag('surface')" class="env-row"><svg class="icon"><use href="#icon-map"></use></svg> <span>Surface texture</span></button>
+  <button id="env-btn-postProc" onclick="toggleEnvFlag('postProc')" class="env-row"><svg class="icon"><use href="#icon-palette"></use></svg> <span>Post processing</span></button>
 </div>
 
 <!-- ══ TAG DROPDOWN ══ -->
@@ -2012,7 +2481,7 @@
       cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:.62rem;
       color:rgba(220,220,255,.85);letter-spacing:.05em;transition:background .12s;text-align:left"
     onmouseover="this.style.background='rgba(255,220,80,.08)'" onmouseout="this.style.background='none'">
-    <span style="font-size:1rem">🔍</span>
+    <span style="font-size:1rem"><svg class="icon"><use href="#icon-search"></use></svg></span>
     <span>
       <span style="display:block;color:rgba(255,220,80,.9)">TAG UNTAGGED BODIES</span>
       <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Open search filtered to untagged</span>
@@ -2026,7 +2495,7 @@
       font-size:.62rem;color:rgba(255,100,100,.75);letter-spacing:.05em;
       transition:background .12s;text-align:left"
     onmouseover="this.style.background='rgba(255,64,96,.08)'" onmouseout="this.style.background='none'">
-    <span style="font-size:1rem">🗑</span>
+    <span style="font-size:1rem"><svg class="icon"><use href="#icon-trash-2"></use></svg></span>
     <span>
       <span style="display:block">REMOVE ALL TAGS</span>
       <span style="display:block;font-size:.54rem;color:rgba(180,100,100,.6);margin-top:1px">Clears editor tags from all bodies</span>
@@ -2045,7 +2514,7 @@
     font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
     letter-spacing:.05em;transition:background .12s;text-align:left"
     onmouseover="this.style.background='rgba(255,180,80,.1)'" onmouseout="this.style.background='none'">
-    <span style="font-size:1rem">🪐</span>
+    <span style="font-size:1rem"><svg class="icon"><use href="#icon-orbit"></use></svg></span>
     <span><span style="display:block;color:rgba(255,180,80,.9)">DRAG ORBIT</span>
     <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Drag bodies to adjust orbit</span></span>
   </button>
@@ -2062,7 +2531,7 @@
   <div style="height:1px;background:rgba(255,180,80,.1);margin:0 10px"></div>
   <div style="padding:9px 14px 10px;display:flex;flex-direction:column;gap:5px">
     <div style="display:flex;justify-content:space-between;align-items:center">
-      <span style="font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(255,180,80,.9);letter-spacing:.05em">⌨ WASD SPEED</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(255,180,80,.9);letter-spacing:.05em"><svg class="icon"><use href="#icon-keyboard"></use></svg> WASD SPEED</span>
       <span id="wasd-sens-val" style="font-family:'JetBrains Mono',monospace;font-size:.58rem;color:rgba(150,200,255,.8);min-width:24px;text-align:right">6</span>
     </div>
     <input type="range" id="wasd-sensitivity" min="1" max="20" step="0.5" value="6"
@@ -2087,7 +2556,7 @@
     font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
     letter-spacing:.05em;transition:background .12s;text-align:left"
     onmouseover="this.style.background='rgba(255,180,80,.1)'" onmouseout="this.style.background='none'">
-    <span style="font-size:1rem">🔬</span>
+    <span style="font-size:1rem"><svg class="icon"><use href="#icon-search"></use></svg></span>
     <span>
       <span style="display:block;color:rgba(255,180,80,.9)">HIGH RES SURFACE</span>
       <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Double texture resolution</span>
@@ -2102,7 +2571,7 @@
     font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
     letter-spacing:.05em;transition:background .12s;text-align:left"
     onmouseover="this.style.background='rgba(255,180,80,.1)'" onmouseout="this.style.background='none'">
-    <span style="font-size:1rem">⚖️</span>
+    <span style="font-size:1rem"><svg class="icon"><use href="#icon-scale"></use></svg>️</span>
     <span>
       <span style="display:block;color:rgba(255,180,80,.9)">OBJECT COMPARISON</span>
       <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Compare planet sizes and orbital distances</span>
@@ -2114,7 +2583,7 @@
     font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
     letter-spacing:.05em;transition:background .12s;text-align:left"
     onmouseover="this.style.background='rgba(255,180,80,.1)'" onmouseout="this.style.background='none'">
-    <span style="font-size:1rem">🚫</span>
+    <span style="font-size:1rem"><svg class="icon"><use href="#icon-ban"></use></svg></span>
     <span>
       <span style="display:block;color:rgba(255,180,80,.9)">DISABLE PLANET SELECTION</span>
       <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Prevent selecting planets on click</span>
@@ -2129,7 +2598,7 @@
     font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
     letter-spacing:.05em;transition:background .12s;text-align:left"
     onmouseover="this.style.background='rgba(255,180,80,.1)'" onmouseout="this.style.background='none'">
-    <span style="font-size:1rem">📡</span>
+    <span style="font-size:1rem"><svg class="icon"><use href="#icon-satellite"></use></svg></span>
     <span>
       <span style="display:block;color:rgba(255,180,80,.9)">DISTANCE INDICATORS</span>
       <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Show distance line in viewport</span>
@@ -2144,7 +2613,7 @@
     font-family:'JetBrains Mono',monospace;font-size:.58rem;color:rgba(200,200,230,.7);
     letter-spacing:.05em;transition:background .12s;text-align:left"
     onmouseover="this.style.background='rgba(255,180,80,.07)'" onmouseout="this.style.background='none'">
-    <span style="color:rgba(180,180,220,.5)">⇄ MODE:</span>
+    <span style="color:rgba(180,180,220,.5)"><svg class="icon"><use href="#icon-repeat"></use></svg> MODE:</span>
     <span style="margin-left:6px;color:rgba(200,200,255,.75)">CENTER → SELECTED &nbsp;|&nbsp; BODY ↔ BODY</span>
   </button>
   <!-- Body A / B selectors (only shown in body-body mode) -->
@@ -2172,7 +2641,7 @@
     font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
     letter-spacing:.05em;transition:background .12s;text-align:left"
     onmouseover="this.style.background='rgba(90,240,192,.1)'" onmouseout="this.style.background='none'">
-    <span style="font-size:1rem">☄️</span>
+    <span style="font-size:1rem"><svg class="icon"><use href="#icon-flame"></use></svg></span>
     <span>
       <span style="display:block;color:rgba(90,240,192,.9)">ASTEROIDS</span>
       <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Draw, generate & place asteroids</span>
@@ -2199,7 +2668,7 @@
     <div style="display:flex;justify-content:flex-end;margin-top:10px;">
       <button onclick="_distRingsReset()"
         style="background:rgba(255,120,80,.08);color:rgba(255,150,100,.55);border:1px solid rgba(255,100,60,.15);
-        border-radius:4px;padding:4px 12px;font-size:.6rem;cursor:pointer;">↺ Reset</button>
+        border-radius:4px;padding:4px 12px;font-size:.6rem;cursor:pointer;"><svg class="icon"><use href="#icon-refresh-cw"></use></svg> Reset</button>
     </div>
   </div>
 </div>
@@ -2216,7 +2685,7 @@
     padding:10px 14px;background:rgba(6,10,22,.98);border:1px solid rgba(90,240,192,.25);
     border-bottom:none;border-radius:6px 6px 0 0;flex-shrink:0;margin-top:16px;flex-wrap:wrap;min-width:0">
     <span style="font-family:'Orbitron',sans-serif;font-size:.65rem;color:rgba(90,240,192,.9);
-      letter-spacing:.14em;flex:1">☄️ ASTEROIDS</span>
+      letter-spacing:.14em;flex:1"><svg class="icon"><use href="#icon-flame"></use></svg> ASTEROIDS</span>
     <button onclick="closeAsteroidsMenu()" style="background:none;border:1px solid rgba(90,240,192,.2);
       border-radius:3px;color:rgba(90,240,192,.6);font-family:'JetBrains Mono',monospace;
       font-size:.6rem;padding:4px 10px;cursor:pointer;letter-spacing:.06em">✕ CLOSE</button>
@@ -2229,15 +2698,15 @@
     <button id="ast-tab-draw" onclick="switchAsteroidTab('draw')"
       style="flex:1;padding:9px 6px;background:rgba(90,240,192,.1);border:none;border-bottom:2px solid rgba(90,240,192,.8);
       font-family:'JetBrains Mono',monospace;font-size:.6rem;color:rgba(90,240,192,.95);
-      letter-spacing:.08em;cursor:pointer;transition:all .15s">✏ DRAW</button>
+      letter-spacing:.08em;cursor:pointer;transition:all .15s"><svg class="icon"><use href="#icon-pencil"></use></svg> DRAW</button>
     <button id="ast-tab-generate" onclick="switchAsteroidTab('generate')"
       style="flex:1;padding:9px 6px;background:none;border:none;border-bottom:2px solid transparent;
       font-family:'JetBrains Mono',monospace;font-size:.6rem;color:rgba(150,150,180,.6);
-      letter-spacing:.08em;cursor:pointer;transition:all .15s">⚡ GENERATE</button>
+      letter-spacing:.08em;cursor:pointer;transition:all .15s"><svg class="icon"><use href="#icon-zap"></use></svg> GENERATE</button>
     <button id="ast-tab-belt" onclick="switchAsteroidTab('belt')"
       style="flex:1;padding:9px 6px;background:none;border:none;border-bottom:2px solid transparent;
       font-family:'JetBrains Mono',monospace;font-size:.6rem;color:rgba(150,150,180,.6);
-      letter-spacing:.08em;cursor:pointer;transition:all .15s">🪐 BELT / RING</button>
+      letter-spacing:.08em;cursor:pointer;transition:all .15s"><svg class="icon"><use href="#icon-orbit"></use></svg> BELT / RING</button>
   </div>
 
   <!-- Content area -->
@@ -2478,7 +2947,7 @@
           </select>
           <button onclick="astRefreshBodyList()" title="Refresh body list"
             style="flex:0;background:transparent;border:1px solid rgba(90,90,112,.3);color:rgba(150,150,180,.6);
-            font-family:'JetBrains Mono',monospace;font-size:.6rem;padding:5px 9px;min-height:28px;cursor:pointer">↺</button>
+            font-family:'JetBrains Mono',monospace;font-size:.6rem;padding:5px 9px;min-height:28px;cursor:pointer"><svg class="icon"><use href="#icon-refresh-cw"></use></svg></button>
         </div>
 
         <!-- Height slider -->
@@ -2553,7 +3022,7 @@
           border:1px solid rgba(90,240,192,.12);background:#060608"></canvas>
         <div style="display:flex;gap:8px">
           <button onclick="pgRandomize()" style="flex:1;background:transparent;border:1px solid rgba(90,90,112,.4);
-            color:rgba(180,180,200,.7);font-size:.55rem;letter-spacing:.06em;padding:9px 12px;min-height:38px;cursor:pointer">🎲 RANDOMIZE</button>
+            color:rgba(180,180,200,.7);font-size:.55rem;letter-spacing:.06em;padding:9px 12px;min-height:38px;cursor:pointer"><svg class="icon"><use href="#icon-dice-6"></use></svg> RANDOMIZE</button>
           <button onclick="pgCommit()" style="flex:1;background:transparent;border:1px solid rgba(90,240,192,.5);
             color:rgba(90,240,192,.9);font-size:.58rem;letter-spacing:.08em;padding:9px 12px;min-height:38px;cursor:pointer;font-weight:700">USE THIS →</button>
         </div>
@@ -2564,9 +3033,9 @@
         <div style="font-size:.5rem;letter-spacing:.14em;color:rgba(90,240,192,.45)">BASE SHAPE</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap" id="pg-shape-btns">
           <button class="pg-shape-btn active" data-shape="round"   onclick="pgSetShape('round')"   style="flex:1;min-width:60px;padding:7px 10px;font-size:.56rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,240,192,.6);background:rgba(90,240,192,.12);color:rgba(90,240,192,.95)">● Round</button>
-          <button class="pg-shape-btn"        data-shape="ellipse" onclick="pgSetShape('ellipse')" style="flex:1;min-width:60px;padding:7px 10px;font-size:.56rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,90,112,.35);background:none;color:rgba(180,180,200,.6)">⬭ Ellipse</button>
+          <button class="pg-shape-btn"        data-shape="ellipse" onclick="pgSetShape('ellipse')" style="flex:1;min-width:60px;padding:7px 10px;font-size:.56rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,90,112,.35);background:none;color:rgba(180,180,200,.6)"><svg class="icon"><use href="#icon-circle"></use></svg> Ellipse</button>
           <button class="pg-shape-btn"        data-shape="long"    onclick="pgSetShape('long')"    style="flex:1;min-width:60px;padding:7px 10px;font-size:.56rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,90,112,.35);background:none;color:rgba(180,180,200,.6)">— Long</button>
-          <button class="pg-shape-btn"        data-shape="blocky"  onclick="pgSetShape('blocky')"  style="flex:1;min-width:60px;padding:7px 10px;font-size:.56rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,90,112,.35);background:none;color:rgba(180,180,200,.6)">⬜ Blocky</button>
+          <button class="pg-shape-btn"        data-shape="blocky"  onclick="pgSetShape('blocky')"  style="flex:1;min-width:60px;padding:7px 10px;font-size:.56rem;letter-spacing:.06em;cursor:pointer;border:1px solid rgba(90,90,112,.35);background:none;color:rgba(180,180,200,.6)"><svg class="icon"><use href="#icon-square"></use></svg> Blocky</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px;font-size:.52rem;color:rgba(85,85,112,.9)">
           Irregularity
@@ -2634,7 +3103,7 @@
     <!-- ── BELT/RING TAB ── -->
     <div id="ast-panel-belt" style="display:none;padding:30px 14px;text-align:center;
       font-family:'JetBrains Mono',monospace;font-size:.58rem;color:rgba(90,90,112,.7);letter-spacing:.08em">
-      <div style="font-size:2rem;margin-bottom:12px">🪐</div>
+      <div style="font-size:2rem;margin-bottom:12px"><svg class="icon"><use href="#icon-orbit"></use></svg></div>
       <div style="color:rgba(150,150,180,.6);margin-bottom:6px">BELT / RING</div>
       <div style="font-size:.5rem;color:rgba(85,85,112,.6)">Asteroid belt & ring placement coming soon</div>
     </div>
@@ -3033,7 +3502,7 @@ function astUpdatePanUI() {
   const hint=document.getElementById('ast-draw-hint');
   const c=astGetCanvas();
   if(astPanMode){
-    btn.textContent='✏ Draw Mode';
+    btn.textContent='<svg class="icon"><use href="#icon-pencil"></use></svg> Draw Mode';
     btn.style.borderColor='rgba(240,192,90,.5)';
     btn.style.color='rgba(240,192,90,.8)';
     c.style.cursor='move';
@@ -3746,7 +4215,7 @@ astGenerate = function() { _astOrigGenerate(); astUpdateApplyPreview(); };
     padding:10px 12px;background:rgba(6,10,22,.97);border:1px solid rgba(255,180,80,.22);
     border-bottom:none;border-radius:6px 6px 0 0;flex-shrink:0;margin-top:auto;flex-wrap:wrap;min-width:0">
     <span style="font-family:'Orbitron',sans-serif;font-size:.65rem;color:rgba(255,180,80,.9);
-      letter-spacing:.14em;flex:1">⚖️ OBJECT COMPARISON</span>
+      letter-spacing:.14em;flex:1"><svg class="icon"><use href="#icon-scale"></use></svg>️ OBJECT COMPARISON</span>
 
     <!-- View tabs -->
     <div style="display:flex;gap:4px;margin-right:6px">
@@ -3754,13 +4223,13 @@ astGenerate = function() { _astOrigGenerate(); astUpdateApplyPreview(); };
         style="font-family:'JetBrains Mono',monospace;font-size:.52rem;padding:4px 9px;
         border-radius:3px;cursor:pointer;letter-spacing:.06em;
         border:1px solid rgba(255,180,80,.5);background:rgba(255,180,80,.18);color:#ffb850">
-        ⚖ SIZE
+        <svg class="icon"><use href="#icon-scale"></use></svg> SIZE
       </button>
       <button id="psc-tab-dist" onclick="_pscSetView('distance')"
         style="font-family:'JetBrains Mono',monospace;font-size:.52rem;padding:4px 9px;
         border-radius:3px;cursor:pointer;letter-spacing:.06em;
         border:1px solid rgba(255,180,80,.2);background:none;color:rgba(255,180,80,.45)">
-        📏 DISTANCE
+        <svg class="icon"><use href="#icon-ruler"></use></svg> DISTANCE
       </button>
     </div>
 
@@ -3824,10 +4293,10 @@ astGenerate = function() { _astOrigGenerate(); astUpdateApplyPreview(); };
   <!-- Legend / hints -->
   <div style="width:min(96vw,960px);padding:6px 12px;display:flex;gap:12px;flex-wrap:wrap;
     font-family:'JetBrains Mono',monospace;font-size:.5rem;color:rgba(150,160,200,.5);letter-spacing:.05em;margin-bottom:auto">
-    <span>🌍 Terrain renders if radius &lt; 15 000 m</span>
-    <span>🌫 Atmosphere &amp; clouds shown</span>
-    <span>💨 Fog tint shown</span>
-    <span>💍 Rings not shown</span>
+    <span><svg class="icon"><use href="#icon-globe"></use></svg> Terrain renders if radius &lt; 15 000 m</span>
+    <span><svg class="icon"><use href="#icon-haze"></use></svg> Atmosphere &amp; clouds shown</span>
+    <span><svg class="icon"><use href="#icon-wind"></use></svg> Fog tint shown</span>
+    <span><svg class="icon"><use href="#icon-circle"></use></svg> Rings not shown</span>
     <span style="margin-left:auto">Pinch/scroll to zoom · Drag to scroll</span>
   </div>
 </div>
@@ -3970,7 +4439,7 @@ document.addEventListener('keydown', function(e){
     font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
     letter-spacing:.05em;transition:background .12s;text-align:left"
     onmouseover="this.style.background='var(--ac12)'" onmouseout="this.style.background='none'">
-    <span style="font-size:1rem">🧮</span>
+    <span style="font-size:1rem"><svg class="icon"><use href="#icon-calculator"></use></svg></span>
     <span><span style="display:block;color:var(--sky2)">CALCULATOR</span>
     <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Circumference, cloud &amp; heightmap width</span></span>
   </button>
@@ -3979,7 +4448,7 @@ document.addEventListener('keydown', function(e){
     font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
     letter-spacing:.05em;transition:background .12s;text-align:left"
     onmouseover="this.style.background='var(--ac12)'" onmouseout="this.style.background='none'">
-    <span style="font-size:1rem">🖼️</span>
+    <span style="font-size:1rem"><svg class="icon"><use href="#icon-image"></use></svg></span>
     <span><span style="display:block;color:var(--sky2)">IMAGE OVERLAY</span>
     <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Place reference images on the viewport</span></span>
   </button>
@@ -3988,7 +4457,7 @@ document.addEventListener('keydown', function(e){
     font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
     letter-spacing:.05em;transition:background .12s;text-align:left"
     onmouseover="this.style.background='var(--ac12)'" onmouseout="this.style.background='none'">
-    <span style="font-size:1rem">🗺️</span>
+    <span style="font-size:1rem"><svg class="icon"><use href="#icon-map"></use></svg></span>
     <span><span style="display:block;color:var(--sky2)">HEIGHTMAP TOOLS</span>
     <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Bump map → heightmap converter &amp; more</span></span>
   </button>
@@ -3997,7 +4466,7 @@ document.addEventListener('keydown', function(e){
     font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
     letter-spacing:.05em;transition:background .12s;text-align:left"
     onmouseover="this.style.background='var(--ac12)'" onmouseout="this.style.background='none'">
-    <span style="font-size:1rem">✨</span>
+    <span style="font-size:1rem"><svg class="icon"><use href="#icon-sparkles"></use></svg></span>
     <span><span style="display:block;color:var(--sky2)">PROCEDURAL GENERATION</span>
     <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Generate random systems with full control</span></span>
   </button>
@@ -4006,7 +4475,7 @@ document.addEventListener('keydown', function(e){
     font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
     letter-spacing:.05em;transition:background .12s;text-align:left"
     onmouseover="this.style.background='var(--ac12)'" onmouseout="this.style.background='none'">
-    <span style="font-size:1rem">📍</span>
+    <span style="font-size:1rem"><svg class="icon"><use href="#icon-map-pin"></use></svg></span>
     <span><span style="display:block;color:var(--sky2)">PRECISE OBJECT PLACER</span>
     <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Click viewport to place bodies at exact positions</span></span>
   </button>
@@ -4024,7 +4493,7 @@ document.addEventListener('keydown', function(e){
   <div style="display:flex;align-items:center;justify-content:space-between;
     padding:12px 14px;border-bottom:1px solid var(--ac13);flex-shrink:0">
     <span style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.14em;
-      color:var(--sky2)">🖼️ IMAGE OVERLAY</span>
+      color:var(--sky2)"><svg class="icon"><use href="#icon-image"></use></svg> IMAGE OVERLAY</span>
     <button onclick="closeImagePanel()" style="background:none;border:none;cursor:pointer;
       color:rgba(180,180,210,.45);font-size:1.1rem;padding:0 4px;line-height:1;
       transition:color .15s" onmouseover="this.style.color='rgba(200,80,80,.8)'"
@@ -4038,7 +4507,7 @@ document.addEventListener('keydown', function(e){
     background:var(--ac08);flex-shrink:0"
     onmouseover="this.style.borderColor='var(--ac55)';this.style.background='var(--ac13)'"
     onmouseout="this.style.borderColor='var(--ac28)';this.style.background='var(--ac08)'">
-    <div style="font-size:1.4rem;margin-bottom:4px">📂</div>
+    <div style="font-size:1.4rem;margin-bottom:4px"><svg class="icon"><use href="#icon-folder-open"></use></svg></div>
     <div style="font-size:.6rem;color:var(--sky2);letter-spacing:.06em">LOAD IMAGE</div>
     <div style="font-size:.54rem;color:rgba(150,150,180,.5);margin-top:3px">tap or drop · PNG JPG WEBP GIF</div>
   </div>
@@ -4101,7 +4570,7 @@ document.addEventListener('keydown', function(e){
         style="flex-shrink:0;width:28px;height:28px;margin-bottom:1px;background:var(--dp3);
                border:1px solid var(--ac20);border-radius:4px;cursor:pointer;
                color:var(--ac65);font-size:.8rem;display:flex;align-items:center;
-               justify-content:center;transition:background .15s,border-color .15s">🔗</button>
+               justify-content:center;transition:background .15s,border-color .15s"><svg class="icon"><use href="#icon-link"></use></svg></button>
       <div style="flex:1">
         <div class="img-field-label">HEIGHT</div>
         <input id="img-d-height" type="number" min="1" step="1"
@@ -4145,7 +4614,7 @@ document.addEventListener('keydown', function(e){
   <!-- Placeholder when nothing is selected -->
   <div id="img-detail-none" style="flex:1;display:flex;align-items:center;justify-content:center;
     flex-direction:column;gap:6px;color:var(--ink4)">
-    <div style="font-size:1.5rem;opacity:.35">🖼️</div>
+    <div style="font-size:1.5rem;opacity:.35"><svg class="icon"><use href="#icon-image"></use></svg></div>
     <div style="font-size:.6rem;letter-spacing:.06em">Select an image to edit</div>
   </div>
 </div>
@@ -4162,7 +4631,7 @@ document.addEventListener('keydown', function(e){
     <div style="display:flex;align-items:center;justify-content:space-between;
       padding:13px 16px;border-bottom:1px solid var(--ac13);flex-shrink:0">
       <span style="font-family:'Orbitron',sans-serif;font-size:.65rem;letter-spacing:.13em;
-        color:var(--sky2)">🧮 CALCULATOR</span>
+        color:var(--sky2)"><svg class="icon"><use href="#icon-calculator"></use></svg> CALCULATOR</span>
       <button onclick="closeCalculator()" style="background:none;border:none;cursor:pointer;
         color:rgba(180,180,210,.45);font-size:1.15rem;padding:2px 6px;line-height:1;
         border-radius:4px;transition:color .15s" title="Close (Esc)"
@@ -4182,7 +4651,7 @@ document.addEventListener('keydown', function(e){
           font-family:'JetBrains Mono',monospace;text-align:left"
           onmouseover="this.style.background='linear-gradient(135deg,var(--ac20),var(--ac13))';this.style.borderColor='var(--ac50)'"
           onmouseout="this.style.background='linear-gradient(135deg,var(--ac12),var(--ac08))';this.style.borderColor='var(--ac28)'">
-          <span style="font-size:1.35rem;line-height:1">🔬</span>
+          <span style="font-size:1.35rem;line-height:1"><svg class="icon"><use href="#icon-search"></use></svg></span>
           <div style="flex:1">
             <div style="font-size:.72rem;color:var(--sky2);letter-spacing:.06em;
               font-family:'Orbitron',sans-serif">SCIENTIFIC CALCULATOR</div>
@@ -4679,7 +5148,7 @@ document.addEventListener('keydown', function(e){
 
     <div class="gsp-section-label">Selection</div>
     <button class="gsp-btn accent" onclick="groupSelInvert()">
-      <span class="gsp-icon">⇄</span>Invert Selection
+      <span class="gsp-icon"><svg class="icon"><use href="#icon-repeat"></use></svg></span>Invert Selection
     </button>
 
     <div class="gsp-section-label">Scale</div>
@@ -4720,7 +5189,7 @@ document.addEventListener('keydown', function(e){
     <span class="bctx-shortcut">⌘X</span>
   </button>
   <button class="bctx-btn bctx-copy"  id="bctx-copy"  onclick="bctxCopy()">
-    <span class="bctx-icon">⎘</span> Copy to Clipboard
+    <span class="bctx-icon"><svg class="icon"><use href="#icon-copy"></use></svg></span> Copy to Clipboard
     <span class="bctx-shortcut">⌘C</span>
   </button>
   <div class="bctx-divider"></div>
@@ -4738,7 +5207,7 @@ document.addEventListener('keydown', function(e){
     padding:10px 14px;background:rgba(6,10,22,.97);
     border:1px solid rgba(100,220,180,.2);border-bottom:none;
     border-radius:6px 6px 0 0;flex-shrink:0;margin-top:auto">
-    <span style="font-family:'Orbitron',sans-serif;font-size:.65rem;color:rgba(100,220,180,.9);letter-spacing:.14em;flex:1">🗺️ HEIGHTMAP TOOLS</span>
+    <span style="font-family:'Orbitron',sans-serif;font-size:.65rem;color:rgba(100,220,180,.9);letter-spacing:.14em;flex:1"><svg class="icon"><use href="#icon-map"></use></svg> HEIGHTMAP TOOLS</span>
     <button onclick="closeHeightmapTools()" style="background:none;border:1px solid rgba(255,80,80,.3);border-radius:3px;color:rgba(255,100,100,.7);font-size:.75rem;padding:3px 8px;cursor:pointer">✕</button>
   </div>
 
@@ -4751,17 +5220,17 @@ document.addEventListener('keydown', function(e){
         style="flex:1;font-family:'JetBrains Mono',monospace;font-size:.52rem;
         padding:9px 4px;border:none;border-right:1px solid rgba(100,220,180,.15);
         background:rgba(100,220,180,.12);color:rgba(100,220,180,.9);cursor:pointer;
-        letter-spacing:.04em;outline:none">🌄 BMP</button>
+        letter-spacing:.04em;outline:none"><svg class="icon"><use href="#icon-mountain"></use></svg> BMP</button>
       <button onclick="hmtMobileTab('texmap',this)" id="hmtmtab-texmap"
         style="flex:1;font-family:'JetBrains Mono',monospace;font-size:.52rem;
         padding:9px 4px;border:none;border-right:1px solid rgba(100,220,180,.15);
         background:transparent;color:rgba(180,210,255,.6);cursor:pointer;
-        letter-spacing:.04em;outline:none">🌍 TEX</button>
+        letter-spacing:.04em;outline:none"><svg class="icon"><use href="#icon-globe"></use></svg> TEX</button>
       <button onclick="hmtMobileTab('watermask',this)" id="hmtmtab-watermask"
         style="flex:1;font-family:'JetBrains Mono',monospace;font-size:.52rem;
         padding:9px 4px;border:none;background:transparent;
         color:rgba(100,180,255,.6);cursor:pointer;
-        letter-spacing:.04em;outline:none">💧 SEA</button>
+        letter-spacing:.04em;outline:none"><svg class="icon"><use href="#icon-droplet"></use></svg> SEA</button>
     </div>
   </div>
 
@@ -4772,16 +5241,16 @@ document.addEventListener('keydown', function(e){
     <div style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:8px 16px;
       background:rgba(100,220,180,.1);color:rgba(100,220,180,.9);
       border-right:1px solid rgba(100,220,180,.18);letter-spacing:.06em">
-      🌄 BUMP MAP → HEIGHTMAP
+      <svg class="icon"><use href="#icon-mountain"></use></svg> BUMP MAP → HEIGHTMAP
     </div>
     <div style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:8px 16px;
       background:rgba(120,160,255,.08);color:rgba(180,210,255,.85);letter-spacing:.06em;
       border-right:1px solid rgba(100,220,180,.12)">
-      🌍 TEXTURE MAP → SFS TEXTURE
+      <svg class="icon"><use href="#icon-globe"></use></svg> TEXTURE MAP → SFS TEXTURE
     </div>
     <div style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:8px 16px;
       background:rgba(40,100,200,.08);color:rgba(100,180,255,.85);letter-spacing:.06em">
-      💧 WATERMASK GENERATOR
+      <svg class="icon"><use href="#icon-droplet"></use></svg> WATERMASK GENERATOR
     </div>
   </div>
 
@@ -4803,7 +5272,7 @@ document.addEventListener('keydown', function(e){
         ondragover="event.preventDefault();this.style.borderColor='rgba(100,220,180,.7)'"
         ondragleave="this.style.borderColor='rgba(100,220,180,.25)'"
         ondrop="event.preventDefault();this.style.borderColor='rgba(100,220,180,.25)';hmtLoadFile(event.dataTransfer.files[0])">
-        <div style="font-size:2rem;margin-bottom:8px">🌄</div>
+        <div style="font-size:2rem;margin-bottom:8px"><svg class="icon"><use href="#icon-mountain"></use></svg></div>
         <div style="font-size:.62rem;color:rgba(100,220,180,.8);letter-spacing:.07em">DROP BUMP MAP IMAGE HERE</div>
         <div style="font-size:.52rem;color:rgba(150,160,200,.5);margin-top:4px">PNG, JPG, WebP — greyscale equirectangular projection</div>
         <input type="file" id="hmt-file-input" accept="image/*" style="display:none" onchange="hmtLoadFile(this.files[0])">
@@ -4818,7 +5287,7 @@ document.addEventListener('keydown', function(e){
           <!-- Overlay canvas for the sample line + breakpoint handles -->
           <canvas id="hmt-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:all;touch-action:pan-y"></canvas>
           <!-- Fullscreen expand button -->
-          <button onclick="hmtOpenFullscreen('bumpmap')" title="Full-screen view" style="position:absolute;top:6px;right:6px;background:rgba(4,8,20,.8);border:1px solid rgba(100,220,180,.35);border-radius:3px;color:rgba(100,220,180,.8);font-size:.65rem;padding:3px 7px;cursor:pointer;z-index:2;font-family:'JetBrains Mono',monospace">⛶</button>
+          <button onclick="hmtOpenFullscreen('bumpmap')" title="Full-screen view" style="position:absolute;top:6px;right:6px;background:rgba(4,8,20,.8);border:1px solid rgba(100,220,180,.35);border-radius:3px;color:rgba(100,220,180,.8);font-size:.65rem;padding:3px 7px;cursor:pointer;z-index:2;font-family:'JetBrains Mono',monospace"><svg class="icon"><use href="#icon-expand"></use></svg></button>
         </div>
 
         <!-- Breakpoint toolbar -->
@@ -4837,7 +5306,7 @@ document.addEventListener('keydown', function(e){
           <button onclick="hmtResetBreakpoints()" style="font-family:'JetBrains Mono',monospace;font-size:.52rem;
             padding:5px 12px;border-radius:3px;cursor:pointer;letter-spacing:.05em;min-height:32px;
             border:1px solid rgba(150,160,200,.25);background:rgba(150,160,200,.05);color:rgba(150,160,200,.6)">
-            ↺ RESET
+            <svg class="icon"><use href="#icon-refresh-cw"></use></svg> RESET
           </button>
           <span id="hmt-bp-hint" style="font-family:'JetBrains Mono',monospace;font-size:.48rem;color:rgba(150,160,200,.4);margin-left:4px">
             drag handles on image to set latitude per segment
@@ -4890,7 +5359,7 @@ document.addEventListener('keydown', function(e){
                   style="flex:1;accent-color:#64dcb4;min-height:20px" oninput="hmtUpdate()">
                 <button onclick="document.getElementById('hmt-vshift').value=0;hmtUpdate()"
                   style="background:transparent;border:1px solid rgba(90,90,112,.3);color:rgba(150,150,180,.6);
-                  font-family:'JetBrains Mono',monospace;font-size:.48rem;padding:2px 7px;min-height:22px;cursor:pointer;border-radius:2px">↺</button>
+                  font-family:'JetBrains Mono',monospace;font-size:.48rem;padding:2px 7px;min-height:22px;cursor:pointer;border-radius:2px"><svg class="icon"><use href="#icon-refresh-cw"></use></svg></button>
               </div>
             </div>
 
@@ -4979,7 +5448,7 @@ document.addEventListener('keydown', function(e){
         ondragover="event.preventDefault();this.style.borderColor='rgba(120,160,255,.6)'"
         ondragleave="this.style.borderColor='rgba(120,160,255,.25)'"
         ondrop="event.preventDefault();this.style.borderColor='rgba(120,160,255,.25)';htxLoadFile(event.dataTransfer.files[0])">
-        <div style="font-size:1.5rem;margin-bottom:6px">🌐</div>
+        <div style="font-size:1.5rem;margin-bottom:6px"><svg class="icon"><use href="#icon-globe"></use></svg></div>
         <div style="font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(120,160,255,.8);letter-spacing:.08em">DROP EQUIRECTANGULAR TEXTURE MAP</div>
         <div style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(150,150,180,.5);margin-top:4px">PNG · JPG · WEBP — any equirectangular projection (360° × 180°)</div>
         <input type="file" id="htx-file-input" accept="image/*" style="display:none" onchange="htxLoadFile(this.files[0])">
@@ -4998,7 +5467,7 @@ document.addEventListener('keydown', function(e){
             <!-- Sphere remap pole-pick overlay (on top of cut-overlay) -->
             <canvas id="htx-remap-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;touch-action:pan-y;cursor:crosshair;z-index:2"></canvas>
             <!-- Fullscreen expand button -->
-            <button onclick="hmtOpenFullscreen('texmap')" title="Full-screen view" style="position:absolute;top:6px;right:6px;background:rgba(4,8,20,.8);border:1px solid rgba(120,160,255,.35);border-radius:3px;color:rgba(120,160,255,.8);font-size:.65rem;padding:3px 7px;cursor:pointer;z-index:3;font-family:'JetBrains Mono',monospace">⛶</button>
+            <button onclick="hmtOpenFullscreen('texmap')" title="Full-screen view" style="position:absolute;top:6px;right:6px;background:rgba(4,8,20,.8);border:1px solid rgba(120,160,255,.35);border-radius:3px;color:rgba(120,160,255,.8);font-size:.65rem;padding:3px 7px;cursor:pointer;z-index:3;font-family:'JetBrains Mono',monospace"><svg class="icon"><use href="#icon-expand"></use></svg></button>
           </div>
           <!-- Sphere remap controls -->
           <div id="htx-remap-bar" style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap">
@@ -5080,7 +5549,7 @@ document.addEventListener('keydown', function(e){
                 style="flex:1;accent-color:#7cb0ff">
               <button onclick="document.getElementById('htx-latoff').value=0;document.getElementById('htx-latoff-val').textContent='0%';htxUpdate()"
                 style="background:transparent;border:1px solid rgba(90,90,112,.3);color:rgba(150,150,180,.6);
-                font-family:'JetBrains Mono',monospace;font-size:.48rem;padding:2px 7px;min-height:22px;cursor:pointer;border-radius:2px">↺</button>
+                font-family:'JetBrains Mono',monospace;font-size:.48rem;padding:2px 7px;min-height:22px;cursor:pointer;border-radius:2px"><svg class="icon"><use href="#icon-refresh-cw"></use></svg></button>
             </div>
           </div>
 
@@ -5143,7 +5612,7 @@ document.addEventListener('keydown', function(e){
                   style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:6px 14px;
                   background:rgba(60,100,220,.2);border:1px solid rgba(120,160,255,.4);
                   border-radius:3px;color:rgba(180,210,255,.9);cursor:pointer;letter-spacing:.05em">
-                  💾 SAVE TO ASSETS
+                  <svg class="icon"><use href="#icon-save"></use></svg> SAVE TO ASSETS
                 </button>
                 <button onclick="htxDownloadPNG()"
                   style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:6px 14px;
@@ -5157,7 +5626,7 @@ document.addEventListener('keydown', function(e){
                   style="font-family:'JetBrains Mono',monospace;font-size:.55rem;padding:6px 14px;
                   background:rgba(20,60,50,.4);border:1px solid rgba(100,220,180,.3);
                   border-radius:3px;color:rgba(100,220,180,.7);cursor:pointer;letter-spacing:.05em">
-                  ↳ COPY LINE POS → BUMP MAP
+                  <svg class="icon"><use href="#icon-corner-down-right"></use></svg> COPY LINE POS → BUMP MAP
                 </button>
                 <div style="font-family:'JetBrains Mono',monospace;font-size:.43rem;color:rgba(130,130,160,.45);margin-top:3px">Sets bump map sample line to match current texture circumference cut</div>
               </div>
@@ -5173,9 +5642,9 @@ document.addEventListener('keydown', function(e){
               <div id="htx-save-status" style="display:none;font-family:'JetBrains Mono',monospace;font-size:.5rem;
                 color:rgba(100,220,180,.8);margin-top:8px"></div>
               <div style="margin-top:12px;font-family:'JetBrains Mono',monospace;font-size:.48rem;color:rgba(130,130,160,.5);line-height:1.7">
-                <div>📌 Polar mode → use for Earth/Mars/Jupiter-style textures</div>
-                <div>📌 Front-face mode → use for Mercury/Io/Triton-style textures</div>
-                <div>📌 Saved textures appear in ASSETS → TEXTURES tab</div>
+                <div><svg class="icon"><use href="#icon-pin"></use></svg> Polar mode → use for Earth/Mars/Jupiter-style textures</div>
+                <div><svg class="icon"><use href="#icon-pin"></use></svg> Front-face mode → use for Mercury/Io/Triton-style textures</div>
+                <div><svg class="icon"><use href="#icon-pin"></use></svg> Saved textures appear in ASSETS → TEXTURES tab</div>
               </div>
             </div>
           </div>
@@ -5197,7 +5666,7 @@ document.addEventListener('keydown', function(e){
         ondragover="event.preventDefault();this.style.borderColor='rgba(100,160,255,.7)'"
         ondragleave="this.style.borderColor='rgba(100,160,255,.25)'"
         ondrop="event.preventDefault();this.style.borderColor='rgba(100,160,255,.25)';wmkLoadFile(event.dataTransfer.files[0])">
-        <div style="font-size:1.6rem;margin-bottom:6px">🌊</div>
+        <div style="font-size:1.6rem;margin-bottom:6px"><svg class="icon"><use href="#icon-waves"></use></svg></div>
         <div style="font-size:.62rem;color:rgba(100,160,255,.8);letter-spacing:.08em">DROP PLANET IMAGE</div>
         <div style="font-size:.52rem;color:rgba(120,140,180,.5);margin-top:4px;letter-spacing:.04em">Use square planet images · click to browse</div>
         <input type="file" id="wmk-file-input" accept="image/*" style="display:none" onchange="wmkLoadFile(this.files[0])">
@@ -5224,7 +5693,7 @@ document.addEventListener('keydown', function(e){
         <button id="wmk-method-color" onclick="wmkSetMethod('color')"
           style="font-family:'JetBrains Mono',monospace;font-size:.48rem;padding:6px 8px;
           background:rgba(100,160,255,.18);border:1px solid rgba(100,160,255,.6);
-          color:rgba(100,160,255,.9);border-radius:3px;cursor:pointer;letter-spacing:.05em;flex:1">🎨 COLOR SAMPLE</button>
+          color:rgba(100,160,255,.9);border-radius:3px;cursor:pointer;letter-spacing:.05em;flex:1"><svg class="icon"><use href="#icon-palette"></use></svg> COLOR SAMPLE</button>
         <button id="wmk-method-thresh" onclick="wmkSetMethod('thresh')"
           style="font-family:'JetBrains Mono',monospace;font-size:.48rem;padding:6px 8px;
           background:transparent;border:1px solid rgba(120,140,180,.3);
@@ -5236,15 +5705,15 @@ document.addEventListener('keydown', function(e){
         <button id="wmk-btn-liq" onclick="wmkSetMode('liq')"
           style="font-family:'JetBrains Mono',monospace;font-size:.5rem;padding:5px 10px;
           background:rgba(100,160,255,.18);border:1px solid rgba(100,160,255,.6);
-          color:rgba(100,160,255,.9);border-radius:3px;cursor:pointer;letter-spacing:.06em;flex:1">💧 WATER</button>
+          color:rgba(100,160,255,.9);border-radius:3px;cursor:pointer;letter-spacing:.06em;flex:1"><svg class="icon"><use href="#icon-droplet"></use></svg> WATER</button>
         <button id="wmk-btn-land" onclick="wmkSetMode('land')"
           style="font-family:'JetBrains Mono',monospace;font-size:.5rem;padding:5px 10px;
           background:transparent;border:1px solid rgba(120,140,180,.3);
-          color:rgba(120,140,180,.6);border-radius:3px;cursor:pointer;letter-spacing:.06em;flex:1">⛰ LAND</button>
+          color:rgba(120,140,180,.6);border-radius:3px;cursor:pointer;letter-spacing:.06em;flex:1"><svg class="icon"><use href="#icon-mountain"></use></svg> LAND</button>
         <button onclick="wmkGenerate()"
           style="font-family:'JetBrains Mono',monospace;font-size:.5rem;padding:5px 10px;
           background:rgba(40,80,160,.25);border:1px solid rgba(100,160,255,.3);
-          color:rgba(180,200,255,.8);border-radius:3px;cursor:pointer;letter-spacing:.06em;flex:1">⚙ GENERATE</button>
+          color:rgba(180,200,255,.8);border-radius:3px;cursor:pointer;letter-spacing:.06em;flex:1"><svg class="icon"><use href="#icon-settings"></use></svg> GENERATE</button>
       </div>
 
       <!-- Grayscale threshold panel -->
@@ -5271,11 +5740,11 @@ document.addEventListener('keydown', function(e){
             <button onclick="wmkThreshAuto()"
               style="font-family:'JetBrains Mono',monospace;font-size:.5rem;padding:6px 8px;flex:1;
               background:transparent;border:1px solid rgba(120,140,180,.3);color:rgba(120,140,180,.7);
-              border-radius:3px;cursor:pointer;letter-spacing:.05em">⚡ AUTO (OTSU)</button>
+              border-radius:3px;cursor:pointer;letter-spacing:.05em"><svg class="icon"><use href="#icon-zap"></use></svg> AUTO (OTSU)</button>
             <button onclick="wmkGenerateFromThreshold()"
               style="font-family:'JetBrains Mono',monospace;font-size:.5rem;padding:6px 8px;flex:1;
               background:rgba(40,80,160,.25);border:1px solid rgba(100,160,255,.3);
-              color:rgba(180,200,255,.8);border-radius:3px;cursor:pointer;letter-spacing:.06em">⚙ GENERATE</button>
+              color:rgba(180,200,255,.8);border-radius:3px;cursor:pointer;letter-spacing:.06em"><svg class="icon"><use href="#icon-settings"></use></svg> GENERATE</button>
           </div>
         </div>
       </div>
@@ -5292,12 +5761,12 @@ document.addEventListener('keydown', function(e){
         <!-- Pen tools row -->
         <div style="background:rgba(6,12,28,.5);border:1px solid rgba(40,100,200,.2);border-radius:4px;padding:10px;margin-bottom:8px">
           <div style="font-family:'JetBrains Mono',monospace;font-size:.47rem;color:rgba(120,140,180,.6);
-            letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">✏ MANUAL EDIT</div>
+            letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px"><svg class="icon"><use href="#icon-pencil"></use></svg> MANUAL EDIT</div>
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px">
             <button id="wmk-pen" onclick="wmkTogglePen()"
               style="font-family:'JetBrains Mono',monospace;font-size:.47rem;padding:4px 8px;
               background:transparent;border:1px solid rgba(120,140,180,.3);color:rgba(120,140,180,.6);
-              border-radius:3px;cursor:pointer;flex:1">✏ PEN</button>
+              border-radius:3px;cursor:pointer;flex:1"><svg class="icon"><use href="#icon-pencil"></use></svg> PEN</button>
             <button id="wmk-erase" onclick="wmkToggleErase()"
               style="font-family:'JetBrains Mono',monospace;font-size:.47rem;padding:4px 8px;
               background:transparent;border:1px solid rgba(255,107,53,.25);color:rgba(255,107,53,.5);
@@ -5305,11 +5774,11 @@ document.addEventListener('keydown', function(e){
             <button id="wmk-black" onclick="wmkSetColor(0)"
               style="font-family:'JetBrains Mono',monospace;font-size:.47rem;padding:4px 8px;
               background:rgba(100,160,255,.15);border:1px solid rgba(100,160,255,.5);color:rgba(100,160,255,.8);
-              border-radius:3px;cursor:pointer;flex:1">⬛ BLACK</button>
+              border-radius:3px;cursor:pointer;flex:1"><svg class="icon"><use href="#icon-square"></use></svg> BLACK</button>
             <button id="wmk-white" onclick="wmkSetColor(255)"
               style="font-family:'JetBrains Mono',monospace;font-size:.47rem;padding:4px 8px;
               background:transparent;border:1px solid rgba(120,140,180,.3);color:rgba(120,140,180,.6);
-              border-radius:3px;cursor:pointer;flex:1">⬜ WHITE</button>
+              border-radius:3px;cursor:pointer;flex:1"><svg class="icon"><use href="#icon-square"></use></svg> WHITE</button>
           </div>
           <div style="display:flex;flex-direction:column;gap:4px">
             <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
@@ -5330,7 +5799,7 @@ document.addEventListener('keydown', function(e){
         <!-- Depth controls -->
         <div style="background:rgba(6,12,28,.5);border:1px solid rgba(40,100,200,.2);border-radius:4px;padding:10px;margin-bottom:8px">
           <div style="font-family:'JetBrains Mono',monospace;font-size:.47rem;color:rgba(120,140,180,.6);
-            letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">⚙ DEPTH PARAMETERS</div>
+            letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px"><svg class="icon"><use href="#icon-settings"></use></svg> DEPTH PARAMETERS</div>
           <div style="display:flex;flex-direction:column;gap:5px">
             <div style="font-family:'JetBrains Mono',monospace;font-size:.44rem;color:rgba(120,140,180,.45);
               letter-spacing:.03em;margin-bottom:2px">Mark the grayscale values the game should read as shallow vs. deep water</div>
@@ -5436,7 +5905,7 @@ document.addEventListener('keydown', function(e){
     border-left:1px solid rgba(100,150,255,.2);border-bottom:1px solid rgba(100,150,255,.15);
     gap:8px;pointer-events:auto;flex-shrink:0">
     <div style="font-family:'Orbitron',sans-serif;font-size:.8rem;letter-spacing:.12em;color:var(--sky2);white-space:nowrap">
-      ✨ PROCGEN
+      <svg class="icon"><use href="#icon-sparkles"></use></svg> PROCGEN
     </div>
     <div style="display:flex;gap:7px;align-items:center;flex:1;justify-content:flex-end;flex-wrap:wrap">
       <div style="display:flex;flex-direction:column;gap:2px">
@@ -5449,9 +5918,9 @@ document.addEventListener('keydown', function(e){
           <option value="">— new system —</option>
         </select>
       </div>
-      <button onclick="pgGenerate()" class="pg-btn pg-btn--primary">🎲 GEN</button>
-      <button id="pg-seed-lock-btn" class="pg-btn pg-btn--seed" onclick="pgToggleSeedLock()" title="Lock seed — regenerate with same body layout but updated settings">🔓 SEED</button>
-      <button onclick="pgClear()"    class="pg-btn pg-btn--danger">🗑</button>
+      <button onclick="pgGenerate()" class="pg-btn pg-btn--primary"><svg class="icon"><use href="#icon-dice-6"></use></svg> GEN</button>
+      <button id="pg-seed-lock-btn" class="pg-btn pg-btn--seed" onclick="pgToggleSeedLock()" title="Lock seed — regenerate with same body layout but updated settings"><svg class="icon"><use href="#icon-unlock"></use></svg> SEED</button>
+      <button onclick="pgClear()"    class="pg-btn pg-btn--danger"><svg class="icon"><use href="#icon-trash-2"></use></svg></button>
       <button onclick="closeProceduralGen()"
         style="background:none;border:none;cursor:pointer;color:rgba(180,180,210,.4);
           font-size:1.3rem;padding:2px 6px;line-height:1;transition:color .15s;pointer-events:auto"
@@ -5572,9 +6041,9 @@ document.addEventListener('keydown', function(e){
         <div style="border-top:1px solid rgba(100,150,255,.1);padding-top:14px;
           background:rgba(100,220,180,.04);border-radius:5px;padding:12px 14px;
           border:1px solid rgba(100,220,180,.12)">
-          <div style="font-size:.65rem;color:rgba(100,220,180,.7);letter-spacing:.06em;margin-bottom:6px">💡 TIP</div>
+          <div style="font-size:.65rem;color:rgba(100,220,180,.7);letter-spacing:.06em;margin-bottom:6px"><svg class="icon"><use href="#icon-lightbulb"></use></svg> TIP</div>
           <div style="font-size:.62rem;color:rgba(140,160,210,.65);line-height:1.6">
-            Enable <strong style="color:rgba(210,160,255,.8)">🔓 SEED LOCK</strong> in the header, then adjust these sliders and hit <strong style="color:rgba(100,220,180,.8)">🎲 GEN</strong> — the same orbital layout is regenerated with new SOI values applied.
+            Enable <strong style="color:rgba(210,160,255,.8)"><svg class="icon"><use href="#icon-unlock"></use></svg> SEED LOCK</strong> in the header, then adjust these sliders and hit <strong style="color:rgba(100,220,180,.8)"><svg class="icon"><use href="#icon-dice-6"></use></svg> GEN</strong> — the same orbital layout is regenerated with new SOI values applied.
           </div>
         </div>
 
@@ -5603,13 +6072,13 @@ document.addEventListener('keydown', function(e){
           <span>＋</span> Add from JSON
         </button>
         <button class="pg-preset-add-btn pg-preset-add-btn--from-body" onclick="pgShowAddFromBodyDialog()" title="Promote a body from your current system into the preset pool">
-          <span>🌍</span> Add from System
+          <span><svg class="icon"><use href="#icon-globe"></use></svg></span> Add from System
         </button>
       </div>
 
       <!-- Search + category filters -->
       <div style="margin-top:16px">
-        <input id="pg-presets-search" class="pg-presets-search" placeholder="🔍  Search presets…"
+        <input id="pg-presets-search" class="pg-presets-search" placeholder="<svg class="icon"><use href="#icon-search"></use></svg>  Search presets…"
           oninput="pgPresetsRender()" autocomplete="off">
       </div>
       <div class="pg-preset-filters" style="margin-top:8px">
@@ -5642,7 +6111,7 @@ document.addEventListener('keydown', function(e){
   <div style="display:flex;align-items:center;justify-content:space-between;
     padding:12px 14px;border-bottom:1px solid rgba(255,180,60,.15);flex-shrink:0">
     <span style="font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.14em;
-      color:rgba(255,200,80,.9)">📍 OBJECT PLACER</span>
+      color:rgba(255,200,80,.9)"><svg class="icon"><use href="#icon-map-pin"></use></svg> OBJECT PLACER</span>
     <button onclick="closePlacer()" style="background:none;border:none;cursor:pointer;
       color:rgba(180,180,210,.45);font-size:1.1rem;padding:0 4px;line-height:1;
       transition:color .15s" onmouseover="this.style.color='rgba(200,80,80,.8)'"
@@ -5709,7 +6178,7 @@ document.addEventListener('keydown', function(e){
         font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.07em;
         border:1px solid rgba(100,220,180,.4);background:rgba(100,220,180,.08);
         color:rgba(100,220,180,.9);transition:background .12s,border-color .12s">
-        📍 START PLACING
+        <svg class="icon"><use href="#icon-map-pin"></use></svg> START PLACING
       </button>
       <div id="placer-hint" style="opacity:.4;font-size:.48rem;color:rgba(255,220,100,.8);
         margin-top:6px;line-height:1.6;text-align:center">
@@ -5734,7 +6203,7 @@ document.addEventListener('keydown', function(e){
     <!-- Usage tip -->
     <div style="padding:10px;background:rgba(80,100,255,.06);border:1px solid rgba(80,100,255,.15);
       border-radius:4px;font-size:.48rem;color:rgba(160,170,220,.6);line-height:1.7">
-      <div style="color:rgba(180,200,255,.7);margin-bottom:4px">💡 TIP — pattern placement</div>
+      <div style="color:rgba(180,200,255,.7);margin-bottom:4px"><svg class="icon"><use href="#icon-lightbulb"></use></svg> TIP — pattern placement</div>
       Load a reference image via <strong style="color:rgba(100,220,180,.8)">IMAGE OVERLAY</strong>,
       position it on the viewport, then use this tool to click each point in the pattern.
       Set direction = 0 for static objects like a star cluster.
@@ -5758,7 +6227,7 @@ document.addEventListener('keydown', function(e){
       border:1px solid rgba(255,100,100,.35);background:rgba(255,100,100,.07);transition:all .14s"
       onmouseover="this.style.background='rgba(255,100,100,.16)'"
       onmouseout="this.style.background='rgba(255,100,100,.07)'">
-      <span style="font-size:.68rem;color:rgba(255,150,150,.95);font-weight:700;letter-spacing:.06em">🗑 REPLACE CURRENT SYSTEM</span>
+      <span style="font-size:.68rem;color:rgba(255,150,150,.95);font-weight:700;letter-spacing:.06em"><svg class="icon"><use href="#icon-trash-2"></use></svg> REPLACE CURRENT SYSTEM</span>
       <span style="font-size:.58rem;color:rgba(200,150,150,.6);margin-top:4px">Clears everything and loads the generated system fresh</span>
     </button>
 
@@ -5767,7 +6236,7 @@ document.addEventListener('keydown', function(e){
       border:1px solid rgba(100,180,255,.35);background:rgba(100,180,255,.07);transition:all .14s"
       onmouseover="this.style.background='rgba(100,180,255,.16)'"
       onmouseout="this.style.background='rgba(100,180,255,.07)'">
-      <span style="font-size:.68rem;color:rgba(140,200,255,.95);font-weight:700;letter-spacing:.06em">🔗 ADD ORBITING EXISTING BODY</span>
+      <span style="font-size:.68rem;color:rgba(140,200,255,.95);font-weight:700;letter-spacing:.06em"><svg class="icon"><use href="#icon-link"></use></svg> ADD ORBITING EXISTING BODY</span>
       <span style="font-size:.58rem;color:rgba(140,180,220,.6);margin-top:4px">The generated center orbits a body you choose from the current system</span>
       <div id="pg-orbit-parent-wrap" style="margin-top:10px">
         <select id="pg-orbit-parent-sel" style="width:100%;padding:7px 10px;
@@ -6219,7 +6688,7 @@ document.addEventListener('keydown', function(e){
     <!-- Header -->
     <div style="padding:12px 16px;background:var(--panel3);border-bottom:1px solid var(--rim);display:flex;align-items:center;justify-content:space-between">
       <div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--sky2);font-weight:700;letter-spacing:.08em">⬡ PROCEDURAL LANDMARK GENERATOR</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--sky2);font-weight:700;letter-spacing:.08em"><svg class="icon"><use href="#icon-hexagon"></use></svg> PROCEDURAL LANDMARK GENERATOR</div>
         <div style="font-size:.6rem;color:var(--ink4);margin-top:2px;font-family:'JetBrains Mono',monospace;letter-spacing:.04em">Scans texture &amp; heightmap · USGS scientific descriptors</div>
       </div>
       <button onclick="closeProceduralLandmarks()" style="background:none;border:none;color:var(--ink4);cursor:pointer;font-size:1.1rem;padding:4px 8px;transition:color .18s" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--ink4)'">✕</button>
@@ -6274,7 +6743,7 @@ document.addEventListener('keydown', function(e){
 
       <!-- Action buttons -->
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button onclick="runProceduralScan()" style="flex:1;padding:9px 14px;background:rgba(68,170,119,.15);border:1px solid rgba(68,170,119,.4);border-radius:6px;color:var(--jade);font-family:'JetBrains Mono',monospace;font-size:.65rem;font-weight:700;letter-spacing:.06em;cursor:pointer;transition:all .18s" onmouseover="this.style.background='rgba(68,170,119,.25)'" onmouseout="this.style.background='rgba(68,170,119,.15)'">⬡ SCAN &amp; GENERATE</button>
+        <button onclick="runProceduralScan()" style="flex:1;padding:9px 14px;background:rgba(68,170,119,.15);border:1px solid rgba(68,170,119,.4);border-radius:6px;color:var(--jade);font-family:'JetBrains Mono',monospace;font-size:.65rem;font-weight:700;letter-spacing:.06em;cursor:pointer;transition:all .18s" onmouseover="this.style.background='rgba(68,170,119,.25)'" onmouseout="this.style.background='rgba(68,170,119,.15)'"><svg class="icon"><use href="#icon-hexagon"></use></svg> SCAN &amp; GENERATE</button>
         <button id="plm-add-btn" onclick="applyProceduralLandmarks()" style="display:none;flex:1;padding:9px 14px;background:rgba(64,128,255,.15);border:1px solid rgba(64,128,255,.4);border-radius:6px;color:var(--sky2);font-family:'JetBrains Mono',monospace;font-size:.65rem;font-weight:700;letter-spacing:.06em;cursor:pointer;transition:all .18s" onmouseover="this.style.background='rgba(64,128,255,.25)'" onmouseout="this.style.background='rgba(64,128,255,.15)'">✓ ADD TO LANDMARKS</button>
         <button onclick="closeProceduralLandmarks()" style="padding:9px 14px;background:none;border:1px solid var(--rim);border-radius:6px;color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.65rem;cursor:pointer;transition:all .18s" onmouseover="this.style.borderColor='var(--rim3)';this.style.color='var(--ink2)'" onmouseout="this.style.borderColor='var(--rim)';this.style.color='var(--ink4)'">CANCEL</button>
       </div>
@@ -6650,7 +7119,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.wmkGenerate = function() {
     if (!wmkBaseImage || !wmkLiqSamples.length || !wmkLandSamples.length) {
-      alert('Click water pixels (💧 WATER mode) and land pixels (⛰ LAND mode) on the image first, then generate.');
+      alert('Click water pixels (<svg class="icon"><use href="#icon-droplet"></use></svg> WATER mode) and land pixels (<svg class="icon"><use href="#icon-mountain"></use></svg> LAND mode) on the image first, then generate.');
       return;
     }
     $('wmk-gen-status').style.display = 'flex';

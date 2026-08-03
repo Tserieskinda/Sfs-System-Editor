@@ -64,6 +64,36 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ── Icon system (replaces emoji glyphs) ── */
+.icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -0.15em;
+  flex-shrink: 0;
+  margin-right: .4em;
+}
+.icon:last-child { margin-right: 0; }
+.mico .icon, .dico .icon { margin-right: 0; }
+
+.beta-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  font-size: .55rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: #4fc3f7;
+  background: rgba(79,195,247,.12);
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
 body {
   font-family: system-ui, -apple-system, sans-serif;
   background: var(--void);
@@ -268,7 +298,8 @@ body {
 .menu-btn:hover { color: var(--ink3); border-bottom-color: var(--sky); padding-left: 6px; }
 .menu-btn.primary { color: var(--sky2); }
 .menu-btn.primary:hover { color: #fff; border-bottom-color: var(--sky2); }
-.menu-btn .mico { display: inline-block; width: 22px; margin-right: 10px; opacity: .5; }
+.menu-btn .mico { display: inline-flex; width: 22px; height: 22px; margin-right: 10px; opacity: .5; vertical-align: middle; }
+.menu-btn .mico .icon { width: 100%; height: 100%; }
 .menu-btn:hover .mico { opacity: .9; }
 .menu-btn .arr { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); opacity: .2; transition: opacity .15s; font-size: .9rem; }
 .menu-btn:hover .arr { opacity: .6; }
@@ -364,6 +395,22 @@ body.pseudo-fullscreen {
   opacity: 0; pointer-events: none; transition: opacity .25s;
 }
 #modal-appsettings.open { opacity: 1; pointer-events: all; }
+#modal-multiplayer {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(10,10,12,.88);
+  backdrop-filter: blur(12px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity .25s;
+}
+#modal-multiplayer.open { opacity: 1; pointer-events: all; }
+.mp-peer-chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; margin-bottom: 4px;
+  background: var(--dp3); border: 1px solid var(--ac18); border-radius: 5px;
+  font-family: 'JetBrains Mono', monospace; font-size: .68rem; color: var(--ink3);
+}
+.mp-peer-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.mp-peer-you { opacity: .6; font-size: .58rem; margin-left: auto; }
 #modal-clear, #modal-delete, #modal-replace {
   background: rgba(10,10,12,.88);
   display: flex; align-items: center; justify-content: center;
@@ -733,7 +780,8 @@ body.pseudo-fullscreen {
 .menu-btn:hover { color: var(--ink3); padding-left: 8px; border-bottom-color: var(--sky); }
 .menu-btn.primary { color: var(--sky3); }
 .menu-btn.primary:hover { color: #fff; border-bottom-color: var(--sky2); }
-.menu-btn .mico { display: inline-block; width: 20px; margin-right: 14px; opacity: .5; font-size: .75rem; }
+.menu-btn .mico { display: inline-flex; width: 20px; height: 20px; margin-right: 14px; opacity: .5; vertical-align: middle; }
+.menu-btn .mico .icon { width: 100%; height: 100%; }
 .menu-btn:hover .mico { opacity: .9; }
 .menu-btn .arr { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); opacity: .2; transition: opacity .15s, right .15s; font-size: .9rem; }
 .menu-btn:hover .arr { opacity: .6; right: 0; }
@@ -1611,6 +1659,11 @@ body.pseudo-fullscreen {
 
   /* ── Body search modal: full-screen on mobile ── */
   #modal-body-search .mpanel { width: 100% !important; max-width: 100% !important; min-width: 0 !important; max-height: 92vh; }
+
+  /* ── Multiplayer modal: full-width, roomy tap targets, big code text stays legible ── */
+  #modal-multiplayer .mpanel { width: 92% !important; max-width: 400px !important; max-height: 92vh; }
+  #mp-code-display { font-size: 1.5rem !important; letter-spacing: .12em !important; }
+  #mp-tab-host, #mp-tab-join { padding: 12px 0 !important; font-size: .68rem !important; }
 
   /* ── Preset modal overlay: full height, aligned to top ── */
   #modal-preset { align-items: stretch; padding: 0; }
@@ -2813,6 +2866,7 @@ body.pseudo-fullscreen {
   /* Logo: tighter on mobile */
   .logo-wrap {
     margin-bottom: 28px;
+    padding-right: 112px; /* clears the settings + fullscreen buttons (42px each, positioned from right:14px/64px) regardless of exact title width or device font rendering */
   }
   .logo-eyebrow {
     margin-top: 6px;

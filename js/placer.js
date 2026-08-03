@@ -42,13 +42,13 @@ function _placerSyncUI() {
   const hint  = document.getElementById('placer-hint');
   if (!btn) return;
   if (_placerActive) {
-    btn.textContent  = '🛑 STOP PLACING';
+    btn.innerHTML  = '<svg class="icon"><use href="#icon-octagon"></use></svg> STOP PLACING';
     btn.style.background    = 'rgba(220,80,80,.15)';
     btn.style.borderColor   = 'rgba(220,80,80,.5)';
     btn.style.color         = 'rgba(255,140,140,.9)';
     if (hint) hint.style.opacity = '1';
   } else {
-    btn.textContent = '📍 START PLACING';
+    btn.innerHTML = '<svg class="icon"><use href="#icon-map-pin"></use></svg> START PLACING';
     btn.style.background    = 'rgba(100,220,180,.08)';
     btn.style.borderColor   = 'rgba(100,220,180,.4)';
     btn.style.color         = 'rgba(100,220,180,.9)';

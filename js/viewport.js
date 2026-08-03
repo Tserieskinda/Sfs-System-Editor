@@ -97,9 +97,13 @@ function cycleDifficulty(){
   const order = ['normal','hard','realistic'];
   viewDifficulty = order[(order.indexOf(viewDifficulty) + 1) % order.length];
   viewDiffKey = viewDifficulty.charAt(0).toUpperCase() + viewDifficulty.slice(1); // 'Normal'|'Hard'|'Realistic'
-  const labels = { normal:'⚖ NORMAL', hard:'⚔ HARD', realistic:'🌍 REALISTIC' };
+  const labels = {
+    normal:     '<svg class="icon"><use href="#icon-scale"></use></svg> NORMAL',
+    hard:       '<svg class="icon"><use href="#icon-swords"></use></svg> HARD',
+    realistic:  '<svg class="icon"><use href="#icon-globe"></use></svg> REALISTIC'
+  };
   const btn = document.getElementById('btn-difficulty');
-  if(btn) btn.textContent = labels[viewDifficulty];
+  if(btn) btn.innerHTML = labels[viewDifficulty];
   // Invalidate all cached gradient stops — they depend on difficulty (atmo, ring fades)
   if(drawViewport._atmoStopCache) drawViewport._atmoStopCache = {};
   if(drawViewport._ringStopCache) drawViewport._ringStopCache = {};

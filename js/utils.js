@@ -1524,11 +1524,11 @@ function hmtOpenFullscreen(mode) {
   const title = document.getElementById('hmt-fs-title');
   if(mode === 'bumpmap') {
     if(!_hmtBmpPx) return;
-    title.textContent = '🌄 BUMP MAP — FULLSCREEN';
+    title.innerHTML = '<svg class="icon"><use href="#icon-mountain"></use></svg> BUMP MAP — FULLSCREEN';
     title.style.color = 'rgba(100,220,180,.9)';
   } else {
     if(!_htxSrcPx) return;
-    title.textContent = '🌍 TEXTURE MAP — FULLSCREEN';
+    title.innerHTML = '<svg class="icon"><use href="#icon-globe"></use></svg> TEXTURE MAP — FULLSCREEN';
     title.style.color = 'rgba(120,160,255,.9)';
   }
   ov.style.display = 'flex';
