@@ -823,6 +823,21 @@
   </div>
 </div>
 
+<!-- ══════════════ SPACE CENTRE PICKER (forced, no dismiss) ══════════════ -->
+<div id="modal-sc-picker">
+  <div class="mpanel" id="mpanel-sc-picker" style="max-width:480px;width:92vw;max-height:82vh;display:flex;flex-direction:column">
+    <h2 style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:var(--sky2);letter-spacing:.15em;margin-bottom:6px"><svg class="icon"><use href="#icon-map-pin"></use></svg> SELECT SPACE CENTRE</h2>
+    <p style="font-size:.66rem;color:var(--ink4);margin-bottom:10px;line-height:1.5">
+      This system's launch body ("<span id="sc-picker-missing-addr" style="color:var(--rose)"></span>") doesn't exist here.
+      Pick which body the space centre sits on before exporting, or players won't be able to launch.
+    </p>
+    <div style="position:relative;margin-bottom:8px">
+      <input id="sc-picker-input" class="prs-search" placeholder="Search bodies…" autocomplete="off" oninput="scPickerRebuild()" style="width:100%;box-sizing:border-box">
+    </div>
+    <div id="sc-picker-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px;min-height:0;max-height:52vh"></div>
+  </div>
+</div>
+
 <div id="modal-preset">
   <div class="mpanel" id="mpanel-preset" style="padding:22px 28px 20px;max-width:780px;width:92vw">
     <!-- Header row: title + orbit controls -->
@@ -936,8 +951,8 @@
       <!-- chips injected by fillTagRow() -->
       <button id="sbb-tag-add-btn" onclick="sbTagOpenPicker()" title="Add tag"
         style="font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.06em;
-          padding:3px 10px;border:1px dashed rgba(120,160,255,.3);border-radius:10px;
-          background:none;color:rgba(120,160,255,.45);cursor:pointer;white-space:nowrap">
+          padding:3px 10px;border:1px dashed var(--ac30);border-radius:10px;
+          background:none;color:var(--sky2);cursor:pointer;white-space:nowrap">
         + TAG
       </button>
     </div>
@@ -973,9 +988,9 @@
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
       <button class="sb-close" onclick="closeSidebar()">✕</button>
       <div style="display:flex;gap:5px">
-        <button onclick="if(selectedBody) zoomToBody(selectedBody)" title="Zoom viewport to this body" style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.05em;padding:3px 7px;border:1px solid rgba(64,200,255,.5);border-radius:2px;background:rgba(64,200,255,.12);color:#60d8ff;cursor:pointer">⊕ ZOOM</button>
-        <button onclick="addBodyPrompt()" title="Add a body orbiting this one" style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.05em;padding:3px 7px;border:1px solid rgba(100,220,120,.4);border-radius:2px;background:rgba(100,220,120,.07);color:#7defa0;cursor:pointer">+ ADD</button>
-        <button onclick="replaceBodyPrompt()" title="Replace this body with a different preset" style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.05em;padding:3px 7px;border:1px solid rgba(255,200,64,.35);border-radius:2px;background:rgba(255,200,64,.07);color:#ffd060;cursor:pointer"><svg class="icon"><use href="#icon-repeat"></use></svg> REPLACE</button>
+        <button onclick="if(selectedBody) zoomToBody(selectedBody)" title="Zoom viewport to this body" style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.05em;padding:3px 7px;border:1px solid var(--ac45);border-radius:2px;background:var(--ac12);color:var(--sky2);cursor:pointer">⊕ ZOOM</button>
+        <button onclick="addBodyPrompt()" title="Add a body orbiting this one" style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.05em;padding:3px 7px;border:1px solid var(--ac45);border-radius:2px;background:var(--ac12);color:var(--sky2);cursor:pointer">+ ADD</button>
+        <button onclick="replaceBodyPrompt()" title="Replace this body with a different preset" style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.05em;padding:3px 7px;border:1px solid var(--ac45);border-radius:2px;background:var(--ac12);color:var(--sky2);cursor:pointer"><svg class="icon"><use href="#icon-repeat"></use></svg> REPLACE</button>
         <button onclick="confirmDeleteBody()" title="Delete this body and all its satellites" style="font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.05em;padding:3px 7px;border:1px solid rgba(255,64,96,.35);border-radius:2px;background:rgba(255,64,96,.07);color:var(--rose);cursor:pointer">✕ DELETE</button>
       </div>
     </div>
@@ -2345,6 +2360,7 @@
 <script src="js/sidebar.js?v=5.15"></script>
 <script src="js/export.js?v=5.13"></script>
 <script src="js/body-search.js?v=5.13"></script>
+<script src="js/sc-picker.js?v=5.13"></script>
 <script src="js/namegen.js?v=5.13"></script>
 <script src="js/tex-creator.js?v=5.13"></script>
 <script src="js/planet-tex-creator.js?v=1.0"></script>

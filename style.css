@@ -960,6 +960,14 @@ body.pseudo-fullscreen {
 }
 #modal-body-search.open { opacity: 1; pointer-events: all; }
 
+#modal-sc-picker {
+  position: fixed; inset: 0; z-index: 999999;
+  background: var(--ov4); backdrop-filter: blur(14px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity .3s;
+}
+#modal-sc-picker.open { opacity: 1; pointer-events: all; }
+
 .bsearch-row {
   display: flex; align-items: center; gap: 8px;
   padding: 7px 10px; border: 1px solid var(--rim);

@@ -90,27 +90,21 @@ function exportSystem(){
   if(bodyEntries.length === 0){ alert('No bodies to export!'); return; }
 
   // ── Space Centre validation ──
+  // Any body in the system is an acceptable launch site — the only failure
+  // case is the configured address not existing in this system at all
+  // (e.g. still defaulted to "Earth" in a system that has no Earth).
   const scAddr = systemSettings.spaceCenterData?.address;
   const scBodyExists = scAddr && bodies[scAddr];
-  const scBodyHasSurface = scBodyExists && bodies[scAddr].data.TERRAIN_DATA?.TERRAIN_TEXTURE_DATA?.collider !== false;
   if(!scBodyExists){
-    const go = confirm(
-      `⚠️ Space Centre Warning\n\n` +
-      `Launch body "${scAddr||'(none)'}" is not in this system.\n` +
-      `Players won't be able to launch from a planet.\n\n` +
-      `Set a valid launch body in ⚙ SYSTEM settings, or tap OK to export anyway.`
-    );
-    if(!go) return;
-  } else if(bodies[scAddr].data.BASE_DATA?.collider === false || bodies[scAddr].preset === 'star' || bodies[scAddr].preset === 'blackhole'){
-    const go = confirm(
-      `⚠️ Space Centre Warning\n\n` +
-      `"${scAddr}" may not be a valid launch pad (star, black hole, or no collider).\n` +
-      `Players may be unable to launch.\n\n` +
-      `Tap OK to export anyway.`
-    );
-    if(!go) return;
+    scPickerOpen(scAddr, () => exportSystem());
+    return;
   }
 
+  _exportSystemProceed();
+}
+
+function _exportSystemProceed(){
+  const bodyEntries = Object.entries(bodies);
   const centerName = Object.keys(bodies).find(n => bodies[n].isCenter) || 'System';
   const customFolder = (document.getElementById('sys-foldername')?.value || '').trim().replace(/[\\/:*?"<>|]/g,'');
   const sysName = customFolder || centerName;
