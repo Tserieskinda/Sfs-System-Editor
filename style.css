@@ -351,12 +351,12 @@ body.pseudo-fullscreen {
 }
 .tb-actions { display: flex; gap: 8px; }
 .tb-btn {
-  background: transparent; border: 1px solid var(--rim); color: var(--ink4);
+  background: transparent; border: 1px solid var(--ac25); color: var(--sky2);
   font-family: system-ui, sans-serif; font-size: .72rem;
   padding: 6px 14px; cursor: pointer;
   transition: all .15s;
 }
-.tb-btn:hover { border-color: var(--rim3); color: var(--ink2); }
+.tb-btn:hover { border-color: var(--ac45); color: var(--ink3); }
 .tb-btn.save { border-color: var(--sky); color: var(--sky2); }
 .tb-btn.save:hover { background: var(--panel3); color: var(--ink3); }
 .tb-btn.danger { border-color: var(--rose); color: var(--rose); opacity:.75; }
@@ -809,13 +809,13 @@ body.pseudo-fullscreen {
 }
 .tb-actions { display: flex; gap: 8px; }
 .tb-btn {
-  background: transparent; border: 1px solid var(--rim); color: var(--ink4);
+  background: transparent; border: 1px solid var(--ac25); color: var(--sky2);
   font-family: 'Orbitron', sans-serif; font-size: .58rem; letter-spacing: .12em;
   padding: 6px 14px; cursor: pointer;
   clip-path: polygon(5px 0, 100% 0, 100% 100%, 0 100%, 0 5px);
   transition: all .2s;
 }
-.tb-btn:hover { border-color: var(--rim2); color: var(--ink2); }
+.tb-btn:hover { border-color: var(--ac45); background: var(--ac08); color: var(--ink3); }
 .tb-btn.save { border-color: var(--ac40); color: var(--sky2); }
 .tb-btn.save:hover { background: var(--ac10); color: var(--ink3); }
 .tb-btn.danger { border-color: rgba(255,64,96,.3); color: rgba(255,100,120,.8); }
@@ -1582,9 +1582,11 @@ body.pseudo-fullscreen {
 .loading-bar-fill {
   height: 100%; width: 0%; border-radius: 2px;
   transition: width .12s ease-out;
-  background: linear-gradient(90deg, var(--sky2), #a78fff);
+  background: var(--sky2);
 }
 .loading-bar-fill.complete { background: var(--jade); }
+.loading-bar-fill.pending { width: 100% !important; background: repeating-linear-gradient(90deg, var(--rim2) 0 8px, var(--rim3) 8px 16px); animation: loadingBarPending 1s linear infinite; }
+@keyframes loadingBarPending { from { background-position: 0 0; } to { background-position: 16px 0; } }
 /* Drag-over highlight for zip drop zone */
 .drop-zone.drag-over {
   border-color: var(--sky2);
@@ -1808,21 +1810,21 @@ body.pseudo-fullscreen {
 /* ════════════════════════════════════════════════════════════
    CREATE TEXTURES — main menu additions
    ════════════════════════════════════════════════════════════ */
-.menu-btn-create-tex { color: var(--lilac); }
-.menu-btn-create-tex:hover { border-bottom-color: var(--lilac); color: #c8a8ff; }
+.menu-btn-create-tex { color: var(--sky2); }
+.menu-btn-create-tex:hover { border-bottom-color: var(--sky2); color: var(--sky3); }
 .menu-btn-create-tex .mico { opacity: .7; }
 
 /* ── Autosave restore button ── */
 .menu-btn-restore {
   display: flex; align-items: center;
-  border-color: rgba(255,180,80,.4);
-  color: rgba(255,180,80,1);
-  background: rgba(255,180,80,.05);
+  border-color: var(--ac40);
+  color: var(--sky2);
+  background: var(--ac08);
 }
 .menu-btn-restore:hover {
-  border-bottom-color: rgba(255,180,80,.8) !important;
+  border-bottom-color: var(--ac65) !important;
   color: #fff !important;
-  background: rgba(255,180,80,.1);
+  background: var(--ac10);
 }
 .menu-btn-restore .mico { opacity: .8; }
 .as-restore-label {

@@ -616,15 +616,31 @@ function setBar1(pct, label){
   const fill = document.getElementById('bar1-fill');
   const pctEl = document.getElementById('bar1-pct');
   const labelEl = document.getElementById('bar1-label');
-  if(fill){ fill.style.width = pct + '%'; if(pct>=100) fill.classList.add('complete'); else fill.classList.remove('complete'); }
-  if(pctEl) pctEl.textContent = Math.round(pct) + '%';
+  if(fill){
+    if(pct === null){
+      fill.classList.add('pending'); fill.classList.remove('complete'); fill.style.width = '';
+    } else {
+      fill.classList.remove('pending');
+      fill.style.width = pct + '%';
+      fill.classList.toggle('complete', pct >= 100);
+    }
+  }
+  if(pctEl) pctEl.textContent = pct === null ? '—' : Math.round(pct) + '%';
   if(label && labelEl) labelEl.textContent = label;
 }
 function setBar2(pct, label){
   const fill = document.getElementById('bar2-fill');
   const pctEl = document.getElementById('bar2-pct');
   const labelEl = document.getElementById('bar2-label');
-  if(fill){ fill.style.width = pct + '%'; if(pct>=100) fill.classList.add('complete'); else fill.classList.remove('complete'); }
+  if(fill){
+    if(pct === null){
+      fill.classList.add('pending'); fill.classList.remove('complete'); fill.style.width = '';
+    } else {
+      fill.classList.remove('pending');
+      fill.style.width = pct + '%';
+      fill.classList.toggle('complete', pct >= 100);
+    }
+  }
   if(pctEl) pctEl.textContent = pct === null ? '—' : Math.round(pct) + '%';
   if(label && labelEl) labelEl.textContent = label;
 }
