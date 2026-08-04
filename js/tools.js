@@ -191,8 +191,8 @@ function exitDragOrbitMode(){
   const btn = document.getElementById('btn-tools');
   if(btn){
     btn.innerHTML = '<svg class="icon"><use href="#icon-wrench"></use></svg>';
-    btn.style.borderColor = 'rgba(255,180,80,.35)';
-    btn.style.color = '#ffb850';
+    btn.style.borderColor = '';
+    btn.style.color = '';
     btn.style.background = '';
     btn.onclick = toggleToolsDropdown;
     btn.title = 'Tools';
