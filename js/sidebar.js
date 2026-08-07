@@ -424,7 +424,14 @@ function confirmDeleteBody(){
   if(!confirm(msg)) return;
   pushUndo();
   const toDelete = [selectedBody, ...sats];
+  // Capture textures referenced by bodies about to be deleted, so we can
+  // check (after they're gone) whether any are now orphaned DayNightCycle
+  // generated textures that nothing else in the system still uses.
+  const texturesToCheck = toDelete
+    .map(n => bodies[n]?.data?.FRONT_CLOUDS_DATA?.cloudsTexture)
+    .filter(Boolean);
   toDelete.forEach(n => delete bodies[n]);
+  texturesToCheck.forEach(tex => _dncCleanupOrphanTexture(tex, null));
   closeSidebar();
   drawViewport();
   syncAddBodyBtn();
@@ -3026,7 +3033,9 @@ function updateDayNightCycle(name, opts){
   const d = b.data;
 
   if(o.darkness != null){
+    const oldTex = d.FRONT_CLOUDS_DATA.cloudsTexture;
     d.FRONT_CLOUDS_DATA.cloudsTexture = _dncGenerateTexture(o.darkness);
+    _dncCleanupOrphanTexture(oldTex, d.FRONT_CLOUDS_DATA.cloudsTexture);
   }
   if(o.fadeZoneKm != null) d.FRONT_CLOUDS_DATA.fadeZoneHeight = o.fadeZoneKm * 1000;
   if(o.positionZ != null) d.FRONT_CLOUDS_DATA.positionZ = o.positionZ;
@@ -3048,6 +3057,27 @@ function updateDayNightCycle(name, opts){
   if(selectedBody === name) fillSidebar(name);
   drawViewport();
 }
+
+// Remove a just-replaced DayNightCycle texture, but ONLY if:
+//  (a) it's actually one of this tool's own generated textures (never touch
+//      anything the person picked manually via the texture picker), AND
+//  (b) it's different from the texture we just switched TO (no-op edits,
+//      e.g. nudging a slider by 0 net change, shouldn't delete-then-fail), AND
+//  (c) no OTHER body in the system still references it — required because
+//      texture names are deterministic by rounded darkness %, so two
+//      different day/night bodies set to the same darkness legitimately
+//      share one asset; deleting on reference count 0, not just "this body
+//      stopped using it", is what makes multiple day/night cycles safe.
+function _dncCleanupOrphanTexture(oldTexName, newTexName){
+  if(!oldTexName || oldTexName === newTexName) return;
+  if(!/^DayNightCycle_\d+$/.test(oldTexName)) return;
+  const stillUsed = Object.values(bodies).some(bb => bb.data?.FRONT_CLOUDS_DATA?.cloudsTexture === oldTexName);
+  if(stillUsed) return;
+  if(typeof assets === 'undefined') return;
+  const entry = assets.textures.find(t => t.name.replace(/\.[^.]+$/, '') === oldTexName);
+  if(entry && typeof removeAsset === 'function') removeAsset(sanitize(entry.name), 'textures');
+}
+
 
 // ── Day/Night Cycle panel wiring ──
 // Tracks which body's day/night sliders are currently being shown/edited,
