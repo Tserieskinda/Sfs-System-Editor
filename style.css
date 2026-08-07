@@ -309,13 +309,14 @@ body {
   width: 46px; height: 46px; padding: 0;
   display: flex; align-items: center; justify-content: center;
   background: var(--panel2); border: 1px solid var(--rim2); border-radius: 8px;
-  color: var(--ink2); font-size: 1.5rem; line-height: 1; cursor: pointer;
+  color: var(--ink2); font-size: 1.2rem; line-height: 1; cursor: pointer;
   transition: all .15s;
 }
 .menu-cog-btn:hover { background: var(--ac15); border-color: var(--ac1); color: var(--ac1); transform: scale(1.06); }
 
-.menu-fs-btn { right: 76px; font-size: 1.25rem; }
-.menu-fs-btn.is-active { color: var(--sky); border-color: var(--sky); box-shadow: 0 0 12px var(--sky40, var(--ac20)); }
+#btn-help { right: 72px; }
+#btn-fullscreen { right: 124px; }
+#btn-fullscreen.is-active { color: var(--sky); border-color: var(--sky); box-shadow: 0 0 12px var(--sky40, var(--ac20)); }
 
 /* Pseudo-fullscreen fallback (iOS Safari has no element/document Fullscreen API).
    Pins the whole app to the viewport and pads a bit extra height so scrolling
@@ -2894,9 +2895,10 @@ body.pseudo-fullscreen {
   .menu-cog-btn {
     top: 14px; right: 14px;
     width: 42px; height: 42px;
-    font-size: 1.35rem;
+    font-size: 1.05rem;
   }
-  .menu-fs-btn { right: 64px; font-size: 1.15rem; }
+  #btn-help { right: 60px; }
+  #btn-fullscreen { right: 106px; }
 
   /* Menu buttons: full width, good tap height */
   .menu-btn {
