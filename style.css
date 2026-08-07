@@ -402,6 +402,15 @@ body.pseudo-fullscreen {
   opacity: 0; pointer-events: none; transition: opacity .25s;
 }
 #modal-multiplayer.open { opacity: 1; pointer-events: all; }
+#modal-help {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(10,10,12,.88);
+  backdrop-filter: blur(12px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity .25s;
+  padding: 16px;
+}
+#modal-help.open { opacity: 1; pointer-events: all; }
 .mp-peer-chip {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 10px; margin-bottom: 4px;

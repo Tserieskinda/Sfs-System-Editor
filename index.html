@@ -402,6 +402,11 @@
   <symbol id="icon-zap" viewBox="0 0 24 24">
     <path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z" />
   </symbol>
+  <symbol id="icon-help" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" />
+    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+    <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+  </symbol>
 </svg>
 
 
@@ -444,6 +449,8 @@
 
   <!-- ── Settings: small cog icon box, pinned top-right ── -->
   <button class="menu-cog-btn" onclick="openAppSettings()" title="Settings"><svg class="icon"><use href="#icon-settings"></use></svg></button>
+  <!-- ── Help: question mark icon, pinned top-right next to settings ── -->
+  <button class="menu-cog-btn" id="btn-help" onclick="openHelpModal()" title="Help"><svg class="icon"><use href="#icon-help"></use></svg></button>
   <!-- ── Fullscreen toggle, pinned top-right next to settings ── -->
   <button class="menu-cog-btn menu-fs-btn" id="btn-fullscreen" onclick="toggleAppFullscreen()" title="Fullscreen"><svg class="icon"><use href="#icon-expand"></use></svg></button>
 
@@ -1904,6 +1911,12 @@
           <div style="color:var(--sky2)">Tserieskinda</div>
         </div>
 
+        <div style="margin-bottom:14px">
+          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">TOOLS & LIBRARIES</div>
+          <div>Claude AI · Gemini AI</div>
+          <div>Lucide Icons (SVG)</div>
+        </div>
+
         <div style="border-top:1px solid var(--ac13);padding-top:14px;display:flex;flex-direction:column;gap:8px">
           <a href="https://github.com/Tserieskinda/Sfs-System-Editor/blob/main/README.md" target="_blank" style="color:var(--sky2);text-decoration:none;font-size:.62rem;display:flex;align-items:center;gap:8px">
             <span style="opacity:.5">⬡</span> GitHub Page
@@ -2104,6 +2117,11 @@
           <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">BROUGHT TOGETHER BY</div>
           <div style="color:var(--sky2)">Tserieskinda</div>
         </div>
+        <div style="margin-bottom:14px">
+          <div style="color:var(--sky2);font-size:.58rem;letter-spacing:.12em;margin-bottom:6px">TOOLS & LIBRARIES</div>
+          <div>Claude AI · Gemini AI</div>
+          <div>Lucide Icons (SVG)</div>
+        </div>
         <div style="border-top:1px solid var(--ac13);padding-top:14px;display:flex;flex-direction:column;gap:8px">
           <a href="https://github.com/Tserieskinda/Sfs-System-Editor/blob/main/README.md" target="_blank" style="color:var(--sky2);text-decoration:none;font-size:.62rem;display:flex;align-items:center;gap:8px"><span style="opacity:.5">⬡</span> GitHub Page</a>
           <a href="https://sfsforum.com/index.php?threads/sfs-system-editor-beta.18444/" target="_blank" style="color:var(--sky2);text-decoration:none;font-size:.62rem;display:flex;align-items:center;gap:8px"><span style="opacity:.5">⬡</span> SFS Forums Page</a>
@@ -2114,6 +2132,21 @@
 
     <div class="modal-footer" style="justify-content:center">
       <button class="mf-btn ok" onclick="closeAppSettings()" ontouchend="event.stopPropagation();closeAppSettings()">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ HELP MODAL ══════════════ -->
+<div id="modal-help">
+  <div class="mpanel" style="width:min(90vw,540px);max-height:90vh;overflow-y:auto;display:flex;flex-direction:column">
+    <h2><svg class="icon" style="width:1.2em;height:1.2em;margin-right:8px"><use href="#icon-help"></use></svg>HELP</h2>
+    
+    <div id="help-content" style="flex:1;overflow-y:auto;font-size:.7rem;line-height:1.6;color:var(--ink3);font-family:'JetBrains Mono',monospace">
+      <!-- Help content will be populated by JavaScript -->
+    </div>
+
+    <div class="modal-footer" style="justify-content:center;margin-top:16px">
+      <button class="mf-btn ok" onclick="closeHelpModal()" ontouchend="event.stopPropagation();closeHelpModal()">CLOSE</button>
     </div>
   </div>
 </div>
@@ -2371,6 +2404,7 @@
 <script src="js/placer.js?v=1.0"></script>
 <script src="js/procgen.js?v=1.0"></script>
 <script src="js/landmark-features.js?v=1.1"></script>
+<script src="js/help-modal.js?v=1.0"></script>
 <!-- ══ TERRAIN DETAIL DROPDOWN (body-level to escape topbar stacking context) ══ -->
 <div id="terrain-detail-dropdown" style="display:none;position:fixed;
   min-width:200px;background:rgba(6,10,22,.97);border:1px solid rgba(180,140,255,.25);
