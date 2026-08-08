@@ -138,6 +138,6 @@ Before you say, it is **99% vibecoded.**
 
 Thanks to Astray Galaxy and Neverger (creator of tts) and the Celestia community for the Zip assets.
 Initial Beta testers and contributors- Krameter, Mistiy, ReoreyBoi, Akselajin, Cyn, Cresign, Razan T3, Astray
-Promoter- JJC Aerospace on youtube
+Other- Del SFS
 Hieghtmap code learning- Floating Fuel, SFS Forums community
 And everyone on this [**SFS Forums Page*](https://sfsforum.com/index.php?threads/sfs-system-editor-beta.18444/) !
