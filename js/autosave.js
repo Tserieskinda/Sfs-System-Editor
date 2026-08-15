@@ -208,7 +208,7 @@ async function autosaveRestore() {
       setMsg(`Restoring textures…`);
       let done = 0;
       for (const r of allRecs) {
-        if (!r.key.startsWith('tex:')) continue;
+        if (!r || !r.key || !r.key.startsWith('tex:')) continue;
         if (!assets.textures.find(a => a.name === r.name)) {
           const entry = { name: r.name, url: r.url, size: r.size };
           assets.textures.push(entry);
@@ -228,7 +228,7 @@ async function autosaveRestore() {
     if (rec.hmCount > 0) {
       setMsg(`Restoring heightmaps…`);
       for (const r of allRecs) {
-        if (!r.key.startsWith('hm:')) continue;
+        if (!r || !r.key || !r.key.startsWith('hm:')) continue;
         if (!assets.heightmaps.find(a => a.name === r.name)) {
           const entry = { name: r.name, size: r.size };
           if (r.url)     entry.url     = r.url;
@@ -244,7 +244,7 @@ async function autosaveRestore() {
     if (rec.othCount > 0) {
       setMsg(`Restoring assets…`);
       for (const r of allRecs) {
-        if (!r.key.startsWith('oth:')) continue;
+        if (!r || !r.key || !r.key.startsWith('oth:')) continue;
         if (!assets.other.find(a => a.name === r.name)) {
           const entry = { name: r.name, size: r.size };
           if (r.url)     entry.url     = r.url;
