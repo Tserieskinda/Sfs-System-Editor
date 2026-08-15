@@ -177,7 +177,9 @@ function perlin2D(x, y){
             // Mirrors Stars.cs: Mathf.LerpUnclamped(0.6, 1.8, PerlinNoise(t*0.3, i))
             const pulse = 0.6 + 1.2 * perlin2D(t*0.0003, s.noiseI*0.7);
             const r = s.baseR * pulse;
-            const a = Math.max(0, Math.min(1, 0.55 + 0.35*(pulse-1))) * starIntensity;
+            // Reduced star intensity: base 0.35 (was 0.55) + reduced pulse 0.20 (was 0.35)
+            // This dims stars to approximately 60% of original brightness
+            const a = Math.max(0, Math.min(1, 0.35 + 0.20*(pulse-1))) * starIntensity;
             x.beginPath(); x.arc(s.x, s.y, r, 0, Math.PI*2);
             x.fillStyle = s.col + a + ')'; x.fill();
           });
