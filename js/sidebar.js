@@ -1627,12 +1627,12 @@ function makePPKey(k,i){
   const hex = rgbToHex(k.red||1, k.green||1, k.blue||1);
   const d=document.createElement('div'); d.className='pp-key'; d.id='ppk-'+i;
   d.innerHTML=`<div class="pp-key-header"><span class="pp-key-title">KEY ${i+1}</span><button class="pp-key-del" onclick="delPPKey(${i})">✕</button></div>
-  <div class="frow"><span class="flabel">Height</span><input class="finput" id="ppk-${i}-h" type="text" inputmode="decimal" step="100" value="${k.height||0}" oninput="liveSync()"></div>
-  <div class="frow"><span class="flabel">Shadow Intens.</span><input class="finput" id="ppk-${i}-si" type="text" inputmode="decimal" step="0.05" value="${k.shadowIntensity||1}" oninput="liveSync()"></div>
-  <div class="frow"><span class="flabel">Star Intens.</span><input class="finput" id="ppk-${i}-sti" type="text" inputmode="decimal" step="0.1" value="${k.starIntensity||0}" oninput="liveSync()"></div>
-  <div class="frow"><span class="flabel">Hue Shift</span><input class="finput" id="ppk-${i}-hs" type="text" inputmode="decimal" step="0.1" value="${k.hueShift||0}" oninput="liveSync()"></div>
-  <div class="frow"><span class="flabel">Saturation</span><input class="finput" id="ppk-${i}-sat" type="text" inputmode="decimal" step="0.01" value="${k.saturation||1}" oninput="liveSync()"></div>
-  <div class="frow"><span class="flabel">Contrast</span><input class="finput" id="ppk-${i}-con" type="text" inputmode="decimal" step="0.01" value="${k.contrast||1}" oninput="liveSync()"></div>
+  <div class="frow"><span class="flabel">Height</span><input class="finput" id="ppk-${i}-h" type="text" inputmode="decimal" step="100" value="${k.height||0}"></div>
+  <div class="frow"><span class="flabel">Shadow Intens.</span><input class="finput" id="ppk-${i}-si" type="text" inputmode="decimal" step="0.05" value="${k.shadowIntensity||1}"></div>
+  <div class="frow"><span class="flabel">Star Intens.</span><input class="finput" id="ppk-${i}-sti" type="text" inputmode="decimal" step="0.1" value="${k.starIntensity||0}"></div>
+  <div class="frow"><span class="flabel">Hue Shift</span><input class="finput" id="ppk-${i}-hs" type="text" inputmode="decimal" step="0.1" value="${k.hueShift||0}"></div>
+  <div class="frow"><span class="flabel">Saturation</span><input class="finput" id="ppk-${i}-sat" type="text" inputmode="decimal" step="0.01" value="${k.saturation||1}"></div>
+  <div class="frow"><span class="flabel">Contrast</span><input class="finput" id="ppk-${i}-con" type="text" inputmode="decimal" step="0.01" value="${k.contrast||1}"></div>
   <div class="cpick-wrap"><span class="flabel">RGB Tint</span>
     <input type="color" class="cpick-swatch" id="ppk-${i}-pick" value="${hex}"
       oninput="onCpick('ppk-${i}-pick','ppk-${i}-hex','ppk-${i}-r','ppk-${i}-g','ppk-${i}-b');liveSync()">
