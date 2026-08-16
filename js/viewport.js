@@ -1306,6 +1306,25 @@ function _drawViewportNow(){
       const _ringRatio = b.data.RINGS_DATA.endRadius / ((b.data.BASE_DATA||{}).radius || 1);
       _cullR = Math.max(_cullR, r * _ringRatio);
     }
+    // Extend for FRONT_CLOUDS_DATA too — same reasoning as atmosphere above, but this
+    // one matters far more in practice: the "invisible carrier" pattern (a near-zero-
+    // radius dummy body whose entire visual footprint is a huge FRONT_CLOUDS_DATA.height,
+    // e.g. a shadow/terminator disc orbiting the real planet) makes `r` here collapse to
+    // just the tiny icon floor, since physR_px is sub-pixel for a radius~1 body and no
+    // atmosphere/rings data exists to widen _cullR either. That tiny _cullR then culls the
+    // ENTIRE body — cloud disc included — the instant the carrier's own (practically
+    // meaningless) icon position drifts off-canvas, even though the disc itself, sized off
+    // FRONT_CLOUDS_DATA.height rather than the carrier's own radius, can be huge enough to
+    // still cover visible screen area from off-screen. Mirrors the same fcR_px math used
+    // in the actual front-cloud draw below: (R_eff_px_fc + fcHeight_m) * scale * vpZ.
+    if(b.data.FRONT_CLOUDS_DATA && b.data.FRONT_CLOUDS_DATA.cloudsTexture &&
+       b.data.FRONT_CLOUDS_DATA.cloudsTexture !== 'None'){
+      const _fcAtmoMult  = getAtmoDifficultyMult(b.data);
+      const _fcR_eff_px   = bodyRadius_m * radiusMult;
+      const _fcHeight_m   = Math.max(-_fcR_eff_px * 0.99, (b.data.FRONT_CLOUDS_DATA.height || 0) * _fcAtmoMult);
+      const _fcCullR_px   = (_fcR_eff_px + _fcHeight_m) * scale * vpZ;
+      _cullR = Math.max(_cullR, _fcCullR_px);
+    }
     if(sp.x + _cullR < 0 || sp.x - _cullR > W || sp.y + _cullR < 0 || sp.y - _cullR > H) return;
 
     // ── Icon-overlap cull ────────────────────────────────────────────────────
