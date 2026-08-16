@@ -2717,6 +2717,14 @@ function _drawViewportNow(){
     // alpha toward zero at the disc edge. We replicate this with a destination-out
     // radial mask applied after drawing the image.
     if(envFlags.fclouds && !envFlags.heightmaps && b.data.FRONT_CLOUDS_DATA){
+      // TEMP instrumentation — always fires, regardless of any gate below,
+      // so we can confirm whether execution reaches this block at all for
+      // a given body before any of fcImg/fcAlpha/etc. get evaluated.
+      console.log('[FC_ENTRY]', name, {
+        cloudsTexture: b.data.FRONT_CLOUDS_DATA.cloudsTexture,
+        cachedTex: !!textureCache[b.data.FRONT_CLOUDS_DATA.cloudsTexture],
+        sp, physR_px, bodyRadius_m, radiusMult, scale, vpZ
+      });
       const FCD = b.data.FRONT_CLOUDS_DATA;
       const fcTex = FCD.cloudsTexture;
       const fcImg = fcTex && fcTex !== 'None' && textureCache[fcTex];
