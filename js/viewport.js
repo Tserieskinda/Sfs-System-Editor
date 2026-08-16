@@ -1250,16 +1250,6 @@ function _drawViewportNow(){
   // FrontClouds.cs gives every layer the same sortingOrder and only
   // positionZ (a flat, global Z) ever decides relative order.
   const _fcDeferred = [];
-  // Unified deferred rendering for all visual elements (rings, atmospheres, water,
-  // fog, front-clouds). Sorts by composite Z-key: bodyDepth * 10000 + elementPositionZ.
-  // This ensures visual hierarchy is respected: deeper bodies (moons) render over
-  // shallower ones (planets) regardless of element type. Each entry contains:
-  // {type, z, ...elementData}
-  const _visualLayersDeferred = [];
-  // Atmospheres are deferred to the end and sorted by Z-depth so overlapping
-  // atmospheres from different bodies composite in the correct order. Each
-  // entry contains {z, polarCanvas, x, y, drawR, innerFracClamped, hasTerrain, atmoFade, bodyName}.
-  const _atmoDeferred = [];
   // Screen-space discs drawn so far this frame, used by the icon-overlap cull
   // below to keep bigger bodies visually on top of smaller ones.
   const _drawnDiscs = [];
@@ -1487,20 +1477,15 @@ function _drawViewportNow(){
                 drawViewport._ringStopCache[ringStopKey] = stops;
               }
               const stops = drawViewport._ringStopCache[ringStopKey];
-              
-              // Defer rings rendering to post-loop pass with unified Z-sorting.
-              // Composite Z-key: bodyDepth * 10000 + ringPositionZ ensures rings from
-              // deeper bodies (moons) render on top of shallower ones (planets).
-              _visualLayersDeferred.push({
-                type: 'rings',
-                z: (_bodyDepth[name] || 0) * 10000 + (RD.positionZ || 0),
-                sp_x: sp.x,
-                sp_y: sp.y,
-                safeInner: safeInner,
-                safeOuter: safeOuter,
-                stops: stops,
-                bodyName: name
-              });
+              const grad = ctx2.createRadialGradient(sp.x, sp.y, safeInner, sp.x, sp.y, safeOuter);
+              for(const [t, col] of stops) grad.addColorStop(t, col);
+              ctx2.save();
+              ctx2.beginPath();
+              ctx2.arc(sp.x, sp.y, safeOuter, 0, Math.PI*2);
+              ctx2.arc(sp.x, sp.y, safeInner, 0, Math.PI*2, true);
+              ctx2.fillStyle = grad;
+              ctx2.fill();
+              ctx2.restore();
             }
           }
         }
@@ -1747,28 +1732,54 @@ function _drawViewportNow(){
               drawViewport._atmoPolarCache[cacheKey] = polarCanvas;
             }
 
-            // ── Defer atmosphere rendering ──
-            // Atmospheres are deferred to a post-loop pass and sorted by Z-depth so
-            // overlapping atmospheres from different bodies composite in correct order.
-            // This matches how FrontClouds are deferred: each layer renders in global
-            // Z order regardless of which body owns it, allowing atmosphere from body
-            // A to correctly layer under/over atmosphere from body B based on their
-            // relative visual depth in the scene hierarchy (via _bodyDepth).
-            const atmosPositionZ = b.data.ATMOSPHERE_VISUALS_DATA?.positionZ ?? -1;
-            const unifiedZ = (_bodyDepth[name] || 0) * 10000 + atmosPositionZ;
-            
-            _visualLayersDeferred.push({
-              type: 'atmosphere',
-              z: unifiedZ,
-              polarCanvas: polarCanvas,
-              sp_x: sp.x,
-              sp_y: sp.y,
-              drawR: drawR,
-              innerFracClamped: innerFracClamped,
-              hasTerrain: hasTerrain,
-              atmoFade: atmoFade,
-              bodyName: name
-            });
+            // ── Draw the polar disc — viewport-cropped ──
+            // When drawR is huge (large star atmosphere zoomed in) the full-disc
+            // drawImage scales a 512px canvas to thousands of screen pixels, forcing
+            // the GPU to process an enormous blit even though only a small viewport
+            // slice is visible. Instead we compute exactly which portion of the polar
+            // canvas maps onto the current viewport and only blit that rectangle.
+            // The arc clip below then masks it to the correct disc/ring shape.
+            ctx2.save();
+            ctx2.globalAlpha = atmoFade;
+            ctx2.globalCompositeOperation = hasTerrain ? 'source-over' : 'lighter';
+
+            if(hasTerrain){
+              ctx2.beginPath();
+              ctx2.arc(sp.x, sp.y, drawR, 0, Math.PI*2);
+              ctx2.clip();
+            } else {
+              ctx2.beginPath();
+              ctx2.arc(sp.x, sp.y, drawR, 0, Math.PI*2);
+              ctx2.clip();
+            }
+
+            {
+              const SZ = polarCanvas.width; // 512
+              const fullD = drawR * 2;      // full disc diameter in screen px
+
+              // Destination rect: intersection of the full disc bounding box with viewport
+              const discL = sp.x - drawR, discT = sp.y - drawR;
+              const dstX = Math.max(0, discL);
+              const dstY = Math.max(0, discT);
+              const dstR = Math.min(W, discL + fullD);
+              const dstB = Math.min(H, discT + fullD);
+              const dstW = dstR - dstX;
+              const dstH = dstB - dstY;
+
+              if(dstW > 0 && dstH > 0){
+                // Corresponding source rect in the 512×512 polar canvas
+                const scale = SZ / fullD; // polar-canvas px per screen px
+                const srcX = (dstX - discL) * scale;
+                const srcY = (dstY - discT) * scale;
+                const srcW = dstW * scale;
+                const srcH = dstH * scale;
+                ctx2.imageSmoothingEnabled = true;
+                ctx2.imageSmoothingQuality = 'high';
+                ctx2.drawImage(polarCanvas, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH);
+              }
+            }
+
+            ctx2.restore();
             } // end else (innerFrac < 1.0)
           }
         }
@@ -2272,22 +2283,17 @@ function _drawViewportNow(){
         // tints the layer via the atmosphere renderer drawn on top.
         // opacity_Surface controls base transparency.
         const waterAlpha = Math.min(1, (WD.opacity_Surface ?? 0.8));
-        
-        // Defer water rendering to post-loop pass with unified Z-sorting.
-        // Water has positionZ=0 (renders at surface level). Composite Z-key:
-        // bodyDepth * 10000 + 0 ensures water from deeper bodies renders on top.
-        _visualLayersDeferred.push({
-          type: 'water',
-          z: (_bodyDepth[name] || 0) * 10000 + 0,  // water positionZ = 0 (surface)
-          sp_x: sp.x,
-          sp_y: sp.y,
-          radius: Math.max(r, physR_px),
-          wCanvas: wCanvas,
-          wtDrawHalf: wtDrawHalf,
-          wtRotRad: wtRotRad,
-          waterAlpha: waterAlpha,
-          bodyName: name
-        });
+        ctx2.save();
+        // Water clips to plain disc (NOT terrain polygon) — water fills the depressed areas
+        // that were cut from the terrain polygon, so clipping to terrain would hide all water.
+        ctx2.beginPath();
+        ctx2.arc(sp.x, sp.y, Math.max(r, physR_px), 0, Math.PI * 2);
+        ctx2.clip();
+        ctx2.globalAlpha *= waterAlpha;
+        ctx2.translate(sp.x, sp.y);
+        ctx2.rotate(wtRotRad);
+        ctx2.drawImage(wCanvas, -wtDrawHalf, -wtDrawHalf, wtDrawHalf*2, wtDrawHalf*2);
+        ctx2.restore();
       }
     }
 
@@ -2675,20 +2681,12 @@ function _drawViewportNow(){
             drawViewport._fogCache[fogCacheKey] = fogCanvas;
           }
           const fogR_px = physR_px;
-          
-          // Defer fog rendering to post-loop pass with unified Z-sorting.
-          // Fog uses atmosphere's positionZ (-1, slightly behind surface).
-          // Composite Z-key: bodyDepth * 10000 + positionZ ensures fog from
-          // deeper bodies renders on top of shallower ones.
-          _visualLayersDeferred.push({
-            type: 'fog',
-            z: (_bodyDepth[name] || 0) * 10000 + (b.data.ATMOSPHERE_VISUALS_DATA?.positionZ || -1),
-            sp_x: sp.x,
-            sp_y: sp.y,
-            fogR_px: fogR_px,
-            fogCanvas: fogCanvas,
-            bodyName: name
-          });
+          ctx2.save();
+          ctx2.globalAlpha = 1;
+          ctx2.globalCompositeOperation = 'source-over';
+          ctx2.beginPath(); ctx2.arc(sp.x, sp.y, fogR_px, 0, Math.PI*2); ctx2.clip();
+          ctx2.drawImage(fogCanvas, sp.x - fogR_px, sp.y - fogR_px, fogR_px * 2, fogR_px * 2);
+          ctx2.restore();
         }
       }
     }
@@ -2916,12 +2914,8 @@ function _drawViewportNow(){
           // is unchanged; only the final blit onto ctx2 moves to a later, globally
           // Z-sorted pass so this layer can correctly darken/light ANY body's
           // surface, not just bodies drawn later than it in hierarchy order.
-          const fcPositionZ = (typeof FCD.positionZ === 'number') ? FCD.positionZ : 0;
-          const fcUnifiedZ = (_bodyDepth[name] || 0) * 10000 + fcPositionZ;
-          
-          _visualLayersDeferred.push({
-            type: 'frontClouds',
-            z: fcUnifiedZ,
+          _fcDeferred.push({
+            z: (typeof FCD.positionZ === 'number') ? FCD.positionZ : 0,
             scratch: fcScratch,
             x: sp.x - fcR_px,
             y: sp.y - fcR_px,
@@ -3202,96 +3196,15 @@ function _drawViewportNow(){
   // and anything with more-negative Z than the shadow still correctly
   // layers back on top of it afterward, matching FrontClouds.cs where every
   // layer shares one sortingOrder and only this flat Z ever decides order.
-
-  // ── Unified Deferred Visual Layers Rendering ──
-  // ALL visual elements (rings, atmospheres, water, fog, front-clouds) are sorted
-  // by unified Z-key: bodyDepth * 10000 + elementPositionZ. This ensures correct
-  // visual hierarchy: bodies deeper in hierarchy (moons) render over shallower
-  // ones (planets), and within each body, elements respect their positionZ.
-  // All use 'source-over' blending to match game's default (Blend SrcAlpha OneMinusSrcAlpha).
-  // 
-  // Z-order example:
-  //   Moon (depth=2): rings (z=20000) → front-clouds (z=15000)
-  //   Planet (depth=1): rings (z=10000) → front-clouds (z=5000)
-  // Sorted descending: [20000, 15000, 10000, 5000] renders correctly with moons on top.
-  _visualLayersDeferred
+  _fcDeferred
     .sort((a, b) => b.z - a.z)
     .forEach(entry => {
       try {
         ctx2.save();
-        ctx2.globalCompositeOperation = 'source-over';
-        
-        switch(entry.type) {
-          case 'rings': {
-            const grad = ctx2.createRadialGradient(entry.sp_x, entry.sp_y, entry.safeInner, entry.sp_x, entry.sp_y, entry.safeOuter);
-            for(const [t, col] of entry.stops) grad.addColorStop(t, col);
-            ctx2.beginPath();
-            ctx2.arc(entry.sp_x, entry.sp_y, entry.safeOuter, 0, Math.PI*2);
-            ctx2.arc(entry.sp_x, entry.sp_y, entry.safeInner, 0, Math.PI*2, true);
-            ctx2.fillStyle = grad;
-            ctx2.fill();
-            break;
-          }
-          
-          case 'atmosphere': {
-            ctx2.globalAlpha = entry.atmoFade;
-            ctx2.beginPath();
-            ctx2.arc(entry.sp_x, entry.sp_y, entry.drawR, 0, Math.PI*2);
-            ctx2.clip();
-            
-            const SZ = entry.polarCanvas.width;
-            const fullD = entry.drawR * 2;
-            const discL = entry.sp_x - entry.drawR;
-            const discT = entry.sp_y - entry.drawR;
-            const dstX = Math.max(0, discL);
-            const dstY = Math.max(0, discT);
-            const dstR = Math.min(W, discL + fullD);
-            const dstB = Math.min(H, discT + fullD);
-            const dstW = dstR - dstX;
-            const dstH = dstB - dstY;
-            
-            if(dstW > 0 && dstH > 0){
-              const scale = SZ / fullD;
-              const srcX = (dstX - discL) * scale;
-              const srcY = (dstY - discT) * scale;
-              const srcW = dstW * scale;
-              const srcH = dstH * scale;
-              ctx2.imageSmoothingEnabled = true;
-              ctx2.imageSmoothingQuality = 'high';
-              ctx2.drawImage(entry.polarCanvas, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH);
-            }
-            break;
-          }
-          
-          case 'water': {
-            ctx2.globalAlpha = entry.waterAlpha;
-            ctx2.beginPath();
-            ctx2.arc(entry.sp_x, entry.sp_y, entry.radius, 0, Math.PI * 2);
-            ctx2.clip();
-            ctx2.translate(entry.sp_x, entry.sp_y);
-            ctx2.rotate(entry.wtRotRad);
-            ctx2.drawImage(entry.wCanvas, -entry.wtDrawHalf, -entry.wtDrawHalf, entry.wtDrawHalf*2, entry.wtDrawHalf*2);
-            break;
-          }
-          
-          case 'fog': {
-            ctx2.globalAlpha = 1;
-            ctx2.beginPath();
-            ctx2.arc(entry.sp_x, entry.sp_y, entry.fogR_px, 0, Math.PI*2);
-            ctx2.clip();
-            ctx2.drawImage(entry.fogCanvas, entry.sp_x - entry.fogR_px, entry.sp_y - entry.fogR_px, entry.fogR_px * 2, entry.fogR_px * 2);
-            break;
-          }
-          
-          case 'frontClouds': {
-            ctx2.globalAlpha = entry.alpha;
-            ctx2.drawImage(entry.scratch, entry.x, entry.y, entry.size, entry.size);
-            break;
-          }
-        }
-        
+        ctx2.globalAlpha = entry.alpha;
+        ctx2.drawImage(entry.scratch, entry.x, entry.y, entry.size, entry.size);
         ctx2.restore();
-      } catch(e) { console.error('[SFS|DRAW] Error compositing deferred visual layer ('+entry.type+' '+entry.bodyName+'): '+e.message, e); }
+      } catch(e) { console.error('[SFS|DRAW] Error compositing deferred front-clouds: '+e.message, e); }
     });
 
   // ── Front-cloud debug overlay ──
