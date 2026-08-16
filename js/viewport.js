@@ -2697,7 +2697,7 @@ function _drawViewportNow(){
     // Soft edge fade: the game's FrontClouds shader uses a _FadeZoneM that fades
     // alpha toward zero at the disc edge. We replicate this with a destination-out
     // radial mask applied after drawing the image.
-    if(envFlags.fclouds && !envFlags.heightmaps && atmoFade > 0 && b.data.FRONT_CLOUDS_DATA){
+    if(envFlags.fclouds && !envFlags.heightmaps && b.data.FRONT_CLOUDS_DATA){
       const FCD = b.data.FRONT_CLOUDS_DATA;
       const fcTex = FCD.cloudsTexture;
       const fcImg = fcTex && fcTex !== 'None' && textureCache[fcTex];
@@ -2715,31 +2715,55 @@ function _drawViewportNow(){
         // _TextureCutout never re-enters as an overall opacity multiplier. Previously fcAlpha
         // multiplied fcCutClamped in here too, silently dimming/fading front-cloud discs whose
         // texture is deliberately cropped tight (cutout < 1) with no basis in the real shader.
-        const fcAlpha = atmoFade;
+        //
+        // fcAlpha's LOD fade used to just be `atmoFade` — computed from the CARRIER body's
+        // own on-screen radius (physR_px), not from the cloud disc it actually draws. That's
+        // fine when the body and its clouds are comparable sizes, but it breaks the common
+        // "invisible carrier" pattern: a near-zero-radius dummy body (BASE_DATA.radius ~1,
+        // e.g. a moving shadow/terminator layer orbiting the real planet) whose entire visual
+        // footprint comes from a huge FRONT_CLOUDS_DATA.height. physR_px for a radius-1 body
+        // is always sub-pixel, so atmoFade permanently clamped to 0 (see its formula above:
+        // (physR_px - _atmoLod)/_atmoLod, floor _atmoLod=2px) and the disc never drew, no
+        // matter the zoom or the disc's own actual on-screen size. Fix: compute fcR_px (the
+        // disc's real screen radius) first, then derive ITS OWN LOD fade from that, mirroring
+        // the atmoFade formula above but keyed to the cloud disc's own physical outer size
+        // instead of the carrier body's.
+        //
+        // Difficulty.ScalePlanetData: frontClouds.height *= atmoMult;
+        // frontClouds.fadeZoneHeight *= atmoMult; — both were being read raw here,
+        // so front-cloud discs (shadow terminators, city lights, etc.) sat at the
+        // wrong altitude on anything but Normal difficulty. Apply atmoMult, and
+        // — same fix as the atmosphere halo above — use the radiusMult-scaled
+        // body radius (R_eff_px) as the ratio denominator, not raw bodyRadius_m,
+        // since physR_px already has radiusMult baked in and the two multipliers
+        // (radiusMult, atmoMult) are independent in-game.
+        const fcAtmoMult  = getAtmoDifficultyMult(b.data);
+        const R_eff_px_fc = bodyRadius_m * radiusMult;
+        // Clamp so a negative FRONT_CLOUDS_DATA.height (now reachable via the
+        // day/night SMA-offset slider) can never push the effective disc
+        // radius (R_eff_px_fc + fcHeight_m) to zero/negative — that would
+        // flip fcR_px negative and corrupt all the downstream circle math.
+        const fcHeight_m  = Math.max(-R_eff_px_fc * 0.99, (FCD.height || 0) * fcAtmoMult);
+        // Screen radius of the cloud disc. Built from `scale * vpZ` (px-per-metre,
+        // same factors physR_px itself is built from — see its definition above)
+        // rather than "physR_px * ratio", so it stays correct even when the carrier
+        // body's own radius is ~0 (the ratio form divided by R_eff_px_fc and
+        // produced 0/0 = NaN for a true zero-radius carrier).
+        const fcR_px      = (R_eff_px_fc + fcHeight_m) * scale * vpZ;
+        // Same LOD-fade shape as atmoFade (see _atmoLod/_atmoPhysOuter_m above), but
+        // driven by the cloud disc's own physical outer size, not the carrier body's.
+        const fcPhysOuter_m = R_eff_px_fc + fcHeight_m; // metres, unscaled
+        const fcLod = fcPhysOuter_m > 0
+          ? Math.min(32, Math.max(2, 2 * Math.log10(Math.max(1, fcPhysOuter_m / 1e5))))
+          : 2;
+        const fcAlpha = Math.max(0, Math.min(1, (fcR_px - fcLod) / Math.max(fcLod, 0.01)));
         if(fcAlpha > 0.01){
-          // Difficulty.ScalePlanetData: frontClouds.height *= atmoMult;
-          // frontClouds.fadeZoneHeight *= atmoMult; — both were being read raw here,
-          // so front-cloud discs (shadow terminators, city lights, etc.) sat at the
-          // wrong altitude on anything but Normal difficulty. Apply atmoMult, and
-          // — same fix as the atmosphere halo above — use the radiusMult-scaled
-          // body radius (R_eff_px) as the ratio denominator, not raw bodyRadius_m,
-          // since physR_px already has radiusMult baked in and the two multipliers
-          // (radiusMult, atmoMult) are independent in-game.
-          const fcAtmoMult  = getAtmoDifficultyMult(b.data);
-          const R_eff_px_fc = bodyRadius_m * radiusMult;
-          // Clamp so a negative FRONT_CLOUDS_DATA.height (now reachable via the
-          // day/night SMA-offset slider) can never push the effective disc
-          // radius (R_eff_px_fc + fcHeight_m) to zero/negative — that would
-          // flip fcR_px negative and corrupt all the downstream circle math.
-          const fcHeight_m  = Math.max(-R_eff_px_fc * 0.99, (FCD.height || 0) * fcAtmoMult);
           // Distinguish "explicitly set to 0" (true hard edge) from "field never
           // set" (older planet files without this key at all) — both used to
           // collapse to the same fcFadeZone_m===0 value below, which silently
           // forced every hard-edge request into an 8% fallback fade instead.
           const fcFadeZoneSpecified = FCD.fadeZoneHeight != null;
           const fcFadeZone_m = (FCD.fadeZoneHeight || 0) * fcAtmoMult;
-
-          const fcR_px      = physR_px * (R_eff_px_fc + fcHeight_m) / R_eff_px_fc;
 
           // fadeZoneHeight is world-space — convert to a fraction of the cloud radius
           // so it's zoom-independent (used in cache key and for rendering).
