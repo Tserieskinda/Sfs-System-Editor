@@ -185,10 +185,6 @@ function inferPresetMeta(name, data){
   const collider   = data.TERRAIN_DATA?.collider !== false;
   const n = name.toLowerCase();
 
-  if(n.includes('barycentre') || n.includes('barycenter'))
-    return _metaForId('barycentre', name);
-  if(r < 200 && !hasTerrain)
-    return _metaForId('barycentre', name);
   if(n.includes('black hole') || n.includes('blackhole') || n.includes(' bh') || n.endsWith('bh') || n.includes('solar mass bh'))
     return _metaForId('blackhole', name);
   if(!hasOrbit || g > 5000)
