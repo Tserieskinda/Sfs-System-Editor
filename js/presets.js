@@ -185,6 +185,17 @@ function inferPresetMeta(name, data){
   const collider   = data.TERRAIN_DATA?.collider !== false;
   const n = name.toLowerCase();
 
+  if(n.includes('barycentre') || n.includes('barycenter'))
+    return _metaForId('barycentre', name);
+  // Removed: `if(r < 200 && !hasTerrain) return barycentre` — this structurally
+  // guessed "barycentre" for ANY small, terrain-less body, which silently
+  // misclassifies the common "invisible carrier" pattern (a near-zero-radius
+  // dummy body with no TERRAIN_DATA whose entire purpose is hosting a huge
+  // FRONT_CLOUDS_DATA/ATMOSPHERE overlay — e.g. a shadow/terminator layer).
+  // A real, empty barycentre marker is now only inferred from its name; a
+  // small terrain-less body with no other signals falls through below and
+  // lands on 'asteroid' (r<500) via the !hasTerrain branch, which carries no
+  // special-cased rendering shortcuts.
   if(n.includes('black hole') || n.includes('blackhole') || n.includes(' bh') || n.endsWith('bh') || n.includes('solar mass bh'))
     return _metaForId('blackhole', name);
   if(!hasOrbit || g > 5000)

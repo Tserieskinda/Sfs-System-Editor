@@ -1362,7 +1362,13 @@ function _drawViewportNow(){
     ctx2.save();
     ctx2.globalAlpha = bodyFadeA;
 
-    // ── Barycentre: just a small cross marker ──
+    // ── Barycentre: small cross marker ──
+    // Only short-circuits the rest of the per-body pipeline when the body has
+    // no visual data of its own. A body carrying real FRONT_CLOUDS_DATA/
+    // ATMOSPHERE/RINGS/TERRAIN (e.g. the "invisible carrier" pattern — a
+    // near-zero-radius, terrain-less body used purely to host a huge
+    // FRONT_CLOUDS_DATA overlay) still needs to reach that code below, so it
+    // falls through instead of being discarded here.
     if(b.preset === 'barycentre'){
       ctx2.strokeStyle = 'rgba(180,180,255,0.5)';
       ctx2.lineWidth = 1;
@@ -1374,8 +1380,15 @@ function _drawViewportNow(){
       if(typeof groupSelectMode !== 'undefined' && groupSelectMode && typeof groupSelected !== 'undefined' && groupSelected.has(name)){ ctx2.beginPath(); polygonCircle(ctx2,sp.x,sp.y,11,64); ctx2.closePath(); ctx2.strokeStyle='rgba(255,155,40,0.9)'; ctx2.lineWidth=2; ctx2.setLineDash([3,3]); ctx2.stroke(); ctx2.setLineDash([]); }
       ctx2.fillStyle='rgba(150,200,240,0.7)'; ctx2.font='9px "JetBrains Mono",monospace'; ctx2.textAlign='center';
       ctx2.fillText(name, sp.x, sp.y+18);
-      ctx2.restore(); // must restore before early return
-      return;
+      const _hasOwnVisuals = !!(b.data.FRONT_CLOUDS_DATA || b.data.ATMOSPHERE_PHYSICS_DATA ||
+                                 b.data.RINGS_DATA || b.data.TERRAIN_DATA);
+      if(!_hasOwnVisuals){
+        ctx2.restore(); // must restore before early return
+        return;
+      }
+      // fall through, deliberately NOT restoring — the rest of the per-body
+      // pipeline expects ctx2 to still be in the bodyFadeA-applied save state
+      // (it's balanced by the "end bodyFadeA globalAlpha" restore further down).
     }
 
     // ── Star / black hole glow ──
@@ -2717,14 +2730,6 @@ function _drawViewportNow(){
     // alpha toward zero at the disc edge. We replicate this with a destination-out
     // radial mask applied after drawing the image.
     if(envFlags.fclouds && !envFlags.heightmaps && b.data.FRONT_CLOUDS_DATA){
-      // TEMP instrumentation — always fires, regardless of any gate below,
-      // so we can confirm whether execution reaches this block at all for
-      // a given body before any of fcImg/fcAlpha/etc. get evaluated.
-      console.log('[FC_ENTRY]', name, {
-        cloudsTexture: b.data.FRONT_CLOUDS_DATA.cloudsTexture,
-        cachedTex: !!textureCache[b.data.FRONT_CLOUDS_DATA.cloudsTexture],
-        sp, physR_px, bodyRadius_m, radiusMult, scale, vpZ
-      });
       const FCD = b.data.FRONT_CLOUDS_DATA;
       const fcTex = FCD.cloudsTexture;
       const fcImg = fcTex && fcTex !== 'None' && textureCache[fcTex];
