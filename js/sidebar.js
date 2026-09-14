@@ -1251,6 +1251,63 @@ function setSlider(id, v, min, max){
   if(val) val.textContent = clamped;
 }
 
+// ── Right Ascension ↔ Argument of Periapsis ────────────────────────────────
+// RA convention: 0h = 0° (right, +x), increasing counter-clockwise like a
+// standard math angle — matches the editor's existing AOP convention exactly
+// (aopRad drives x=cos(aop), y=sin(aop)), so the conversion is a pure
+// linear scale: degrees = hours * 15, with no offset or direction flip.
+function _raToDeg(h, m, s){
+  const hh = (h || 0) + (m || 0) / 60 + (s || 0) / 3600;
+  return hh * 15;
+}
+function _degToRa(deg){
+  // Normalise to [0, 360) before converting to [0h, 24h)
+  let d = deg % 360; if(d < 0) d += 360;
+  const totalH = d / 15;
+  const h = Math.floor(totalH);
+  const remM = (totalH - h) * 60;
+  const m = Math.floor(remM);
+  const s = (remM - m) * 60;
+  return { h, m, s };
+}
+// Called when the user edits the RA h/m/s fields — pushes into or-aop.
+function syncRaToAop(){
+  const hEl = document.getElementById('or-ra-h');
+  const mEl = document.getElementById('or-ra-m');
+  const sEl = document.getElementById('or-ra-s');
+  if(!hEl || !mEl || !sEl) return;
+  const h = parseFloat(hEl.value) || 0;
+  const m = parseFloat(mEl.value) || 0;
+  const s = parseFloat(sEl.value) || 0;
+  const deg = _raToDeg(h, m, s);
+  const aopInp = document.getElementById('or-aop');
+  if(!aopInp) return;
+  aopInp.value = deg.toFixed(1);
+  syncSlider('or-aop', -360, 360);
+  // Mirror into the RA readout label (matches the pattern used by other -val spans)
+  const raVal = document.getElementById('or-ra-val');
+  if(raVal) raVal.textContent = deg.toFixed(1) + '°';
+  // syncSlider does not itself dispatch 'input' on or-aop's own listener chain
+  // (it only updates the slider), so we still need to notify liveSync manually
+  // since this edit originates from the RA fields, not the AOP input itself.
+  aopInp.dispatchEvent(new Event('input', { bubbles: true }));
+}
+// Called when the user edits AOP directly (input or slider) — pushes into RA fields.
+function syncAopToRA(){
+  const aopInp = document.getElementById('or-aop');
+  const hEl = document.getElementById('or-ra-h');
+  const mEl = document.getElementById('or-ra-m');
+  const sEl = document.getElementById('or-ra-s');
+  if(!aopInp || !hEl || !mEl || !sEl) return;
+  const deg = parseFloat(aopInp.value) || 0;
+  const { h, m, s } = _degToRa(deg);
+  hEl.value = h;
+  mEl.value = m;
+  sEl.value = s.toFixed(1);
+  const raVal = document.getElementById('or-ra-val');
+  if(raVal) raVal.textContent = (((deg % 360) + 360) % 360).toFixed(1) + '°';
+}
+
 // Call after populating a slider-augmented input to sync the thumb position
 function initSlider(id, min, max){
   const inp = document.getElementById(id);
@@ -1557,6 +1614,7 @@ function fillSidebar(name){
   setVal('or-sh', sds.Hard      ?? '');
   setVal('or-sr', sds.Realistic ?? '');
   setSlider('or-ecc', OR.eccentricity, 0, 0.999); setSlider('or-aop', OR.argumentOfPeriapsis, -360, 360);
+  syncAopToRA();
   initSlider('or-ecc',0,0.999);
   initSlider('or-aop',-360,360);
   setSelectVal('or-dir', String(OR.direction ?? 1));  // ?? not || so 0 is preserved

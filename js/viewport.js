@@ -1854,39 +1854,17 @@ function _drawViewportNow(){
     const _vsRaw = b.data.TERRAIN_DATA?.verticeSize;
     const _vs = (_vsRaw > 0) ? _vsRaw : 2.0; // default 2m matches game default
 
-    // ── Visible arc — computed once, shared by all terrain draw calls for this body ──
-    // Only meaningful when the planet is large on screen (physR_px > 200); below that
-    // the overhead of arc computation exceeds the savings from culling.
-    // Disabled for small bodies (radius < 15000m) — at that scale the full circle
-    // is cheap and arc-culling artifacts are visually prominent.
-    // Computed BEFORE the vertex cap below so a tight arc can also tighten that cap
-    // (see _vsMaxN comment) — moved up from its previous spot after terrN.
     const _canArcCull = envFlags.heightmaps && physR_px > 200 && (bodyRadius_m * radiusMult) >= 15000;
     const _arcInfo = _canArcCull
       ? (() => {
           const _dispR_px = Math.max(r, physR_px);
           const _r_m = Math.max(1, bodyRadius_m * radiusMult);
-          // Pad the bounding circle by max terrain height so irregular bodies
-          // (large asteroids etc.) don't get their bumps wrongly culled —
-          // same reasoning as the game's own Radius+maxTerrainHeight bounding
-          // in DynamicChunk. Without this, arc culling assumes a perfect
-          // circle and can clip terrain that actually pokes onto screen.
           const _maxH_m = _getMaxTerrainHeight(name, b, _r_m);
           const _paddedR_px = _dispR_px * (_r_m + _maxH_m) / _r_m;
           return _computeVisibleArc(sp, _paddedR_px, W, H);
         })()
       : null;
 
-    // Hard physics cap: game never places vertices closer than verticeSize metres apart.
-    //   maxN = floor(2π × radius_m / verticeSize)
-    // This prevents over-sampling small bodies beyond the game's own resolution.
-    //
-    // BUT: for a large body with only a small arc visible (deeply zoomed in), capping
-    // by the FULL circumference is nearly meaningless — e.g. a 500km-radius asteroid
-    // at the default 2m verticeSize gives a ~1.57M vertex ceiling regardless of how
-    // much is actually on screen, doing nothing to bound the real worst case. When
-    // arc-culled, cap by the VISIBLE ARC's own physical length instead — that's the
-    // actual amount of terrain the game would ever need this much detail for at once.
     const _vsMaxN = (_arcInfo && !_arcInfo.fullCircle)
       ? Math.max(90, Math.floor((_arcInfo.arcEnd - _arcInfo.arcStart) * (bodyRadius_m * radiusMult) / _vs))
       : Math.max(90, Math.floor(2 * Math.PI * (bodyRadius_m * radiusMult) / _vs));
@@ -3789,13 +3767,7 @@ function _evalTerrainFormula(formulaLines, angles_rad, radius_m) {
 
         for (let i = 0; i < N; i++) {
           let v = _hmEval(pts, angles_rad[i] * num);
-          // C# AddHeightMap applies the curve via EvaluateDoubleOut (wraps via
-          // modulo), NOT EvaluateClamped (hard clamp) — those are deliberately
-          // different methods in the source, used in different places. _hmEval
-          // already replicates EvaluateDoubleOut's wrap-around exactly, so pass
-          // v straight through; clamping here would silently change the curve
-          // shape for any heightmap sample that lands outside [0,1].
-          if (curvePts) v = _hmEval(curvePts, v);
+          if (curvePts) v = _hmEval(curvePts, Math.max(0, Math.min(1, v)));
           if (multArr)  v *= multArr[i];
           target[i] += v * hmHeight;
         }
@@ -3906,7 +3878,7 @@ function char_isDigit(c)  { return c >= '0' && c <= '9'; }
 // where normalPosition is a unit vector (cos,sin).
 // The mask canvas stores the texture occupying the full [0,1] UV space,
 // so we must scale the unit circle by (cutout * 0.5) before mapping to pixels.
-function _applyWaterDepression(heights, angles_rad, maskPixels, maskSZ, oceanDepth, texRotRad, cutout) {
+function _applyWaterDepression(heights, angles_rad, maskPixels, maskSZ, oceanDepth, texRotRad, cutout, depressionOut) {
   if (!maskPixels) return;
   const SZ = maskSZ;
   // cutout scales how far from centre the planet edge sits in UV space.
@@ -3938,7 +3910,12 @@ function _applyWaterDepression(heights, angles_rad, maskPixels, maskSZ, oceanDep
     //       num = GetWaterColor * 2  (ranges -1 land → +1 ocean)
     //       depression = num * oceanDepth + 50
     const num = (0.5 - pixelR) * 2 * oceanDepth + 50;
-    if (num > 0) heights[i] -= num;
+    if (num > 0) {
+      heights[i] -= num;
+      if (depressionOut) depressionOut[i] = num;
+    } else if (depressionOut) {
+      depressionOut[i] = 0;
+    }
   }
 }
 
@@ -3948,7 +3925,7 @@ function _applyWaterDepression(heights, angles_rad, maskPixels, maskSZ, oceanDep
 // InverseLerp directly on the raw angle values.  We replicate that exactly.
 // The editor's angles array runs [0, 2π), and fz.angle is stored in that same
 // space, so no wrapping is needed or correct here.
-function _applyFlatZones(heights, angles_rad, flatZones, radius_m) {
+function _applyFlatZones(heights, angles_rad, flatZones, radius_m, depressions) {
   if (!flatZones || !flatZones.length) return;
   for (const fz of flatZones) {
     // Game: num2 = (width + transition) / radius / 2
@@ -3970,7 +3947,15 @@ function _applyFlatZones(heights, angles_rad, flatZones, radius_m) {
       const tLeft  = halfFull === halfInner ? 0 : (a - zoneMin)  / (innerMin - zoneMin);
       const tRight = halfFull === halfInner ? 0 : (a - zoneMax)  / (innerMax - zoneMax);
       const tc = Math.max(0, Math.min(1, Math.min(tLeft, tRight)));
-      if (tc > 0) heights[i] = heights[i] * (1 - tc) + fz.height * tc;
+      if (tc > 0) {
+        heights[i] = heights[i] * (1 - tc) + fz.height * tc;
+        // Proportionally remove water tint wherever a flatzone raises terrain
+        // that water depression had lowered — matches the game's own order
+        // (flatzones applied AFTER water depression, so they can fully or
+        // partially override it). A fully-flattened point (tc=1) should show
+        // no sand/floor tint at all, since it's no longer underwater.
+        if (depressions) depressions[i] *= (1 - tc);
+      }
     }
   }
 }
@@ -4082,15 +4067,6 @@ const _terrainSampleCache = {};
 
 // ── Max terrain height (mirrors Planet.cs: maxTerrainHeight = TerrainModule.
 //    GetMaxTerrainHeight(planet) + 200) ─────────────────────────────────────
-// The game brute-forces this once per planet at load: 1001 evenly-spaced
-// samples around the FULL circle (through the whole pipeline — heightmap
-// formula, water depression, flatzones — not just the raw formula), takes
-// the max, adds a fixed 200m safety pad. We need the same number for the
-// same reason the game does: bounding how far actual terrain can stick out
-// past the nominal radius, so visibility/culling math doesn't assume a
-// perfect circle when the real silhouette isn't one (see _computeVisibleArc).
-// Cheap enough to brute-force fresh each call (1001 formula evaluations),
-// but cached anyway since it's asked for every frame while zoomed in.
 const _maxTerrainHeightCache = {};
 function _getMaxTerrainHeight(bodyName, b, radius_m) {
   const TD = b.data.TERRAIN_DATA;
@@ -4105,18 +4081,19 @@ function _getMaxTerrainHeight(bodyName, b, radius_m) {
 
   const N = 1001;
   const angles = new Float64Array(N);
-  for (let i = 0; i < N; i++) angles[i] = (Math.PI / 500) * i; // matches game exactly: covers full 2π over 1001 points
+  for (let i = 0; i < N; i++) angles[i] = (Math.PI / 500) * i;
   const heights = _evalTerrainFormula(formula, angles, radius_m);
-  if (!heights) return 0; // heightmap(s) still loading — caller falls back to unpadded radius for now
+  if (!heights) return 0;
 
-  _applyWaterDepressionIfNeeded(b, TD, heights, angles);
+  const depressions = new Float64Array(N);
+  _applyWaterDepressionIfNeeded(b, TD, heights, angles, depressions);
   const fzd = TD.flatZonesDifficulties;
   const flatZones = (fzd && (fzd[viewDiffKey] || fzd['Normal'])) || TD.flatZones || [];
-  _applyFlatZones(heights, angles, flatZones, radius_m);
+  _applyFlatZones(heights, angles, flatZones, radius_m, depressions);
 
   let maxH = 0;
   for (let i = 0; i < N; i++) if (heights[i] > maxH) maxH = heights[i];
-  const result = maxH + 200; // game's fixed safety margin
+  const result = maxH + 200;
 
   const keys = Object.keys(_maxTerrainHeightCache);
   if (keys.length >= 100) delete _maxTerrainHeightCache[keys[0]];
@@ -4202,12 +4179,13 @@ function _getTerrainSamples(bodyName, b, radius_m, N, arcInfo) {
     const heights = _evalTerrainFormula(formula, angles, radius_m);
     if (!heights) return fallback; // async heightmap — return stale data if available
 
-    _applyWaterDepressionIfNeeded(b, TD, heights, angles);
+    const depressions = new Float64Array(N);
+    _applyWaterDepressionIfNeeded(b, TD, heights, angles, depressions);
     const fzd = TD.flatZonesDifficulties;
     const flatZones = (fzd && (fzd[viewDiffKey] || fzd['Normal'])) || TD.flatZones || [];
-    _applyFlatZones(heights, angles, flatZones, radius_m);
+    _applyFlatZones(heights, angles, flatZones, radius_m, depressions);
 
-    const result = { heights, angles, N, arcCulled: false };
+    const result = { heights, depressions, angles, N, arcCulled: false };
     const keys = Object.keys(_terrainSampleCache);
     if (keys.length >= 50) delete _terrainSampleCache[keys[0]];
     _terrainSampleCache[key] = result;
@@ -4223,15 +4201,6 @@ function _getTerrainSamples(bodyName, b, radius_m, N, arcInfo) {
   const arcKey = `${bodyName}|${radius_m.toFixed(0)}|${viewDiffKey}|arc|${N}|${snapS.toFixed(4)}|${snapE.toFixed(4)}|${fHash}`;
   if (_terrainSampleCache[arcKey]) return _terrainSampleCache[arcKey];
 
-  // Determine which of the N full-circle indices fall inside the visible arc.
-  // Generated directly at the arc's own vertex count rather than iterating
-  // all N full-circle angles and filtering — when zoomed in close on a large
-  // body, N (the full-circle count) can be enormous even though the visible
-  // arc fraction is tiny, making the filter-from-N approach the dominant
-  // cost. Same resulting density: arcVertexCount ≈ N·(arcSpan/2π), so
-  // spacing between consecutive arc angles works out to ≈2π/N either way —
-  // this only skips generating and testing the ~N - arcVertexCount angles
-  // that would've been thrown away.
   const arcSpan = snapE - snapS; // > 0, < 2π
   const arcVertexCount = Math.max(1, Math.ceil(N * arcSpan / TWO_PI));
   const arcAngles = new Array(arcVertexCount);
@@ -4251,13 +4220,15 @@ function _getTerrainSamples(bodyName, b, radius_m, N, arcInfo) {
     return _getTerrainSamples(bodyName, b, radius_m, 360, null);
   }
 
-  _applyWaterDepressionIfNeeded(b, TD, heights, angArr);
+  const depressions = new Float64Array(angArr.length);
+  _applyWaterDepressionIfNeeded(b, TD, heights, angArr, depressions);
   const fzd = TD.flatZonesDifficulties;
   const flatZones = (fzd && (fzd[viewDiffKey] || fzd['Normal'])) || TD.flatZones || [];
-  _applyFlatZones(heights, angArr, flatZones, radius_m);
+  _applyFlatZones(heights, angArr, flatZones, radius_m, depressions);
 
   const result = {
     heights,
+    depressions,
     angles: angArr,
     N: angArr.length,
     arcCulled: true,
@@ -4272,7 +4243,7 @@ function _getTerrainSamples(bodyName, b, radius_m, N, arcInfo) {
 }
 
 // ── Water depression helper ───────────────────────────────────────────────────
-function _applyWaterDepressionIfNeeded(b, TD, heights, angles) {
+function _applyWaterDepressionIfNeeded(b, TD, heights, angles, depressionOut) {
   if (!b.data.WATER_DATA?.lowerTerrain) return;
   const WD = b.data.WATER_DATA;
   const maskTex = WD.oceanMaskTexture;
@@ -4297,7 +4268,7 @@ function _applyWaterDepressionIfNeeded(b, TD, heights, angles) {
   if (wmp) {
     const texRotRad = (TD.TERRAIN_TEXTURE_DATA?.planetTextureRotation ?? 0) * Math.PI / 180;
     const cutout = TD.TERRAIN_TEXTURE_DATA?.planetTextureCutout ?? 1.0;
-    _applyWaterDepression(heights, angles, wmp.px, wmp.sz, WD.oceanDepth || 3000, texRotRad, cutout);
+    _applyWaterDepression(heights, angles, wmp.px, wmp.sz, WD.oceanDepth || 3000, texRotRad, cutout, depressionOut);
   }
 }
 
