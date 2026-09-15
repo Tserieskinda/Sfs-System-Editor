@@ -2349,18 +2349,55 @@ function _drawViewportNow(){
                 const distPx = Math.sqrt(dx*dx + dy*dy);
 
                 // Terrain radius at this angle (pixels)
-                const rawAngle = Math.atan2(-dy, dx); // trig angle
+                const rawAngle = Math.atan2(-dy, dx); // trig angle, always 0..2π
                 const angle01  = ((rawAngle / (Math.PI*2)) + 1) % 1;
                 let surfR_px = discR_px;
                 if(terrRes && terrRes.heights){
                   // interpolate height at this angle
+                  //
+                  // BUG (fixed): terrRes.heights may be ARC-CULLED — i.e. it only
+                  // covers a narrow visible slice [arcStart, arcEnd], not the full
+                  // 0..2π circle, whenever _arcInfo was passed non-null and non-
+                  // fullCircle to _getTerrainSamples above. angle01 is always a
+                  // full-circle 0..1 fraction though (rawAngle covers every pixel
+                  // around the centre). Indexing terrRes.heights directly by
+                  // angle01*hN silently wrapped that narrow arc's data across the
+                  // WHOLE circle — sampling essentially uncorrelated/averaged
+                  // points for almost every pixel, which is why real height
+                  // variation (small craters, Perlin hills) visually flattened
+                  // out once arc culling started actually returning a real arc
+                  // instead of always falling back to fullCircle.
                   const hN = terrRes.heights.length;
-                  const hIdx = angle01 * hN;
-                  const hLo  = Math.floor(hIdx) % hN;
-                  const hHi  = (hLo + 1) % hN;
-                  const hFrac = hIdx - Math.floor(hIdx);
-                  const h = terrRes.heights[hLo] * (1-hFrac) + terrRes.heights[hHi] * hFrac;
-                  surfR_px = discR_px * (1 + h / radius_m);
+                  let hIdx;
+                  if (terrRes.arcCulled) {
+                    const TWO_PI = Math.PI * 2;
+                    // Map rawAngle into the SAME angle space arcStart/arcEnd were
+                    // computed in (see _computeVisibleArc / _getTerrainSamples),
+                    // unwrapping across the 0/2π boundary as needed.
+                    let a = rawAngle;
+                    while (a < terrRes.arcStart) a += TWO_PI;
+                    while (a > terrRes.arcEnd) a -= TWO_PI;
+                    if (a < terrRes.arcStart || a > terrRes.arcEnd) {
+                      // Genuinely outside the culled arc (shouldn't normally happen
+                      // for on-screen pixels, but guard anyway) — use bare disc
+                      // radius rather than an out-of-range/garbage sample.
+                      surfR_px = discR_px;
+                      hIdx = null;
+                    } else {
+                      const arcSpanLocal = terrRes.arcEnd - terrRes.arcStart;
+                      const tLocal = arcSpanLocal > 0 ? (a - terrRes.arcStart) / arcSpanLocal : 0;
+                      hIdx = tLocal * (hN - 1);
+                    }
+                  } else {
+                    hIdx = angle01 * hN;
+                  }
+                  if (hIdx != null) {
+                    const hLo  = Math.max(0, Math.min(hN - 1, Math.floor(hIdx)));
+                    const hHi  = terrRes.arcCulled ? Math.min(hN - 1, hLo + 1) : (hLo + 1) % hN;
+                    const hFrac = hIdx - Math.floor(hIdx);
+                    const h = terrRes.heights[hLo] * (1-hFrac) + terrRes.heights[hHi] * hFrac;
+                    surfR_px = discR_px * (1 + h / radius_m);
+                  }
                 }
                 const outerR_px = surfR_px + layerPx;
 
