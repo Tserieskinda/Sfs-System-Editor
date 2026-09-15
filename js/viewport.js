@@ -4137,13 +4137,56 @@ function _computeVisibleArc(sp, physR_px, vpW, vpH) {
     return { fullCircle: true, arcStart: 0, arcEnd: Math.PI * 2 };
   }
 
-  // If the entire viewport is inside the planet disc → full circle
-  // (planet centre is off-screen but disc covers the whole canvas)
+  // If the entire viewport is inside the planet disc, the disc's silhouette
+  // edge is entirely OFF-screen in every direction — there is no boundary
+  // crossing to find below, so the generic edge-intersection logic falls
+  // through to its own "visible.length < 2" fallback and returns fullCircle.
+  // That was the actual bug: this is the deepest-zoom case (camera essentially
+  // on the surface, planet fills the whole canvas), and it was silently
+  // building and filling the ENTIRE circumference — tens of thousands of
+  // vertices for a large planet — every time the cache rebuilt, instead of
+  // culling to just the small angular patch actually on screen. This was
+  // the dominant cost of "still lags after arc culling", since it's exactly
+  // the zoom level where culling matters most.
+  //
+  // Fix: when fully inside the disc, find the angular range (as seen from
+  // the disc centre, sp) that covers the visible canvas rectangle's corners.
+  // That's the actual visible slice of the sphere's near side.
   const corners = [[0,0],[vpW,0],[0,vpH],[vpW,vpH]];
   const r2 = physR_px * physR_px;
   if (corners.every(([cx,cy]) => (cx-sp.x)**2 + (cy-sp.y)**2 <= r2)) {
-    // Viewport fully inside disc — fall through to arc intersection logic below.
-    // Culling is most valuable here: only a small arc of terrain is near the screen edges.
+    const TWO_PI = Math.PI * 2;
+    const cornerAngles = corners.map(([cx, cy]) =>
+      ((Math.atan2(-(cy - sp.y), cx - sp.x) % TWO_PI) + TWO_PI) % TWO_PI
+    );
+    const sorted = [...cornerAngles].sort((a, b) => a - b);
+    // Smallest arc that contains all 4 corner angles — same "largest gap is
+    // the hidden side" logic used below for the boundary-crossing case.
+    let maxGap = 0, gapAfter = 0;
+    for (let i = 0; i < sorted.length; i++) {
+      const next = sorted[(i + 1) % sorted.length];
+      const gap = i + 1 < sorted.length ? next - sorted[i] : sorted[0] + TWO_PI - sorted[i];
+      if (gap > maxGap) { maxGap = gap; gapAfter = i; }
+    }
+    const arcStart = sorted[(gapAfter + 1) % sorted.length];
+    const arcEndRaw = sorted[gapAfter];
+    const arcEnd = arcEndRaw < arcStart ? arcEndRaw + TWO_PI : arcEndRaw;
+    const arcSpan = arcEnd - arcStart;
+
+    // If the 4 corners still span nearly the full circle (camera very close
+    // to the surface, wide FOV relative to radius), culling wouldn't help
+    // much anyway — fall back to full circle rather than risk a degenerate
+    // near-360° "slice".
+    if (arcSpan >= TWO_PI * (355 / 360)) {
+      return { fullCircle: true, arcStart: 0, arcEnd: TWO_PI };
+    }
+
+    const ANGLE_MARGIN = 0.05;
+    return {
+      fullCircle: false,
+      arcStart: arcStart - ANGLE_MARGIN,
+      arcEnd:   arcEnd   + ANGLE_MARGIN,
+    };
   }
 
   // Collect candidate angles: where the planet disc edge intersects each
