@@ -2095,7 +2095,7 @@ function _drawViewportNow(){
 
       ctx2.save();
       if (_tcp) {
-        _applyTerrainClip(ctx2, _tcp, sp);
+        _applyTerrainClip(ctx2, _tcp, sp, _displayR);
       } else {
         ctx2.beginPath(); ctx2.arc(sp.x, sp.y, _displayR, 0, Math.PI*2); ctx2.clip();
       }
@@ -2453,7 +2453,7 @@ function _drawViewportNow(){
           ctx2.save();
           // Clip to terrain shape (or disc fallback)
           const _tccp = envFlags.heightmaps && physR_px > terrainDrawThreshold && _terrainClipPath(b, name, sp, Math.max(r, physR_px), bodyRadius_m * radiusMult, terrN, _arcInfo);
-          if(_tccp){ _applyTerrainClip(ctx2, _tccp, sp); }
+          if(_tccp){ _applyTerrainClip(ctx2, _tccp, sp, Math.max(r, physR_px)); }
           else { ctx2.beginPath(); ctx2.arc(sp.x, sp.y, Math.max(r, physR_px), 0, Math.PI*2); ctx2.clip(); }
           // Tile the texture in a pattern centred on the body
           ctx2.globalAlpha *= tcAlpha;
@@ -3757,19 +3757,19 @@ function _getHeightMap(hmName) {
 //   - Strings in formula lines may be quoted ("name") OR bare identifiers (name)
 //   - OUTPUT is the required output variable name (game checks userVariables["OUTPUT"])
 //
-function _evalTerrainFormula(formulaLines, angles_rad, radius_m) {
-  if (!formulaLines || formulaLines.length === 0) return null;
+// Parsed-formula cache — the terrain formula's TEXT rarely changes, but this
+// function used to be re-parsed character-by-character on every single
+// evaluation (i.e. every time N changed during a smooth zoom). Splitting
+// parse (cached, once per formula text) from execute (still runs per-call,
+// since it depends on the current angle/N/radius) removes that redundant
+// string-parsing work from the hot path.
+const _formulaOpsCache = {};
+function _compileTerrainFormula(formulaLines) {
+  const fKey = formulaLines.join('§');
+  const cached = _formulaOpsCache[fKey];
+  if (cached) return cached;
 
-  const N = angles_rad.length;
-  const userVars = {};
-  // current output target — mirrors sampler.output pointer
-  let outputTarget = new Float64Array(N); // default flat if no OUTPUT assigned
-  let outputName = null;
-
-  function getVar(name) {
-    if (!userVars[name]) userVars[name] = new Float64Array(N);
-    return userVars[name];
-  }
+  const ops = [];
 
   // ── Parser — mirrors game's character-by-character approach ─────────────────
   // Handles: VARNAME = FUNC(args)  and  FUNC(args)
@@ -3834,11 +3834,37 @@ function _evalTerrainFormula(formulaLines, angles_rad, radius_m) {
       }
     }
 
+    ops.push({ fname, varName, isAssign, args });
+  }
+
+  const cacheKeys = Object.keys(_formulaOpsCache);
+  if (cacheKeys.length >= 100) delete _formulaOpsCache[cacheKeys[0]];
+  _formulaOpsCache[fKey] = ops;
+  return ops;
+}
+
+function _evalTerrainFormula(formulaLines, angles_rad, radius_m) {
+  if (!formulaLines || formulaLines.length === 0) return null;
+
+  const N = angles_rad.length;
+  const userVars = {};
+  // current output target — mirrors sampler.output pointer
+  let outputTarget = new Float64Array(N); // default flat if no OUTPUT assigned
+
+  function getVar(name) {
+    if (!userVars[name]) userVars[name] = new Float64Array(N);
+    return userVars[name];
+  }
+
+  const ops = _compileTerrainFormula(formulaLines);
+
+  for (const op of ops) {
+    const { fname, varName, isAssign, args } = op;
+
     // Execute the parsed function call
     const target = isAssign ? getVar(varName) : outputTarget;
     if (isAssign) {
       outputTarget = target;
-      outputName = varName;
     }
 
     switch (fname) {
@@ -4195,10 +4221,28 @@ function _getMaxTerrainHeight(bodyName, b, radius_m) {
   return result;
 }
 
-// Per-frame clip path cache — keyed by "bodyName|N|spx|spy|physR_px" so it's
-// reused when drawTerrainBody and _terrainClipPath request the same shape in
-// the same frame without recomputing the Path2D.
+// Terrain silhouette path cache — paths are built in UNIT-RADIUS local space
+// (radius 1 = sea level, centred at origin), so the cached Path2D is valid at
+// ANY zoom level or pan position: only bodyName/N/radius_m/visible-arc affect
+// the shape. Draw time applies translate(sp)+scale(physR_px) to place it
+// (see _applyTerrainClip / _getUnitTerrainPath). This is what makes smooth
+// zoom/pan cheap — geometry work only happens when the LOD-driven vertex
+// count N actually changes, not on every pixel of camera movement.
 const _terrainClipCache = {};
+
+function _getUnitTerrainPath(bodyName, result, N, radius_m) {
+  const arcKey = result.arcCulled ? `a${(result.arcStart*10)|0}_${(result.arcEnd*10)|0}` : 'full';
+  const key = `${bodyName}|${N}|${radius_m.toFixed(0)}|${arcKey}`;
+  let path = _terrainClipCache[key];
+  if (!path) {
+    path = new Path2D();
+    _buildTerrainPathUnit(path, result, radius_m);
+    const keys = Object.keys(_terrainClipCache);
+    if (keys.length >= 300) delete _terrainClipCache[keys[0]];
+    _terrainClipCache[key] = path;
+  }
+  return path;
+}
 
 function invalidateTerrainCache(bodyName) {
   const all = bodyName === '*';
@@ -4390,67 +4434,38 @@ function _applyWaterDepressionIfNeeded(b, TD, heights, angles, depressionOut) {
 // invalidated every cached terrain clip path simultaneously, forcing a
 // full silhouette + Path2D rebuild for every visible body in one frame —
 // this was the actual source of the sidebar-open terrain lag.
-function _buildTerrainPathLocal(ctx_or_p, result, physR_px, radius_m) {
+// Builds the terrain silhouette in UNIT-RADIUS space: radius 1.0 = sea level,
+// centred at the origin. physR_px is deliberately NOT baked into the
+// coordinates — callers apply it as a canvas scale() at draw time instead, so
+// the exact same Path2D can be reused across every zoom level (see
+// _getUnitTerrainPath). This is the single biggest lever for smooth zoom: it
+// turns "rebuild + re-rasterize an N-vertex path every frame" into "reuse a
+// cached path + cheap affine transform".
+function _buildTerrainPathUnit(ctx_or_p, result, radius_m) {
   const { heights, angles, arcCulled, arcStart, arcEnd } = result;
   const N = angles.length;
 
   if (!arcCulled) {
-    const r0 = physR_px * (1 + heights[0] / radius_m);
+    const r0 = 1 + heights[0] / radius_m;
     ctx_or_p.moveTo(Math.cos(angles[0]) * r0, -Math.sin(angles[0]) * r0);
     for (let i = 1; i < N; i++) {
-      const rPx = physR_px * (1 + heights[i] / radius_m);
-      ctx_or_p.lineTo(Math.cos(angles[i]) * rPx, -Math.sin(angles[i]) * rPx);
+      const rr = 1 + heights[i] / radius_m;
+      ctx_or_p.lineTo(Math.cos(angles[i]) * rr, -Math.sin(angles[i]) * rr);
     }
   } else {
     if (N === 0) {
-      ctx_or_p.arc(0, 0, physR_px, 0, Math.PI * 2);
+      ctx_or_p.arc(0, 0, 1, 0, Math.PI * 2);
       return;
     }
-    ctx_or_p.moveTo(Math.cos(arcStart) * physR_px, -Math.sin(arcStart) * physR_px);
+    ctx_or_p.moveTo(Math.cos(arcStart), -Math.sin(arcStart));
     for (let i = 0; i < N; i++) {
-      const rPx = physR_px * (1 + heights[i] / radius_m);
-      ctx_or_p.lineTo(Math.cos(angles[i]) * rPx, -Math.sin(angles[i]) * rPx);
+      const rr = 1 + heights[i] / radius_m;
+      ctx_or_p.lineTo(Math.cos(angles[i]) * rr, -Math.sin(angles[i]) * rr);
     }
-    ctx_or_p.lineTo(Math.cos(arcEnd) * physR_px, -Math.sin(arcEnd) * physR_px);
-    ctx_or_p.arc(0, 0, physR_px, -arcEnd, -arcStart, true);
-  }
-}
-
-function _buildTerrainPath(ctx_or_p, result, sp, physR_px, radius_m) {
-  const { heights, angles, arcCulled, arcStart, arcEnd } = result;
-  const N = angles.length;
-
-  if (!arcCulled) {
-    // Full circle — emit all vertices
-    const r0 = physR_px * (1 + heights[0] / radius_m);
-    ctx_or_p.moveTo(sp.x + Math.cos(angles[0]) * r0, sp.y - Math.sin(angles[0]) * r0);
-    for (let i = 1; i < N; i++) {
-      const rPx = physR_px * (1 + heights[i] / radius_m);
-      ctx_or_p.lineTo(sp.x + Math.cos(angles[i]) * rPx, sp.y - Math.sin(angles[i]) * rPx);
-    }
-  } else {
-    if (N === 0) {
-      // No arc vertices — plain disc
-      ctx_or_p.arc(sp.x, sp.y, physR_px, 0, Math.PI * 2);
-      return;
-    }
-    // Enter arc at arcStart on the disc
-    ctx_or_p.moveTo(sp.x + Math.cos(arcStart) * physR_px,
-                    sp.y - Math.sin(arcStart) * physR_px);
-    // Emit terrain vertices for the visible arc
-    for (let i = 0; i < N; i++) {
-      const rPx = physR_px * (1 + heights[i] / radius_m);
-      ctx_or_p.lineTo(sp.x + Math.cos(angles[i]) * rPx,
-                      sp.y - Math.sin(angles[i]) * rPx);
-    }
-    // Return to disc edge at arcEnd
-    ctx_or_p.lineTo(sp.x + Math.cos(arcEnd) * physR_px,
-                    sp.y - Math.sin(arcEnd) * physR_px);
+    ctx_or_p.lineTo(Math.cos(arcEnd), -Math.sin(arcEnd));
     // Close through the interior (hidden back of planet) via anticlockwise arc.
     // canvas arc angle = -trig angle.
-    // We want to sweep from arcEnd back to arcStart going the short hidden way.
-    // In canvas coords: from -arcEnd to -arcStart, anticlockwise=true.
-    ctx_or_p.arc(sp.x, sp.y, physR_px, -arcEnd, -arcStart, true);
+    ctx_or_p.arc(0, 0, 1, -arcEnd, -arcStart, true);
   }
 }
 
@@ -4469,7 +4484,7 @@ function drawTerrainBody(ctx, b, bodyName, sp, physR_px, radius_m, mapColor, N, 
   if (!result) return false;
 
   // Track the max terrain radius in screen pixels for hit-testing.
-  // Peak formula mirrors _buildTerrainPath: physR_px * (1 + h / radius_m).
+  // Peak formula mirrors _buildTerrainPathUnit: physR_px * (1 + h / radius_m).
   {
     let _peakH = 0;
     for (let _i = 0; _i < result.heights.length; _i++) {
@@ -4477,6 +4492,10 @@ function drawTerrainBody(ctx, b, bodyName, sp, physR_px, radius_m, mapColor, N, 
     }
     bodyTerrainPeakPx[bodyName] = physR_px * (1 + _peakH / radius_m);
   }
+
+  // Unit-space silhouette path — shared by the edge-disk clip below and the
+  // flat-colour fallback fill, and reused verbatim by _terrainClipPath.
+  const _terrPath = _getUnitTerrainPath(bodyName, result, result.N, radius_m);
 
   // ── Edge-disk fill ───────────────────────────────────────────────────────
   // Sample the outermost few rows of the planet texture once and cache the
@@ -4566,14 +4585,6 @@ function drawTerrainBody(ctx, b, bodyName, sp, physR_px, radius_m, mapColor, N, 
     // which are sub-pixel when the body exceeds ~4× the viewport diagonal.
     const _diagPx2 = Math.sqrt(ctx.canvas.width * ctx.canvas.width + ctx.canvas.height * ctx.canvas.height);
     if (physR_px <= _diagPx2 * 4) {
-      const _arcKey = result.arcCulled ? `a${(result.arcStart*10)|0}_${(result.arcEnd*10)|0}` : 'full';
-      const _cacheKey = `${bodyName}|${N}|${sp.x|0}|${sp.y|0}|${physR_px|0}|${_arcKey}`;
-      let _terrPath = _terrainClipCache[_cacheKey];
-      if (!_terrPath) {
-        _terrPath = new Path2D();
-        _buildTerrainPath(_terrPath, result, sp, physR_px, radius_m);
-        _terrainClipCache[_cacheKey] = _terrPath;
-      }
       // Clamp destination rect to viewport so the GPU only blits visible pixels.
       const fullL = sp.x - physR_px, fullT = sp.y - physR_px, fullS = physR_px * 2;
       const dstX = Math.max(0, fullL), dstY = Math.max(0, fullT);
@@ -4586,21 +4597,13 @@ function drawTerrainBody(ctx, b, bodyName, sp, physR_px, radius_m, mapColor, N, 
         const srcX = (dstX - fullL) * scale, srcY = (dstY - fullT) * scale;
         const srcW = dstW * scale,            srcH = dstH * scale;
         ctx.save();
-        ctx.clip(_terrPath);
+        _applyTerrainClip(ctx, _terrPath, sp, physR_px);
         ctx.drawImage(texImg._edgePat, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH);
         ctx.restore();
       }
-    } else {
-      // Planet fills screen — just write the cache key with a plain disc clip
-      // so downstream _terrainClipPath calls still get a cached Path2D.
-      const _arcKey = result.arcCulled ? `a${(result.arcStart*10)|0}_${(result.arcEnd*10)|0}` : 'full';
-      const _cacheKey = `${bodyName}|${N}|${sp.x|0}|${sp.y|0}|${physR_px|0}|${_arcKey}`;
-      if (!_terrainClipCache[_cacheKey]) {
-        const _terrPath = new Path2D();
-        _buildTerrainPath(_terrPath, result, sp, physR_px, radius_m);
-        _terrainClipCache[_cacheKey] = _terrPath;
-      }
     }
+    // else: planet fills the whole screen — edge-disk isn't visible anyway,
+    // and _terrPath is already cached above for downstream reuse.
   } else {
     // Fallback: flat mapColor disc (no texture loaded)
     const mc = mapColor;
@@ -4609,11 +4612,10 @@ function drawTerrainBody(ctx, b, bodyName, sp, physR_px, radius_m, mapColor, N, 
     const mb = mc ? Math.min(255, Math.round(mc.b * 255)) : 120;
 
     ctx.save();
-    ctx.beginPath();
-    _buildTerrainPath(ctx, result, sp, physR_px, radius_m);
-    ctx.closePath();
+    ctx.translate(sp.x, sp.y);
+    ctx.scale(physR_px, physR_px);
     ctx.fillStyle = `rgb(${mr},${mg},${mb})`;
-    ctx.fill();
+    ctx.fill(_terrPath);
     ctx.restore();
   }
 
@@ -4668,29 +4670,26 @@ function _terrainClipPath(b, bodyName, sp, physR_px, radius_m, N, arcInfo) {
   }
   if (!result) return null;
 
-  // Cache key intentionally excludes sp.x/sp.y — the path is now built in
-  // LOCAL space (centered at origin) and translated into place at clip
-  // time (see _applyTerrainClip), so the same cached Path2D is valid at
-  // any screen position. Screen position changes constantly (panning,
-  // viewport resize from sidebar/statusbar) and used to bust this cache
-  // on every such change; excluding it here is the actual fix for the
-  // terrain-lag-on-sidebar-open issue.
-  const _arcKey = result.arcCulled ? `a${(result.arcStart*10)|0}_${(result.arcEnd*10)|0}` : 'full';
-  const _cacheKey = `${bodyName}|${N}|${physR_px|0}|${_arcKey}`;
-  if (_terrainClipCache[_cacheKey]) return _terrainClipCache[_cacheKey];
-
-  const p = new Path2D();
-  _buildTerrainPathLocal(p, result, physR_px, radius_m);
-  _terrainClipCache[_cacheKey] = p;
-  return p;
+  // Cache key intentionally excludes sp.x/sp.y AND physR_px — the path is
+  // built in UNIT-RADIUS space (see _buildTerrainPathUnit) and placed with a
+  // translate+scale at clip time (_applyTerrainClip), so the same cached
+  // Path2D is valid at ANY screen position and ANY zoom level. Screen
+  // position/zoom change on essentially every frame during panning or
+  // zooming; excluding both from the key is what keeps zoom smooth on large
+  // planets — geometry is only rebuilt when N (LOD-driven vertex count) or
+  // the visible arc actually changes, not on every camera movement.
+  return _getUnitTerrainPath(bodyName, result, result.N, radius_m);
 }
 
-// Apply a LOCAL-space terrain clip path by translating the context to the
-// body's current screen position first. The path itself never needs
-// rebuilding when only sp changes — translate is essentially free compared
-// to rebuilding a few-hundred-to-few-thousand-vertex Path2D every frame.
-function _applyTerrainClip(ctx, path, sp) {
+// Apply a UNIT-RADIUS terrain clip path by translating to the body's current
+// screen position and scaling by its current on-screen radius. Neither the
+// path traversal cost nor a rebuild happens on pan/zoom — only this cheap
+// transform changes — which is what keeps large, fully-zoomed planets
+// smooth instead of rebuilding a many-thousand-vertex path every frame.
+function _applyTerrainClip(ctx, path, sp, physR_px) {
   ctx.translate(sp.x, sp.y);
+  ctx.scale(physR_px, physR_px);
   ctx.clip(path);
+  ctx.scale(1 / physR_px, 1 / physR_px);
   ctx.translate(-sp.x, -sp.y);
 }
