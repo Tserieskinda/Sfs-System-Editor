@@ -2043,6 +2043,35 @@ function _drawViewportNow(){
       terrN = Math.min(_vsMaxN, _screenN);
     }
 
+    // TEMP DEBUG — remove after diagnosing missing crater/hill detail.
+    // On-screen overlay (mobile has no easy console access) — updates a
+    // fixed-position div in the corner instead of console.log.
+    if (!drawViewport._dbgEl) {
+      const el = document.createElement('div');
+      el.id = '_terrDbgOverlay';
+      el.style.cssText = 'position:fixed;top:4px;left:4px;z-index:99999;' +
+        'background:rgba(0,0,0,.75);color:#0f0;font:9px monospace;' +
+        'padding:6px 8px;max-width:96vw;white-space:pre;pointer-events:none;' +
+        'line-height:1.4;border-radius:4px;';
+      document.body.appendChild(el);
+      drawViewport._dbgEl = el;
+    }
+    // Only track/print the currently-selected body if there is one, else the
+    // first terrain body seen this frame — avoids the overlay flickering
+    // between multiple bodies' stats every frame.
+    const _dbgTarget = (typeof selectedBody !== 'undefined' && selectedBody) ? selectedBody : name;
+    if (name === _dbgTarget) {
+      drawViewport._dbgEl.textContent =
+        `${name}\n` +
+        `physR_px: ${physR_px.toFixed(0)}\n` +
+        `settled: ${_settled}\n` +
+        `arcCull: ${_arcInfo ? !_arcInfo.fullCircle : false}\n` +
+        `arcSpan: ${_arcInfo && !_arcInfo.fullCircle ? ((_arcInfo.arcEnd - _arcInfo.arcStart) * 180 / Math.PI).toFixed(1) + '°' : 'n/a'}\n` +
+        `vsMaxN: ${_vsMaxN}\n` +
+        `screenN_target: ${Math.ceil(2 * Math.PI * physR_px)}\n` +
+        `terrN: ${terrN}`;
+    }
+
     // Minimum physR_px to draw terrain polygon. Water depression (up to ~3% of radius)
     // needs sufficient pixel resolution to look smooth rather than jagged.
     // Below this threshold, draw a smooth disc instead (matches game map-view behaviour).
