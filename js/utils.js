@@ -131,7 +131,7 @@ function calcToggleTool(tool, forceOpen) {
   const shouldOpen = forceOpen !== undefined ? forceOpen : !isOpen;
 
   // Close all panels first
-  ['circ', 'cloud', 'hm'].forEach(t => {
+  ['circ', 'cloud', 'hm', 'polar'].forEach(t => {
     const panel = document.getElementById('calc-panel-' + t);
     const arrow = document.getElementById('calc-arrow-' + t);
     const item  = document.getElementById('calc-tool-' + t);
@@ -149,6 +149,7 @@ function calcToggleTool(tool, forceOpen) {
     if (arrow) arrow.style.transform = 'rotate(90deg)';
     if (item)  item.classList.add('calc-tool-open');
     calcUpdate();
+    if (tool === 'polar') calcPolarUpdate();
   } else {
     _calcOpenTool = null;
   }
@@ -344,6 +345,103 @@ function calcUpdate() {
   const hmN    = Math.max(1, parseInt(document.getElementById('calc-hm-n')?.value) || 1024);
   const hmWidth = circ / hmN;
   document.getElementById('calc-res-hm').textContent = _fmtMetres(hmWidth);
+}
+
+// ════════════════════════════════════════════════════════════
+//  DEGREES → POLAR CONVERTER + VISUALIZER
+//  Same convention as Right Ascension / Arg. of Periapsis:
+//  0° = right (+x), increasing counter-clockwise.
+// ════════════════════════════════════════════════════════════
+
+function calcPolarSyncFromNum() {
+  const numEl = document.getElementById('calc-polar-deg-num');
+  const rangeEl = document.getElementById('calc-polar-deg');
+  if (!numEl || !rangeEl) return;
+  let v = parseFloat(numEl.value);
+  if (isNaN(v)) v = 0;
+  v = Math.max(-360, Math.min(360, v));
+  rangeEl.value = v;
+  calcPolarUpdate();
+}
+
+function calcPolarUpdate() {
+  const rangeEl = document.getElementById('calc-polar-deg');
+  const numEl = document.getElementById('calc-polar-deg-num');
+  if (!rangeEl) return;
+  const deg = parseFloat(rangeEl.value) || 0;
+  if (numEl && document.activeElement !== numEl) numEl.value = deg;
+
+  const rad = deg * Math.PI / 180;
+  const x = Math.cos(rad);
+  const y = Math.sin(rad);
+
+  const res = document.getElementById('calc-res-polar');
+  if (res) res.textContent = `x = ${x.toFixed(4)},  y = ${y.toFixed(4)}`;
+
+  _calcDrawPolar(deg, x, y);
+}
+
+function _calcDrawPolar(deg, x, y) {
+  const cv = document.getElementById('calc-polar-canvas');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const cx = W / 2, cy = H / 2;
+  const r = Math.min(W, H) / 2 - 24;
+
+  // Compass ring
+  ctx.strokeStyle = 'rgba(150,160,190,.35)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Tick marks every 30°, labels at the four cardinal directions
+  // (screen y is flipped vs. math y, so plot at cy - sin*r to keep
+  // "up" on screen matching +90° / counter-clockwise convention).
+  ctx.strokeStyle = 'rgba(150,160,190,.25)';
+  ctx.font = '9px monospace';
+  ctx.fillStyle = 'rgba(150,160,190,.55)';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let a = 0; a < 360; a += 30) {
+    const rad = a * Math.PI / 180;
+    const ox = cx + Math.cos(rad) * r, oy = cy - Math.sin(rad) * r;
+    const ix = cx + Math.cos(rad) * (r - 6), iy = cy - Math.sin(rad) * (r - 6);
+    ctx.beginPath(); ctx.moveTo(ix, iy); ctx.lineTo(ox, oy); ctx.stroke();
+    if (a % 90 === 0) {
+      const lx = cx + Math.cos(rad) * (r + 12), ly = cy - Math.sin(rad) * (r + 12);
+      ctx.fillText(a + '°', lx, ly);
+    }
+  }
+
+  // Crosshair axes
+  ctx.strokeStyle = 'rgba(150,160,190,.18)';
+  ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r); ctx.stroke();
+
+  // Angle vector — screen y flipped (see note above)
+  const px = cx + x * r, py = cy - y * r;
+  ctx.strokeStyle = '#40e0a0';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(px, py);
+  ctx.stroke();
+
+  // Point marker
+  ctx.fillStyle = '#40e0a0';
+  ctx.beginPath();
+  ctx.arc(px, py, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Centre dot
+  ctx.fillStyle = 'rgba(220,220,240,.6)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1947,4 +2045,327 @@ function htxSetAsEquator() {
   if(latOffVal) latOffVal.textContent = '+0%';
 
   htxUpdate();
+}
+
+// ════════════════════════════════════════════════════════════
+//  Habitability Visualizer — inverse-square-law HZ calculator
+//  + system plot (utils.js companion module)
+// ════════════════════════════════════════════════════════════
+
+// Reference luminosity (in solar units, L☉) for each main-sequence spectral
+// class — representative mid-class values (not per-subtype), since this tool
+// is a design aid, not a stellar-physics simulator. O/B/A/F/K/M values are
+// standard order-of-magnitude figures for the middle of each class; G is
+// pinned to 1.0 (the Sun, G2V) as the calibration point.
+const HZ_SPECTRAL_LUMINOSITY = {
+  O: 30000,
+  B: 1000,
+  A: 20,
+  F: 4,
+  G: 1,
+  K: 0.3,
+  M: 0.02
+};
+
+// Kopp & Underwood (2013) "recent Venus / early Mars" style conservative HZ
+// bounds, expressed as effective stellar flux ratios (S/S☉) at 1 AU for a
+// Sun-like star. inner = where a runaway greenhouse begins; outer = where
+// CO2 condensation stops warming. These flux constants combined with the
+// inverse-square law (distance = sqrt(L / S)) give the HZ boundaries for
+// any luminosity.
+const HZ_FLUX_INNER = 1.1;   // S☉ at inner edge (hotter boundary)
+const HZ_FLUX_OUTER = 0.53;  // S☉ at outer edge (colder boundary)
+
+const AU_IN_M = 1.495978707e11;
+
+let _hzOpen = false;
+
+function openHabZone() {
+  _utilsDropOpen = false;
+  const dd = document.getElementById('utils-dropdown');
+  if (dd) dd.style.display = 'none';
+
+  _hzPopulateStars();
+  const overlay = document.getElementById('hz-modal-overlay');
+  overlay.style.display = 'flex';
+  _hzOpen = true;
+  hzStarChanged();
+}
+
+function closeHabZone() {
+  const overlay = document.getElementById('hz-modal-overlay');
+  if (overlay) overlay.style.display = 'none';
+  _hzOpen = false;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('hz-modal-overlay')?.addEventListener('click', e => {
+    if (e.target === document.getElementById('hz-modal-overlay')) closeHabZone();
+  });
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && _hzOpen) closeHabZone();
+});
+
+// Detect a body's spectral class from its tags (e.g. "G-type" -> "G").
+// Falls back to null if untagged or tagged with a non-main-sequence class
+// (Red Giant, White Dwarf, etc.) that this simplified tool doesn't model.
+function _hzDetectSpectralTag(name) {
+  const tags = (typeof _sbGetTags === 'function') ? _sbGetTags(name) : [];
+  for (const t of tags) {
+    const m = /^([OBAFGKM])-type$/i.exec(t.trim());
+    if (m) return m[1].toUpperCase();
+  }
+  return null;
+}
+
+function _hzPopulateStars() {
+  const sel = document.getElementById('hz-star-sel');
+  if (!sel || typeof bodies === 'undefined') return;
+  // Candidate stars: the system centre, plus anything tagged "Star" or an
+  // O/B/A/F/G/K/M spectral tag — covers both single-star systems (centre
+  // has no orbit) and multi-star setups where a companion star orbits the
+  // barycentre/primary.
+  const names = Object.keys(bodies).filter(n => {
+    const b = bodies[n];
+    if (b.isCenter) return true;
+    const tags = (typeof _sbGetTags === 'function') ? _sbGetTags(n) : [];
+    return tags.some(t => /^star$/i.test(t.trim()) || /^([OBAFGKM])-type$/i.test(t.trim()));
+  });
+  if (!names.length) {
+    sel.innerHTML = '<option value="">— no bodies loaded —</option>';
+    return;
+  }
+  sel.innerHTML = names.map(n => `<option value="${n}">${n}${bodies[n].isCenter ? ' ★' : ''}</option>`).join('');
+  if (typeof selectedBody !== 'undefined' && selectedBody && names.includes(selectedBody)) {
+    sel.value = selectedBody;
+  }
+}
+
+// Resolve the star + zone to render in the viewport overlay. Falls back to
+// the system centre star (auto-detecting its spectral tag, defaulting to G)
+// if the HZ modal has never been opened/configured — so the ☀ HZ toolbar
+// toggle works immediately without requiring a trip through Utils first.
+function _hzGetViewportZone() {
+  if (typeof bodies === 'undefined') return null;
+  let starName = localStorage.getItem('sfs_hz_star');
+  if (!starName || !bodies[starName]) {
+    starName = Object.keys(bodies).find(n => bodies[n].isCenter) || null;
+  }
+  if (!starName) return null;
+
+  const savedCls = localStorage.getItem('sfs_hz_class');
+  const detectedCls = _hzDetectSpectralTag(starName);
+  const cls = (savedCls && HZ_SPECTRAL_LUMINOSITY[savedCls]) ? savedCls : (detectedCls || 'G');
+
+  const overrideRaw = localStorage.getItem('sfs_hz_lum_override');
+  const overrideVal = overrideRaw && overrideRaw !== '' ? parseFloat(overrideRaw) : null;
+  const lum = (overrideVal != null && !isNaN(overrideVal) && overrideVal > 0)
+    ? overrideVal
+    : (HZ_SPECTRAL_LUMINOSITY[cls] ?? 1);
+
+  const innerAU = Math.sqrt(lum / HZ_FLUX_INNER);
+  const outerAU = Math.sqrt(lum / HZ_FLUX_OUTER);
+  return {
+    starName, cls, lum,
+    inner_m: innerAU * AU_IN_M,
+    outer_m: outerAU * AU_IN_M
+  };
+}
+
+function hzStarChanged() {
+  const sel = document.getElementById('hz-star-sel');
+  const name = sel?.value;
+  const spectralSel = document.getElementById('hz-spectral-sel');
+  if (name) {
+    const detected = _hzDetectSpectralTag(name);
+    if (detected && spectralSel) spectralSel.value = detected;
+  }
+  hzUpdate();
+}
+
+// Returns { inner_m, outer_m, lum } for the currently selected spectral
+// type / override, using the inverse-square law: at luminosity L (in L☉),
+// a given flux level S (in S☉) occurs at distance d = sqrt(L / S) AU.
+function _hzComputeZone() {
+  const spectralSel = document.getElementById('hz-spectral-sel');
+  const cls = spectralSel?.value || 'G';
+  const overrideEl = document.getElementById('hz-lum-override');
+  const overrideVal = overrideEl && overrideEl.value !== '' ? parseFloat(overrideEl.value) : null;
+  const lum = (overrideVal != null && !isNaN(overrideVal) && overrideVal > 0)
+    ? overrideVal
+    : (HZ_SPECTRAL_LUMINOSITY[cls] ?? 1);
+
+  const innerAU = Math.sqrt(lum / HZ_FLUX_INNER);
+  const outerAU = Math.sqrt(lum / HZ_FLUX_OUTER);
+  return {
+    lum,
+    cls,
+    inner_m: innerAU * AU_IN_M,
+    outer_m: outerAU * AU_IN_M,
+    innerAU, outerAU
+  };
+}
+
+// Collect planets orbiting the selected star directly (one level — matches
+// how most SFS systems are structured; moons orbiting those planets are not
+// separately plotted since they share their parent's distance from the star
+// for HZ purposes).
+function _hzGetOrbitingBodies(starName) {
+  if (typeof bodies === 'undefined') return [];
+  const out = [];
+  for (const name of Object.keys(bodies)) {
+    const b = bodies[name];
+    if (b.isCenter) continue;
+    const od = b.data?.ORBIT_DATA;
+    if (!od || od.parent !== starName) continue;
+    const sma_m = od.semiMajorAxis || 0;
+    if (sma_m <= 0) continue;
+    out.push({ name, sma_m, ecc: od.eccentricity || 0 });
+  }
+  out.sort((a, b) => a.sma_m - b.sma_m);
+  return out;
+}
+
+function _hzFmtDist(m) {
+  const au = m / AU_IN_M;
+  const km = m / 1000;
+  if (au >= 0.01) return `${au.toFixed(3)} AU (${km >= 1e6 ? (km/1e6).toFixed(2)+'M km' : Math.round(km).toLocaleString()+' km'})`;
+  return `${Math.round(km).toLocaleString()} km`;
+}
+
+function hzUpdate() {
+  const zone = _hzComputeZone();
+  const starSel = document.getElementById('hz-star-sel');
+  const starName = starSel?.value;
+
+  // Persist current selection so the viewport overlay (toggled via the ☀ HZ
+  // toolbar button) can render the same zone without the modal being open.
+  // Stored as plain values, not the computed zone itself, so the overlay
+  // recomputes fresh each draw (cheap — just two sqrt calls) and stays in
+  // sync if spectral-type reference constants ever change.
+  if (starName) {
+    const overrideEl = document.getElementById('hz-lum-override');
+    localStorage.setItem('sfs_hz_star', starName);
+    localStorage.setItem('sfs_hz_class', zone.cls);
+    localStorage.setItem('sfs_hz_lum_override', overrideEl && overrideEl.value !== '' ? overrideEl.value : '');
+  }
+
+  const readout = document.getElementById('hz-readout');
+  if (readout) {
+    readout.innerHTML =
+      `Spectral ${zone.cls} · ${zone.lum.toFixed(3)} L☉<br>` +
+      `Inner edge: ${_hzFmtDist(zone.inner_m)}<br>` +
+      `Outer edge: ${_hzFmtDist(zone.outer_m)}`;
+  }
+
+  const planets = starName ? _hzGetOrbitingBodies(starName) : [];
+  _hzDrawPlot(zone, planets);
+  _hzRenderPlanetList(zone, planets);
+
+  const legend = document.getElementById('hz-legend');
+  if (legend) {
+    legend.innerHTML =
+      `<span style="color:#40e060">●</span> in habitable zone &nbsp; ` +
+      `<span style="color:#ffb840">●</span> outside habitable zone &nbsp; ` +
+      `<span style="display:inline-block;width:22px;height:6px;background:linear-gradient(90deg,rgba(64,224,96,.08),rgba(64,224,96,.35),rgba(64,224,96,.08));vertical-align:middle;border-radius:3px"></span> habitable band`;
+  }
+
+  // Live-refresh the viewport if the HZ overlay is currently toggled on,
+  // so adjusting spectral type / luminosity in the modal is reflected
+  // immediately in the gradient bands drawn around the star.
+  if (localStorage.getItem('sfs_hz_band') === '1' && typeof drawViewport === 'function') {
+    drawViewport();
+  }
+}
+
+function _hzRenderPlanetList(zone, planets) {
+  const container = document.getElementById('hz-planet-list');
+  if (!container) return;
+  if (!planets.length) {
+    container.innerHTML = '<p style="font-size:.6rem;color:rgba(150,150,180,.5)">No orbiting bodies found for this star.</p>';
+    return;
+  }
+  container.innerHTML = planets.map(p => {
+    const inZone = p.sma_m >= zone.inner_m && p.sma_m <= zone.outer_m;
+    const color = inZone ? '#40e060' : '#ffb840';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;
+        padding:5px 8px;border:1px solid var(--ac13);border-radius:5px;margin-bottom:4px;font-size:.62rem">
+      <span style="color:${color}">● ${p.name}</span>
+      <span style="color:rgba(200,200,220,.7)">${_hzFmtDist(p.sma_m)}</span>
+    </div>`;
+  }).join('');
+}
+
+function _hzDrawPlot(zone, planets) {
+  const cv = document.getElementById('hz-canvas');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Log-scale horizontal axis: distances in this domain span orders of
+  // magnitude (a close-in lava world at 0.05 AU vs an outer ice giant at
+  // 30 AU), and a linear axis would crush everything near the star into a
+  // few pixels. Domain covers from just inside the smallest plotted body
+  // (or 0.05 AU, whichever is smaller) out to comfortably past the HZ outer
+  // edge or furthest planet, whichever is larger.
+  const allDist_m = [zone.inner_m, zone.outer_m, ...planets.map(p => p.sma_m)];
+  const minD = Math.max(1e8, Math.min(...allDist_m) * 0.3);
+  const maxD = Math.max(...allDist_m) * 2.2;
+  const logMin = Math.log10(minD), logMax = Math.log10(maxD);
+  const marginL = 12, marginR = 12;
+  const plotW = W - marginL - marginR;
+  const xFor = d_m => marginL + ((Math.log10(Math.max(d_m, minD)) - logMin) / (logMax - logMin)) * plotW;
+
+  const midY = H / 2;
+
+  // Baseline axis
+  ctx.strokeStyle = 'rgba(150,160,190,.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(marginL, midY);
+  ctx.lineTo(W - marginR, midY);
+  ctx.stroke();
+
+  // Habitable band
+  const xInner = xFor(zone.inner_m), xOuter = xFor(zone.outer_m);
+  const grad = ctx.createLinearGradient(xInner, 0, xOuter, 0);
+  grad.addColorStop(0, 'rgba(64,224,96,.06)');
+  grad.addColorStop(0.5, 'rgba(64,224,96,.30)');
+  grad.addColorStop(1, 'rgba(64,224,96,.06)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(xInner, 20, xOuter - xInner, H - 40);
+
+  ctx.strokeStyle = 'rgba(64,224,96,.55)';
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath(); ctx.moveTo(xInner, 20); ctx.lineTo(xInner, H - 20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(xOuter, 20); ctx.lineTo(xOuter, H - 20); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Star marker at the left edge of the domain (not at 0 — log axis has no
+  // true zero — so just draw it at the plot's left margin as a fixed icon).
+  ctx.fillStyle = '#ffd060';
+  ctx.beginPath();
+  ctx.arc(marginL, midY, 7, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Planets
+  planets.forEach(p => {
+    const inZone = p.sma_m >= zone.inner_m && p.sma_m <= zone.outer_m;
+    const x = xFor(p.sma_m);
+    ctx.fillStyle = inZone ? '#40e060' : '#ffb840';
+    ctx.beginPath();
+    ctx.arc(x, midY, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.4)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Label above/below alternating to reduce overlap on tightly-packed systems
+    ctx.fillStyle = 'rgba(220,220,240,.85)';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.name, x, midY - 12);
+  });
 }

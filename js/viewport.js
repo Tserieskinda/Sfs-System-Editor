@@ -132,6 +132,29 @@ function _syncDistRingsBtn(){
   btn.style.background = on ? 'rgba(120,200,255,.1)' : '';
 }
 
+// ── Habitable-zone viewport overlay ─────────────────────────────────────────
+// Toggled independently of the HZ Visualizer modal — the modal is the control
+// panel (pick star / spectral type / luminosity override), this is the
+// always-on-canvas gradient rendering of whatever the modal last computed.
+// Reading from localStorage (rather than requiring the modal to be open)
+// means the band persists across sessions and doesn't depend on the modal's
+// DOM existing, since drawViewport can run before the user ever opens Utils.
+function toggleHZBand(){
+  const on = localStorage.getItem('sfs_hz_band') === '1';
+  localStorage.setItem('sfs_hz_band', on ? '0' : '1');
+  _syncHZBandBtn();
+  drawViewport();
+}
+
+function _syncHZBandBtn(){
+  const btn = document.getElementById('btn-hz-band');
+  if(!btn) return;
+  const on = localStorage.getItem('sfs_hz_band') === '1';
+  btn.style.opacity    = on ? '1' : '0.4';
+  btn.style.background = on ? 'rgba(255,140,90,.1)' : '';
+}
+document.addEventListener('DOMContentLoaded', _syncHZBandBtn);
+
 // ── Distance ring scale presets ────────────────────────────────────────────────
 // Each preset defines a named scale and its ring values in AU.
 // LY values are stored as AU (1 LY = 63241 AU) so the renderer is unchanged.
@@ -1175,6 +1198,77 @@ function _drawViewportNow(){
   }
   // ── End distance rings ────────────────────────────────────────────────────
 
+  // ── Habitable-zone gradient band (Universe Sandbox style) ───────────────
+  // Draws concentric red→green→blue color bands around the star, using the
+  // same inverse-square-law HZ math as the Habitability Visualizer modal
+  // (js/utils.js: _hzGetViewportZone / HZ_FLUX_INNER / HZ_FLUX_OUTER).
+  // Rendered as three overlapping radial gradients rather than hard-edged
+  // rings so the transition reads as a continuous temperature gradient
+  // (too-hot → habitable → too-cold), matching the "soft glow" look of
+  // Universe Sandbox's HZ overlay rather than a technical diagram ring.
+  if(localStorage.getItem('sfs_hz_band') === '1' && typeof _hzGetViewportZone === 'function'){
+    const _hz = _hzGetViewportZone();
+    if(_hz && bodyWorldPos[_hz.starName]){
+      const _hzWP  = bodyWorldPos[_hz.starName];
+      const _hzSP  = worldToScreen(_hzWP.x, _hzWP.y);
+      const _hzScl = getSMAScale() * vpZ;
+      const _innerPx = _hz.inner_m * _hzScl;
+      const _outerPx = _hz.outer_m * _hzScl;
+      // Inner/outer glow radii — extend a bit past the HZ edges themselves so
+      // the red (too-hot) and blue (too-cold) zones are visually legible
+      // rather than clipping exactly at the boundary. Scaled relative to the
+      // band width so it looks proportional whether the HZ is a tight ring
+      // (hot O/B star) or a huge span (dim M dwarf).
+      const _bandWidth = Math.max(1, _outerPx - _innerPx);
+      const _hotEdgePx  = Math.max(1, _innerPx - _bandWidth * 0.6);
+      const _coldEdgePx = _outerPx + _bandWidth * 1.4;
+
+      const _diagPx3 = Math.hypot(vp.width, vp.height);
+      if(_coldEdgePx > 8 && _hotEdgePx < _diagPx3 * 3){
+        ctx2.save();
+        // Fade the whole overlay in as it grows on-screen, same shape as the
+        // distance-rings fade, so it doesn't pop in harshly when zooming.
+        const _hzFadeIn = Math.min(1, Math.max(0, (_outerPx - 8) / 24));
+        ctx2.globalAlpha = _hzFadeIn * 0.55;
+        ctx2.globalCompositeOperation = 'screen'; // additive-ish glow over dark space bg
+
+        const grad = ctx2.createRadialGradient(_hzSP.x, _hzSP.y, 0, _hzSP.x, _hzSP.y, _coldEdgePx);
+        // Stops expressed as fractions of _coldEdgePx (the gradient's outer radius).
+        const _fracHot   = Math.min(0.98, _hotEdgePx  / _coldEdgePx);
+        const _fracInner = Math.min(0.98, _innerPx    / _coldEdgePx);
+        const _fracOuter = Math.min(0.99, _outerPx    / _coldEdgePx);
+        grad.addColorStop(0,                          'rgba(255,70,40,0.85)');   // near star: scorching red
+        grad.addColorStop(Math.max(0.001,_fracHot),   'rgba(255,140,40,0.35)'); // warming toward HZ
+        grad.addColorStop(Math.max(_fracHot+0.001,_fracInner), 'rgba(90,230,110,0.55)'); // HZ inner edge: green
+        grad.addColorStop((_fracInner+_fracOuter)/2,  'rgba(70,210,160,0.55)'); // HZ midpoint
+        grad.addColorStop(Math.max(_fracInner+0.001,_fracOuter), 'rgba(80,160,255,0.30)'); // HZ outer edge: cooling to blue
+        grad.addColorStop(1,                          'rgba(60,90,220,0)');     // fades to transparent
+
+        ctx2.fillStyle = grad;
+        ctx2.beginPath();
+        ctx2.arc(_hzSP.x, _hzSP.y, _coldEdgePx, 0, Math.PI * 2);
+        ctx2.fill();
+
+        ctx2.restore();
+
+        // Crisp boundary lines at the true inner/outer HZ edges — helps
+        // precisely place a planet even though the fill itself is a soft
+        // gradient. Faint, dashed, same visual language as distance rings.
+        if(_innerPx > 8){
+          ctx2.save();
+          ctx2.globalAlpha = _hzFadeIn * 0.5;
+          ctx2.strokeStyle = 'rgba(120,255,150,0.8)';
+          ctx2.setLineDash([3,5]);
+          ctx2.lineWidth = 1;
+          ctx2.beginPath(); ctx2.arc(_hzSP.x, _hzSP.y, _innerPx, 0, Math.PI*2); ctx2.stroke();
+          ctx2.beginPath(); ctx2.arc(_hzSP.x, _hzSP.y, _outerPx, 0, Math.PI*2); ctx2.stroke();
+          ctx2.restore();
+        }
+      }
+    }
+  }
+  // ── End habitable-zone band ──────────────────────────────────────────────
+
 
   const centerName2 = names.find(n => bodies[n].isCenter);
   const centerR_m = centerName2 ? ((bodies[centerName2].data.BASE_DATA||{}).radius || 1) : 1;
@@ -1362,7 +1456,13 @@ function _drawViewportNow(){
     ctx2.save();
     ctx2.globalAlpha = bodyFadeA;
 
-    // ── Barycentre: just a small cross marker ──
+    // ── Barycentre: small cross marker ──
+    // Only short-circuits the rest of the per-body pipeline when the body has
+    // no visual data of its own. A body carrying real FRONT_CLOUDS_DATA/
+    // ATMOSPHERE/RINGS/TERRAIN (e.g. the "invisible carrier" pattern — a
+    // near-zero-radius, terrain-less body used purely to host a huge
+    // FRONT_CLOUDS_DATA overlay) still needs to reach that code below, so it
+    // falls through instead of being discarded here.
     if(b.preset === 'barycentre'){
       ctx2.strokeStyle = 'rgba(180,180,255,0.5)';
       ctx2.lineWidth = 1;
@@ -1374,8 +1474,15 @@ function _drawViewportNow(){
       if(typeof groupSelectMode !== 'undefined' && groupSelectMode && typeof groupSelected !== 'undefined' && groupSelected.has(name)){ ctx2.beginPath(); polygonCircle(ctx2,sp.x,sp.y,11,64); ctx2.closePath(); ctx2.strokeStyle='rgba(255,155,40,0.9)'; ctx2.lineWidth=2; ctx2.setLineDash([3,3]); ctx2.stroke(); ctx2.setLineDash([]); }
       ctx2.fillStyle='rgba(150,200,240,0.7)'; ctx2.font='9px "JetBrains Mono",monospace'; ctx2.textAlign='center';
       ctx2.fillText(name, sp.x, sp.y+18);
-      ctx2.restore(); // must restore before early return
-      return;
+      const _hasOwnVisuals = !!(b.data.FRONT_CLOUDS_DATA || b.data.ATMOSPHERE_PHYSICS_DATA ||
+                                 b.data.RINGS_DATA || b.data.TERRAIN_DATA);
+      if(!_hasOwnVisuals){
+        ctx2.restore(); // must restore before early return
+        return;
+      }
+      // fall through, deliberately NOT restoring — the rest of the per-body
+      // pipeline expects ctx2 to still be in the bodyFadeA-applied save state
+      // (it's balanced by the "end bodyFadeA globalAlpha" restore further down).
     }
 
     // ── Star / black hole glow ──
@@ -1840,7 +1947,21 @@ function _drawViewportNow(){
     // This prevents over-sampling small bodies beyond the game's own resolution.
     const _vsRaw = b.data.TERRAIN_DATA?.verticeSize;
     const _vs = (_vsRaw > 0) ? _vsRaw : 2.0; // default 2m matches game default
-    const _vsMaxN = Math.max(90, Math.floor(2 * Math.PI * (bodyRadius_m * radiusMult) / _vs));
+
+    const _canArcCull = envFlags.heightmaps && physR_px > 200 && (bodyRadius_m * radiusMult) >= 15000;
+    const _arcInfo = _canArcCull
+      ? (() => {
+          const _dispR_px = Math.max(r, physR_px);
+          const _r_m = Math.max(1, bodyRadius_m * radiusMult);
+          const _maxH_m = _getMaxTerrainHeight(name, b, _r_m);
+          const _paddedR_px = _dispR_px * (_r_m + _maxH_m) / _r_m;
+          return _computeVisibleArc(sp, _paddedR_px, W, H);
+        })()
+      : null;
+
+    const _vsMaxN = (_arcInfo && !_arcInfo.fullCircle)
+      ? Math.max(90, Math.floor((_arcInfo.arcEnd - _arcInfo.arcStart) * (bodyRadius_m * radiusMult) / _vs))
+      : Math.max(90, Math.floor(2 * Math.PI * (bodyRadius_m * radiusMult) / _vs));
     // Screen-based N: 2 vertices per pixel around the circumference.
     // Quantise to multiples of 360 at high zoom (stable cache keys, divisible by common angles),
     // multiples of 90 at low zoom (small bodies where cache thrash matters more than precision).
@@ -1857,16 +1978,6 @@ function _drawViewportNow(){
     const hasWater = !!(b.data.WATER_DATA?.lowerTerrain && b.data.WATER_DATA?.oceanMaskTexture
                         && b.data.WATER_DATA.oceanMaskTexture !== 'None');
     const terrainDrawThreshold = hasWater ? 80 : 6;
-
-    // ── Visible arc — computed once, shared by all terrain draw calls for this body ──
-    // Only meaningful when the planet is large on screen (physR_px > 200); below that
-    // the overhead of arc computation exceeds the savings from culling.
-    // Disabled for small bodies (radius < 15000m) — at that scale the full circle
-    // is cheap and arc-culling artifacts are visually prominent.
-    const _canArcCull = envFlags.heightmaps && physR_px > 200 && (bodyRadius_m * radiusMult) >= 15000;
-    const _arcInfo = _canArcCull
-      ? _computeVisibleArc(sp, Math.max(r, physR_px), W, H)
-      : null;
 
     // ── Step 1: Base fill — terrain polygon or icon gradient ─────────────────
     {
@@ -2017,6 +2128,99 @@ function _drawViewportNow(){
         }
       }
       ctx2.restore();
+
+      // ── Sand/floor color blend near water depressions ────────────────────
+      // Ported from the game's terrain pixel shader (RenderDoc-traced constants):
+      //   sandColor  = cb0[11].rgb ≈ (230,219,207) — pale tan, blends in first
+      //   floorColor = cb0[12].rgb ≈ (64,64,64)    — dark gray, blends in as
+      //                                              depression gets deeper
+      //   floorBlendCap = cb0[15].x = 0.20          — floor color never exceeds
+      //                                              20% opacity even at max depth
+      // The shader nests two lerps: base→sand (t=r0.z), then that→floor
+      // (t=r0.y), each t derived from the depression depth in meters. We
+      // reproduce the same two-stage blend per terrain sample, using our
+      // depressions[] array (also in meters) in place of the shader's
+      // world-space depth term. Two edge-noise octaves in the original
+      // shader break up the depression boundary so it isn't a hard ring;
+      // we approximate that with a small per-sample jitter seeded from the
+      // sample index, which is cheap and stable frame-to-frame.
+      const _sandTerrainSamples = envFlags.heightmaps && _getTerrainSamples(name, b, bodyRadius_m * radiusMult, terrN, _arcInfo);
+      if(_sandTerrainSamples && _sandTerrainSamples.depressions){
+        const _sfHeights = _sandTerrainSamples.heights;
+        const _sfDepr    = _sandTerrainSamples.depressions;
+        const _sfAngles  = _sandTerrainSamples.angles;
+        const _sfN       = _sfAngles.length;
+        let _hasAnyDepression = false;
+        for(let _si = 0; _si < _sfN; _si++){ if(_sfDepr[_si] > 1){ _hasAnyDepression = true; break; } }
+
+        if(_hasAnyDepression){
+          const SAND_COLOR  = [230, 219, 207];
+          const FLOOR_COLOR = [64, 64, 64];
+          const FLOOR_CAP   = 0.20;
+          // Depth (m) thresholds — derived exactly from the traced shader,
+          // not estimated. Ground truth from the game's vertex shader
+          // (Chunk.cs: terrainMesh.uv4.x = height[l] in meters) resolved the
+          // pixel shader's depression term to:
+          //   d = max(-height_m * 0.001, 0)      [0 at sea level, 1.0 at -1000m]
+          // which then feeds  raw = d*150 + 0.20  (dropping the ±0.25 noise
+          // term, folded into our jitter approximation below) before a
+          // saturate(raw*1.1 + ...) clamps it to [0,1]. Because of the 150x
+          // multiplier, this saturates almost immediately: sand reaches full
+          // strength by ~5-7m of depression, not the tens/hundreds of meters
+          // it would take with a gentler falloff. Floor color is capped at
+          // cb0[15].x = 0.20 opacity but reaches that cap at a similarly
+          // shallow depth since it shares the same 150x-scaled term.
+          const SAND_FULL_M  = 6;
+          const FLOOR_FULL_M = 6;
+
+          ctx2.save();
+          if (_tcp) { _applyTerrainClip(ctx2, _tcp, sp); }
+          else { ctx2.beginPath(); ctx2.arc(sp.x, sp.y, _displayR, 0, Math.PI*2); ctx2.clip(); }
+          ctx2.globalCompositeOperation = 'source-atop';
+
+          const R_m = bodyRadius_m * radiusMult;
+          for(let _si = 0; _si < _sfN; _si++){
+            const depr_m = _sfDepr[_si];
+            if(depr_m <= 1) continue; // no depression here — skip, leaves base texture untouched
+
+            // Small deterministic jitter (derived from sample index) stands
+            // in for the shader's dual noise-octave edge breakup (the ±0.25
+            // term at line 68), softening the sand/floor ring so it doesn't
+            // look like a perfect contour line. Scaled to the same few-meter
+            // range as the blend thresholds themselves since both saturate
+            // together.
+            const _jitter = (Math.sin(_si * 12.9898) * 43758.5453) % 1;
+            const jitterM = (_jitter - 0.5) * SAND_FULL_M * 0.5;
+
+            const sandT  = Math.max(0, Math.min(1, (depr_m + jitterM) / SAND_FULL_M));
+            const floorT = Math.max(0, Math.min(1, (depr_m + jitterM) / FLOOR_FULL_M)) * FLOOR_CAP;
+            if(sandT <= 0.001 && floorT <= 0.001) continue;
+
+            // Nested lerp matching the shader: base -> sand -> floor
+            const r1 = SAND_COLOR[0], g1 = SAND_COLOR[1], b1 = SAND_COLOR[2];
+            const rF = r1 * (1 - floorT) + FLOOR_COLOR[0] * floorT;
+            const gF = g1 * (1 - floorT) + FLOOR_COLOR[1] * floorT;
+            const bF = b1 * (1 - floorT) + FLOOR_COLOR[2] * floorT;
+            const wedgeAlpha = Math.max(sandT, floorT);
+            if(wedgeAlpha <= 0.001) continue;
+
+            const aCur  = _sfAngles[_si];
+            const aNext = _sfAngles[(_si + 1) % _sfN];
+            const rCur  = physR_px * (1 + _sfHeights[_si] / R_m);
+            const rNext = physR_px * (1 + _sfHeights[(_si + 1) % _sfN] / R_m);
+
+            ctx2.beginPath();
+            ctx2.moveTo(sp.x, sp.y);
+            ctx2.lineTo(sp.x + Math.cos(aCur) * rCur,  sp.y - Math.sin(aCur) * rCur);
+            ctx2.lineTo(sp.x + Math.cos(aNext) * rNext, sp.y - Math.sin(aNext) * rNext);
+            ctx2.closePath();
+            ctx2.fillStyle = `rgba(${rF|0},${gF|0},${bF|0},${wedgeAlpha.toFixed(3)})`;
+            ctx2.fill();
+          }
+          ctx2.restore();
+        }
+      }
+      // ── End sand/floor blend ──────────────────────────────────────────────
     } else if(!texImg && ptex && ptex !== 'None'){
       // Texture named but not in cache yet — log once
       if(!_sfsDbgLogged) _sfsDbgLogged = {};
@@ -2717,14 +2921,6 @@ function _drawViewportNow(){
     // alpha toward zero at the disc edge. We replicate this with a destination-out
     // radial mask applied after drawing the image.
     if(envFlags.fclouds && !envFlags.heightmaps && b.data.FRONT_CLOUDS_DATA){
-      // TEMP instrumentation — always fires, regardless of any gate below,
-      // so we can confirm whether execution reaches this block at all for
-      // a given body before any of fcImg/fcAlpha/etc. get evaluated.
-      console.log('[FC_ENTRY]', name, {
-        cloudsTexture: b.data.FRONT_CLOUDS_DATA.cloudsTexture,
-        cachedTex: !!textureCache[b.data.FRONT_CLOUDS_DATA.cloudsTexture],
-        sp, physR_px, bodyRadius_m, radiusMult, scale, vpZ
-      });
       const FCD = b.data.FRONT_CLOUDS_DATA;
       const fcTex = FCD.cloudsTexture;
       const fcImg = fcTex && fcTex !== 'None' && textureCache[fcTex];
@@ -3869,7 +4065,7 @@ function char_isDigit(c)  { return c >= '0' && c <= '9'; }
 // where normalPosition is a unit vector (cos,sin).
 // The mask canvas stores the texture occupying the full [0,1] UV space,
 // so we must scale the unit circle by (cutout * 0.5) before mapping to pixels.
-function _applyWaterDepression(heights, angles_rad, maskPixels, maskSZ, oceanDepth, texRotRad, cutout) {
+function _applyWaterDepression(heights, angles_rad, maskPixels, maskSZ, oceanDepth, texRotRad, cutout, depressionOut) {
   if (!maskPixels) return;
   const SZ = maskSZ;
   // cutout scales how far from centre the planet edge sits in UV space.
@@ -3901,7 +4097,12 @@ function _applyWaterDepression(heights, angles_rad, maskPixels, maskSZ, oceanDep
     //       num = GetWaterColor * 2  (ranges -1 land → +1 ocean)
     //       depression = num * oceanDepth + 50
     const num = (0.5 - pixelR) * 2 * oceanDepth + 50;
-    if (num > 0) heights[i] -= num;
+    if (num > 0) {
+      heights[i] -= num;
+      if (depressionOut) depressionOut[i] = num;
+    } else if (depressionOut) {
+      depressionOut[i] = 0;
+    }
   }
 }
 
@@ -3911,7 +4112,7 @@ function _applyWaterDepression(heights, angles_rad, maskPixels, maskSZ, oceanDep
 // InverseLerp directly on the raw angle values.  We replicate that exactly.
 // The editor's angles array runs [0, 2π), and fz.angle is stored in that same
 // space, so no wrapping is needed or correct here.
-function _applyFlatZones(heights, angles_rad, flatZones, radius_m) {
+function _applyFlatZones(heights, angles_rad, flatZones, radius_m, depressions) {
   if (!flatZones || !flatZones.length) return;
   for (const fz of flatZones) {
     // Game: num2 = (width + transition) / radius / 2
@@ -3933,7 +4134,15 @@ function _applyFlatZones(heights, angles_rad, flatZones, radius_m) {
       const tLeft  = halfFull === halfInner ? 0 : (a - zoneMin)  / (innerMin - zoneMin);
       const tRight = halfFull === halfInner ? 0 : (a - zoneMax)  / (innerMax - zoneMax);
       const tc = Math.max(0, Math.min(1, Math.min(tLeft, tRight)));
-      if (tc > 0) heights[i] = heights[i] * (1 - tc) + fz.height * tc;
+      if (tc > 0) {
+        heights[i] = heights[i] * (1 - tc) + fz.height * tc;
+        // Proportionally remove water tint wherever a flatzone raises terrain
+        // that water depression had lowered — matches the game's own order
+        // (flatzones applied AFTER water depression, so they can fully or
+        // partially override it). A fully-flattened point (tc=1) should show
+        // no sand/floor tint at all, since it's no longer underwater.
+        if (depressions) depressions[i] *= (1 - tc);
+      }
     }
   }
 }
@@ -4042,6 +4251,43 @@ function _computeVisibleArc(sp, physR_px, vpW, vpH) {
 
 // ── Terrain sample cache ──────────────────────────────────────────────────────
 const _terrainSampleCache = {};
+
+// ── Max terrain height (mirrors Planet.cs: maxTerrainHeight = TerrainModule.
+//    GetMaxTerrainHeight(planet) + 200) ─────────────────────────────────────
+const _maxTerrainHeightCache = {};
+function _getMaxTerrainHeight(bodyName, b, radius_m) {
+  const TD = b.data.TERRAIN_DATA;
+  if (!TD) return 0;
+  const tfd = TD.terrainFormulaDifficulties;
+  const formula = (tfd && (tfd[viewDiffKey] || tfd[viewDifficulty] || tfd['Normal'] || tfd['normal'])) || TD.terrainFormula;
+  if (!formula || !formula.length) return 0;
+
+  const fHash = formula.join('§');
+  const key = `${bodyName}|${radius_m.toFixed(0)}|${viewDiffKey}|${fHash}`;
+  if (_maxTerrainHeightCache[key] != null) return _maxTerrainHeightCache[key];
+
+  const N = 1001;
+  const angles = new Float64Array(N);
+  for (let i = 0; i < N; i++) angles[i] = (Math.PI / 500) * i;
+  const heights = _evalTerrainFormula(formula, angles, radius_m);
+  if (!heights) return 0;
+
+  const depressions = new Float64Array(N);
+  _applyWaterDepressionIfNeeded(b, TD, heights, angles, depressions);
+  const fzd = TD.flatZonesDifficulties;
+  const flatZones = (fzd && (fzd[viewDiffKey] || fzd['Normal'])) || TD.flatZones || [];
+  _applyFlatZones(heights, angles, flatZones, radius_m, depressions);
+
+  let maxH = 0;
+  for (let i = 0; i < N; i++) if (heights[i] > maxH) maxH = heights[i];
+  const result = maxH + 200;
+
+  const keys = Object.keys(_maxTerrainHeightCache);
+  if (keys.length >= 100) delete _maxTerrainHeightCache[keys[0]];
+  _maxTerrainHeightCache[key] = result;
+  return result;
+}
+
 // Per-frame clip path cache — keyed by "bodyName|N|spx|spy|physR_px" so it's
 // reused when drawTerrainBody and _terrainClipPath request the same shape in
 // the same frame without recomputing the Path2D.
@@ -4120,12 +4366,13 @@ function _getTerrainSamples(bodyName, b, radius_m, N, arcInfo) {
     const heights = _evalTerrainFormula(formula, angles, radius_m);
     if (!heights) return fallback; // async heightmap — return stale data if available
 
-    _applyWaterDepressionIfNeeded(b, TD, heights, angles);
+    const depressions = new Float64Array(N);
+    _applyWaterDepressionIfNeeded(b, TD, heights, angles, depressions);
     const fzd = TD.flatZonesDifficulties;
     const flatZones = (fzd && (fzd[viewDiffKey] || fzd['Normal'])) || TD.flatZones || [];
-    _applyFlatZones(heights, angles, flatZones, radius_m);
+    _applyFlatZones(heights, angles, flatZones, radius_m, depressions);
 
-    const result = { heights, angles, N, arcCulled: false };
+    const result = { heights, depressions, angles, N, arcCulled: false };
     const keys = Object.keys(_terrainSampleCache);
     if (keys.length >= 50) delete _terrainSampleCache[keys[0]];
     _terrainSampleCache[key] = result;
@@ -4141,13 +4388,11 @@ function _getTerrainSamples(bodyName, b, radius_m, N, arcInfo) {
   const arcKey = `${bodyName}|${radius_m.toFixed(0)}|${viewDiffKey}|arc|${N}|${snapS.toFixed(4)}|${snapE.toFixed(4)}|${fHash}`;
   if (_terrainSampleCache[arcKey]) return _terrainSampleCache[arcKey];
 
-  // Determine which of the N full-circle indices fall inside the visible arc
   const arcSpan = snapE - snapS; // > 0, < 2π
-  const arcAngles = [];
-  for (let i = 0; i < N; i++) {
-    const a = (i / N) * TWO_PI;
-    const d = ((a - snapS) % TWO_PI + TWO_PI) % TWO_PI;
-    if (d <= arcSpan) arcAngles.push(a);
+  const arcVertexCount = Math.max(1, Math.ceil(N * arcSpan / TWO_PI));
+  const arcAngles = new Array(arcVertexCount);
+  for (let i = 0; i < arcVertexCount; i++) {
+    arcAngles[i] = snapS + (i / arcVertexCount) * arcSpan;
   }
 
   if (arcAngles.length === 0) {
@@ -4162,13 +4407,15 @@ function _getTerrainSamples(bodyName, b, radius_m, N, arcInfo) {
     return _getTerrainSamples(bodyName, b, radius_m, 360, null);
   }
 
-  _applyWaterDepressionIfNeeded(b, TD, heights, angArr);
+  const depressions = new Float64Array(angArr.length);
+  _applyWaterDepressionIfNeeded(b, TD, heights, angArr, depressions);
   const fzd = TD.flatZonesDifficulties;
   const flatZones = (fzd && (fzd[viewDiffKey] || fzd['Normal'])) || TD.flatZones || [];
-  _applyFlatZones(heights, angArr, flatZones, radius_m);
+  _applyFlatZones(heights, angArr, flatZones, radius_m, depressions);
 
   const result = {
     heights,
+    depressions,
     angles: angArr,
     N: angArr.length,
     arcCulled: true,
@@ -4183,7 +4430,7 @@ function _getTerrainSamples(bodyName, b, radius_m, N, arcInfo) {
 }
 
 // ── Water depression helper ───────────────────────────────────────────────────
-function _applyWaterDepressionIfNeeded(b, TD, heights, angles) {
+function _applyWaterDepressionIfNeeded(b, TD, heights, angles, depressionOut) {
   if (!b.data.WATER_DATA?.lowerTerrain) return;
   const WD = b.data.WATER_DATA;
   const maskTex = WD.oceanMaskTexture;
@@ -4208,7 +4455,7 @@ function _applyWaterDepressionIfNeeded(b, TD, heights, angles) {
   if (wmp) {
     const texRotRad = (TD.TERRAIN_TEXTURE_DATA?.planetTextureRotation ?? 0) * Math.PI / 180;
     const cutout = TD.TERRAIN_TEXTURE_DATA?.planetTextureCutout ?? 1.0;
-    _applyWaterDepression(heights, angles, wmp.px, wmp.sz, WD.oceanDepth || 3000, texRotRad, cutout);
+    _applyWaterDepression(heights, angles, wmp.px, wmp.sz, WD.oceanDepth || 3000, texRotRad, cutout, depressionOut);
   }
 }
 

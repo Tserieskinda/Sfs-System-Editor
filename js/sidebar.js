@@ -424,7 +424,11 @@ function confirmDeleteBody(){
   if(!confirm(msg)) return;
   pushUndo();
   const toDelete = [selectedBody, ...sats];
+  const texturesToCheck = toDelete
+    .map(n => bodies[n]?.data?.FRONT_CLOUDS_DATA?.cloudsTexture)
+    .filter(Boolean);
   toDelete.forEach(n => delete bodies[n]);
+  texturesToCheck.forEach(tex => _dncCleanupOrphanTexture(tex, null));
   closeSidebar();
   drawViewport();
   syncAddBodyBtn();
@@ -1247,6 +1251,63 @@ function setSlider(id, v, min, max){
   if(val) val.textContent = clamped;
 }
 
+// ── Right Ascension ↔ Argument of Periapsis ────────────────────────────────
+// RA convention: 0h = 0° (right, +x), increasing counter-clockwise like a
+// standard math angle — matches the editor's existing AOP convention exactly
+// (aopRad drives x=cos(aop), y=sin(aop)), so the conversion is a pure
+// linear scale: degrees = hours * 15, with no offset or direction flip.
+function _raToDeg(h, m, s){
+  const hh = (h || 0) + (m || 0) / 60 + (s || 0) / 3600;
+  return hh * 15;
+}
+function _degToRa(deg){
+  // Normalise to [0, 360) before converting to [0h, 24h)
+  let d = deg % 360; if(d < 0) d += 360;
+  const totalH = d / 15;
+  const h = Math.floor(totalH);
+  const remM = (totalH - h) * 60;
+  const m = Math.floor(remM);
+  const s = (remM - m) * 60;
+  return { h, m, s };
+}
+// Called when the user edits the RA h/m/s fields — pushes into or-aop.
+function syncRaToAop(){
+  const hEl = document.getElementById('or-ra-h');
+  const mEl = document.getElementById('or-ra-m');
+  const sEl = document.getElementById('or-ra-s');
+  if(!hEl || !mEl || !sEl) return;
+  const h = parseFloat(hEl.value) || 0;
+  const m = parseFloat(mEl.value) || 0;
+  const s = parseFloat(sEl.value) || 0;
+  const deg = _raToDeg(h, m, s);
+  const aopInp = document.getElementById('or-aop');
+  if(!aopInp) return;
+  aopInp.value = deg.toFixed(1);
+  syncSlider('or-aop', -360, 360);
+  // Mirror into the RA readout label (matches the pattern used by other -val spans)
+  const raVal = document.getElementById('or-ra-val');
+  if(raVal) raVal.textContent = deg.toFixed(1) + '°';
+  // syncSlider does not itself dispatch 'input' on or-aop's own listener chain
+  // (it only updates the slider), so we still need to notify liveSync manually
+  // since this edit originates from the RA fields, not the AOP input itself.
+  aopInp.dispatchEvent(new Event('input', { bubbles: true }));
+}
+// Called when the user edits AOP directly (input or slider) — pushes into RA fields.
+function syncAopToRA(){
+  const aopInp = document.getElementById('or-aop');
+  const hEl = document.getElementById('or-ra-h');
+  const mEl = document.getElementById('or-ra-m');
+  const sEl = document.getElementById('or-ra-s');
+  if(!aopInp || !hEl || !mEl || !sEl) return;
+  const deg = parseFloat(aopInp.value) || 0;
+  const { h, m, s } = _degToRa(deg);
+  hEl.value = h;
+  mEl.value = m;
+  sEl.value = s.toFixed(1);
+  const raVal = document.getElementById('or-ra-val');
+  if(raVal) raVal.textContent = (((deg % 360) + 360) % 360).toFixed(1) + '°';
+}
+
 // Call after populating a slider-augmented input to sync the thumb position
 function initSlider(id, min, max){
   const inp = document.getElementById(id);
@@ -1553,6 +1614,7 @@ function fillSidebar(name){
   setVal('or-sh', sds.Hard      ?? '');
   setVal('or-sr', sds.Realistic ?? '');
   setSlider('or-ecc', OR.eccentricity, 0, 0.999); setSlider('or-aop', OR.argumentOfPeriapsis, -360, 360);
+  syncAopToRA();
   initSlider('or-ecc',0,0.999);
   initSlider('or-aop',-360,360);
   setSelectVal('or-dir', String(OR.direction ?? 1));  // ?? not || so 0 is preserved
@@ -2650,13 +2712,41 @@ function hmRefreshLoadedList(){
   const hms = (typeof assets !== 'undefined') ? (assets.heightmaps || []) : [];
 
   // Populate the map picker with loaded names + builtins
-  const builtins = ['Perlin'];
-  const customNames = hms.map(e => e.name.replace(/\.[^.]+$/, ''));
-  const allMaps = [...new Set([...builtins, ...customNames])];
+  // Vanilla SFS heightmaps — these ship with the base game and are referenced
+  // WITHOUT a file extension, unlike custom uploads. Derived empirically (not
+  // guessed) by cross-referencing terrain formula usage across 8 independent
+  // featured community systems (ATSS, BGH, CH, Example, HTSS, PG, RS, YS):
+  // every name below appears bundled AND referenced extension-free in 5-8 of
+  // the 8 packages — that consistency across completely unrelated creators is
+  // the signature of genuine base-game assets, not coincidental custom naming.
+  const builtins = [
+    'Perlin', 'Craters', 'Noise', 'Cliff', 'CliffsCraters', 'CliffsCraters02',
+    'PlutoCanyon', 'PanRidge', 'Top', 'Test', 'Titan', 'Crater_Edge',
+    'Mercury', 'Mercury_Plains', 'Venus', 'Venus_Plains', 'Mars', 'Mars_Plains', 'Mars_RSS',
+    'Moon', 'Moon_Plains', 'Moon_Normal',
+    'Phobos', 'Deimos', 'Io', 'Proteus',
+    'CratersIapetus', 'CratersCharon', 'IapetusRidge', 'ArielCliffsCraters',
+    'MimasShape', 'NaiadShape', 'DioneChasmata', 'UmbrielCraters', 'TethysChasmata',
+    'PuckShape', 'NixShape', 'HydraShape', 'ThebeShape', 'RheaShape', 'OberonChasma',
+    'Curve1', 'Curve2', 'Curve3', 'Curve4', 'Curve5', 'Curve6', 'Curve7', 'Curve8'
+  ];
+  // IMPORTANT: option VALUE must be the full filename including extension for
+  // custom uploads (e.g. "MyHeightmap.txt") — the game's heightmap loader
+  // resolves custom/uploaded heightmaps by exact filename and does NOT try
+  // extension-agnostic matching the way this editor's own _getHeightMap does.
+  // Referencing just the base name works fine inside this editor (which is
+  // forgiving about it) but produces a formula that fails to load the
+  // heightmap in the actual game until the extension is added back by hand —
+  // confirmed by user reports. Built-in names stay bare since they're not
+  // real uploaded files and aren't looked up by filename.
+  const customNames = hms.map(e => e.name.replace(/\.[^.]+$/, '')); // display/matching only — NOT used as option values
+  const allMaps = [...new Set([...builtins, ...hms.map(e => e.name)])];
   const curMap = mapSel.value;
-  mapSel.innerHTML = allMaps.map(n =>
-    `<option value="${n}"${n===curMap?' selected':''}>${n}${builtins.includes(n)?' (built-in)':' (custom)'}</option>`
-  ).join('');
+  mapSel.innerHTML = allMaps.map(n => {
+    const isBuiltin = builtins.includes(n);
+    const label = isBuiltin ? n : n.replace(/\.[^.]+$/, '');
+    return `<option value="${n}"${n===curMap?' selected':''}>${label}${isBuiltin?' (built-in)':' (custom)'}</option>`;
+  }).join('');
 
   // Check if any active formula lines reference heightmap names not currently loaded
   // (happens when a preset references a custom heightmap that hasn't been uploaded yet)
@@ -2668,12 +2758,17 @@ function hmRefreshLoadedList(){
       return el ? el.value : '';
     }).join('\n');
     // Extract map names used in formula calls e.g. SET(EarthHM, ...) or OUTPUT = SET(EarthHM, ...)
+    // Name pattern allows dots so full filenames (e.g. "MyHeightmap.txt") are captured whole,
+    // not truncated at the first dot.
     const used = new Set();
     allFormulas.replace(/\b[A-Za-z_][A-Za-z0-9_]*\s*\(/g,''); // skip function names
-    for(const m of allFormulas.matchAll(/(?:SET|ADD|SUB|MUL|MAX|MIN)\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)/g)){
+    for(const m of allFormulas.matchAll(/(?:SET|ADD|SUB|MUL|MAX|MIN)\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)/g)){
       used.add(m[1]);
     }
-    const missing = [...used].filter(n => !builtins.includes(n) && !customNames.includes(n));
+    const fullNames = hms.map(e => e.name);
+    // Accept either convention: bare name (older formulas, or built-ins) or full
+    // filename with extension (current convention for custom heightmaps).
+    const missing = [...used].filter(n => !builtins.includes(n) && !customNames.includes(n) && !fullNames.includes(n));
     if(missing.length){
       warn.style.display = '';
       warn.textContent = `⚠ Heightmap${missing.length>1?'s':''} not loaded: ${missing.join(', ')} — upload the file(s) in the Assets panel.`;
@@ -2710,9 +2805,9 @@ function hmRefreshLoadedList(){
       const preview = isImg && e.url
         ? `<img src="${e.url}" style="width:100%;height:52px;object-fit:cover;border-radius:3px 3px 0 0;image-rendering:pixelated;display:block">`
         : `<div style="width:100%;height:52px;border-radius:3px 3px 0 0;background:var(--bg1);display:flex;align-items:center;justify-content:center;font-size:.72rem;color:var(--sky2);font-family:'JetBrains Mono',monospace;font-weight:700;letter-spacing:.04em">TXT</div>`;
-      return `<div style="background:var(--bg2);border-radius:4px;overflow:hidden;border:1px solid var(--ink6,#2a2a2a);cursor:pointer;transition:border-color .15s" onclick="hmInsertMap('${base}')" title="Click to use: ${base}">
+      return `<div style="background:var(--bg2);border-radius:4px;overflow:hidden;border:1px solid var(--ink6,#2a2a2a);cursor:pointer;transition:border-color .15s" onclick="hmInsertMap('${e.name}')" title="Click to use: ${e.name}">
         ${preview}
-        <div style="padding:4px 5px;font-size:.72rem;font-family:'JetBrains Mono',monospace;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${base}">${base}</div>
+        <div style="padding:4px 5px;font-size:.72rem;font-family:'JetBrains Mono',monospace;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${e.name}">${base}</div>
       </div>`;
     }).join('');
     return `<div style="margin-bottom:6px">
@@ -3026,7 +3121,9 @@ function updateDayNightCycle(name, opts){
   const d = b.data;
 
   if(o.darkness != null){
+    const oldTex = d.FRONT_CLOUDS_DATA.cloudsTexture;
     d.FRONT_CLOUDS_DATA.cloudsTexture = _dncGenerateTexture(o.darkness);
+    _dncCleanupOrphanTexture(oldTex, d.FRONT_CLOUDS_DATA.cloudsTexture);
   }
   if(o.fadeZoneKm != null) d.FRONT_CLOUDS_DATA.fadeZoneHeight = o.fadeZoneKm * 1000;
   if(o.positionZ != null) d.FRONT_CLOUDS_DATA.positionZ = o.positionZ;
@@ -3047,6 +3144,16 @@ function updateDayNightCycle(name, opts){
 
   if(selectedBody === name) fillSidebar(name);
   drawViewport();
+}
+
+function _dncCleanupOrphanTexture(oldTexName, newTexName){
+  if(!oldTexName || oldTexName === newTexName) return;
+  if(!/^DayNightCycle_\d+$/.test(oldTexName)) return;
+  const stillUsed = Object.values(bodies).some(bb => bb.data?.FRONT_CLOUDS_DATA?.cloudsTexture === oldTexName);
+  if(stillUsed) return;
+  if(typeof assets === 'undefined') return;
+  const entry = assets.textures.find(t => t.name.replace(/\.[^.]+$/, '') === oldTexName);
+  if(entry && typeof removeAsset === 'function') removeAsset(sanitize(entry.name), 'textures');
 }
 
 // ── Day/Night Cycle panel wiring ──

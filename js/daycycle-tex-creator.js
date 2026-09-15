@@ -13,14 +13,52 @@ const DC = (() => {
   let TEX_W = 1024;
   let TEX_H = 256;
 
-  let _drawCanvas = null; // offscreen full-res buffer
+  // Live-preview resolution is capped independently of the export size the
+  // sliders set. The per-pixel compositor below (_drawTexture) does real
+  // work per pixel — gradient sampling, noise, multi-layer cloud sampling —
+  // so a naive re-render at, say, 4096×1024 on every slider drag is enough
+  // to visibly stall a phone. Dragging dc-outW/dc-outH now only changes the
+  // ASPECT RATIO the preview (and eventual export) uses; the preview itself
+  // always renders at PREVIEW_MAX_W or smaller, then the display canvas
+  // upscales it with nearest-neighbor (already how _renderDisplay works).
+  // Only Export / Copy re-render once at the full slider resolution.
+  const PREVIEW_MAX_W = 256;
+  const PREVIEW_MAX_H = 128;
+
+  let _drawCanvas = null; // offscreen buffer — sized to PREVIEW resolution during live editing
   let _drawCtx    = null;
+  let _previewW   = PREVIEW_MAX_W; // current actual preview render size (kept in sync with TEX_W/H aspect)
+  let _previewH   = 64;
 
   let cloudImg   = null;  // current cloud source <img>
   let cloudLayers = [
     { id: 1, offsetX: 0, offsetY: 0, hScale: 100, vScale: 100, opacity: 1.0 }
   ];
   let nextLayerId = 2;
+
+  // ── Gradient stops (day/night atmosphere band) ─────────────────────────
+  // Replaces the old fixed "day zone + single dusk zone" model with an
+  // ordered list of stops along the half-width axis (0 = centre/noon,
+  // 100 = edge/night). Each stop has its own top/bottom color pair,
+  // opacity, and the curve shape used for the segment BEFORE it (i.e.
+  // stop[i].curve describes the transition from stop[i-1] to stop[i]).
+  // Defaults reproduce the old two-zone look exactly: stop0 = day (pos 0,
+  // full opacity), stop1 = dusk start (pos = dayWidth, full opacity, sharp
+  // cut so the "day" region stays flat until dusk begins — mirrors the old
+  // absX <= dayHalfPct hard boundary), stop2 = dusk end / night (pos =
+  // dayWidth+duskWidth, 0 opacity, smooth curve — mirrors the old
+  // smoothstep dusk falloff).
+  let gradStops = [
+    { id: 1, pos: 0,  top: '#4da6ff', bot: '#ffe0b0', opacity: 1.0, curve: 'linear' },
+    { id: 2, pos: 25, top: '#ff7030', bot: '#ff9a50', opacity: 1.0, curve: 'linear' },
+    { id: 3, pos: 39, top: '#ff7030', bot: '#ff9a50', opacity: 0.0, curve: 'smooth' }
+  ];
+  let nextStopId = 4;
+  const CURVE_FNS = {
+    linear: t => t,
+    smooth: t => t * t * (3 - 2 * t),
+    sharp:  t => t * t
+  };
 
   const CLOUD_BUILTIN = "data:image/jpeg;base64,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";
 
@@ -52,32 +90,81 @@ const DC = (() => {
   }
 
   // ── Offscreen buffer management ──────────────────────────────────────
-  function _initDrawCanvas() {
-    _drawCanvas = document.createElement('canvas');
-    _drawCanvas.width  = TEX_W;
-    _drawCanvas.height = TEX_H;
-    _drawCtx = _drawCanvas.getContext('2d');
-    _drawCtx.clearRect(0, 0, TEX_W, TEX_H);
+  // Computes the preview render size for the CURRENT TEX_W/TEX_H aspect
+  // ratio, capped at PREVIEW_MAX_W × PREVIEW_MAX_H so the live per-pixel
+  // compositor never has to touch more than ~32K pixels regardless of what
+  // the export-size sliders are set to.
+  function _computePreviewSize() {
+    const aspect = TEX_W / TEX_H;
+    let pw = PREVIEW_MAX_W, ph = Math.round(pw / aspect);
+    if (ph > PREVIEW_MAX_H) { ph = PREVIEW_MAX_H; pw = Math.round(ph * aspect); }
+    return { pw: Math.max(8, pw), ph: Math.max(8, ph) };
   }
 
-  // ── Main texture composer (atmosphere day/dusk bands + cloud layers) ──
-  function _drawTexture() {
-    const W = TEX_W, H = TEX_H;
-    const ctx = _drawCtx;
+  function _initDrawCanvas() {
+    const { pw, ph } = _computePreviewSize();
+    _previewW = pw; _previewH = ph;
+    _drawCanvas = document.createElement('canvas');
+    _drawCanvas.width  = _previewW;
+    _drawCanvas.height = _previewH;
+    _drawCtx = _drawCanvas.getContext('2d');
+    _drawCtx.clearRect(0, 0, _previewW, _previewH);
+  }
+
+  // Sample the gradient-stop list at position `pct` (0=centre, 100=edge).
+  // Returns { col:[r,g,b], alpha, dayFrac } — dayFrac is 1 at the first
+  // stop's position, fading toward 0 at the last stop (used to feed the
+  // cloud night-dimming term, same role the old dayFrac played).
+  function _sampleGradient(stopsSorted, pct, vt) {
+    const n = stopsSorted.length;
+    if (n === 0) return { col: [0, 0, 0], alpha: 0, dayFrac: 0 };
+    if (n === 1 || pct <= stopsSorted[0].pos) {
+      const s = stopsSorted[0];
+      return { col: lerpRgb(hexToRgb(s.top), hexToRgb(s.bot), vt), alpha: s.opacity, dayFrac: 1 };
+    }
+    if (pct >= stopsSorted[n - 1].pos) {
+      const s = stopsSorted[n - 1];
+      return { col: lerpRgb(hexToRgb(s.top), hexToRgb(s.bot), vt), alpha: s.opacity, dayFrac: 0 };
+    }
+    for (let i = 1; i < n; i++) {
+      const a = stopsSorted[i - 1], b = stopsSorted[i];
+      if (pct <= b.pos) {
+        const span = Math.max(0.0001, b.pos - a.pos);
+        let t = (pct - a.pos) / span;
+        const curveFn = CURVE_FNS[b.curve] || CURVE_FNS.linear;
+        t = curveFn(clamp(t, 0, 1));
+        const colA = lerpRgb(hexToRgb(a.top), hexToRgb(a.bot), vt);
+        const colB = lerpRgb(hexToRgb(b.top), hexToRgb(b.bot), vt);
+        return {
+          col: lerpRgb(colA, colB, t),
+          alpha: lerp(a.opacity, b.opacity, t),
+          dayFrac: 1 - (i - 1 + t) / (n - 1)
+        };
+      }
+    }
+    // Unreachable, but keep a safe fallback.
+    const s = stopsSorted[n - 1];
+    return { col: lerpRgb(hexToRgb(s.top), hexToRgb(s.bot), vt), alpha: s.opacity, dayFrac: 0 };
+  }
+
+  // ── Main texture composer (atmosphere gradient-stop bands + cloud layers) ──
+  // ── Main texture composer (atmosphere gradient-stop bands + cloud layers) ──
+  // Renders into `targetCtx` at `targetW`×`targetH` (defaults to the capped
+  // live-preview buffer/size). Export/Copy pass the real TEX_W/TEX_H and a
+  // temporary full-resolution context so the expensive per-pixel loop only
+  // ever runs at full size once, on demand, instead of on every slider drag.
+  function _drawTexture(targetCtx, targetW, targetH) {
+    const ctx = targetCtx || _drawCtx;
+    const W = targetW || _previewW;
+    const H = targetH || _previewH;
     ctx.clearRect(0, 0, W, H);
 
-    const dayHalfPct    = _f('dc-dayWidth') / 100;
-    const duskPct       = _f('dc-duskWidth') / 100;
-    const duskOpacity   = _f('dc-duskOpacity');
     const bendAmt       = _f('dc-bend');
     const topFade       = _f('dc-topFade');
     const botBoost      = _f('dc-botBoost');
     const masterOpacity = _f('dc-opacity');
 
-    const dayTop  = hexToRgb(_v('dc-dayColor'));
-    const dayBot  = hexToRgb(_v('dc-dayColorBot'));
-    const duskTop = hexToRgb(_v('dc-duskColor'));
-    const duskBot = hexToRgb(_v('dc-duskColorBot'));
+    const stopsSorted = [...gradStops].sort((a, b) => a.pos - b.pos);
 
     const cloudGlobalOpacity = _f('dc-cloudGlobalOpacity');
     const cloudY       = _f('dc-cloudY') / 100;
@@ -119,28 +206,12 @@ const DC = (() => {
         const bendFactor = 1 - bendAmt * (1 - vy) * 0.6;
         const adjCx = cx / Math.max(0.01, bendFactor);
         const absX = Math.abs(adjCx);
+        const pct = absX * 100; // gradient stop positions are in 0-100 units
 
-        let col = [0, 0, 0];
-        let alpha = 0;
-        let dayFrac = 0;
-
-        if (absX <= dayHalfPct) {
-          col = lerpRgb(dayTop, dayBot, vt);
-          alpha = 1;
-          dayFrac = 1;
-        } else if (absX <= dayHalfPct + duskPct) {
-          const t = (absX - dayHalfPct) / duskPct;
-          const tSmooth = t * t * (3 - 2 * t);
-          const dCol = lerpRgb(dayTop, dayBot, vt);
-          const nCol = lerpRgb(duskTop, duskBot, vt);
-          col = lerpRgb(dCol, nCol, tSmooth);
-          alpha = (1 - tSmooth) * duskOpacity;
-          dayFrac = 1 - tSmooth;
-        } else {
-          col = [0, 0, 0];
-          alpha = 0;
-          dayFrac = 0;
-        }
+        const sample = _sampleGradient(stopsSorted, pct, vt);
+        let col = sample.col;
+        let alpha = sample.alpha;
+        let dayFrac = sample.dayFrac;
 
         alpha *= vertAlpha;
         if (alpha > 0) {
@@ -238,9 +309,17 @@ const DC = (() => {
 
   function _refresh() {
     if (!_drawCtx) return;
-    _drawTexture();
+    // Re-derive preview size in case TEX_W/TEX_H aspect changed since last
+    // build — resizing the canvas element clears it, so this must happen
+    // before drawing, not just once at init.
+    const { pw, ph } = _computePreviewSize();
+    if (pw !== _previewW || ph !== _previewH) {
+      _previewW = pw; _previewH = ph;
+      _drawCanvas.width = pw; _drawCanvas.height = ph;
+    }
+    _drawTexture(_drawCtx, _previewW, _previewH);
     _renderDisplay();
-    if (_el.status) _el.status.textContent = `${TEX_W} × ${TEX_H} px`;
+    if (_el.status) _el.status.textContent = `${TEX_W} × ${TEX_H} px (preview ${_previewW}×${_previewH})`;
   }
 
   function _sizeCanvases() {
@@ -320,6 +399,103 @@ const DC = (() => {
     });
   }
 
+  // ── Gradient stop list UI ──────────────────────────────────────────────
+  // Mirrors _buildLayerUI's card pattern. Stops are kept sorted by position
+  // for editing convenience but the id-based lookup means dragging one
+  // stop's slider past a neighbour is harmless — _drawTexture sorts by
+  // pos itself every frame, so order in the array never needs to matter.
+  function _buildStopUI() {
+    const container = _el.gradStops;
+    if (!container) return;
+    container.innerHTML = '';
+    const sorted = [...gradStops].sort((a, b) => a.pos - b.pos);
+    sorted.forEach((stop, i) => {
+      const card = document.createElement('div');
+      card.className = 'dc-layer-card';
+      const isFirst = i === 0;
+      const curveRow = isFirst ? '' : `
+        <div class="pt-row">
+          <div class="pt-row-label"><span>Blend-in curve</span></div>
+          <select class="pt-select dc-stop-curve" data-id="${stop.id}">
+            <option value="linear"${stop.curve === 'linear' ? ' selected' : ''}>Linear</option>
+            <option value="smooth"${stop.curve === 'smooth' ? ' selected' : ''}>Smooth</option>
+            <option value="sharp"${stop.curve === 'sharp' ? ' selected' : ''}>Sharp</option>
+          </select>
+        </div>`;
+      const posRow = `
+        <div class="pt-row">
+          <div class="pt-row-label"><span>Position</span><span class="pt-val" id="dc-sv-${stop.id}-pos">${Math.round(stop.pos)}%</span></div>
+          <input class="tc-range dc-stop-input" type="range" min="0" max="100" step="1" value="${stop.pos}" data-id="${stop.id}" data-prop="pos">
+        </div>`;
+      const opRow = `
+        <div class="pt-row">
+          <div class="pt-row-label"><span>Opacity</span><span class="pt-val" id="dc-sv-${stop.id}-opacity">${stop.opacity.toFixed(2)}</span></div>
+          <input class="tc-range dc-stop-input" type="range" min="0" max="1" step="0.01" value="${stop.opacity}" data-id="${stop.id}" data-prop="opacity">
+        </div>`;
+      card.innerHTML = `
+        <div class="dc-layer-head">
+          <span>STOP ${i + 1}${isFirst ? ' (centre)' : ''}</span>
+          ${gradStops.length > 2 ? `<button class="dc-layer-remove" data-id="${stop.id}" title="Remove stop">✕</button>` : ''}
+        </div>
+        <div class="pt-row">
+          <div class="pt-row-label"><span>Color</span><span class="dc-color-hint">top → bottom</span></div>
+          <div class="dc-color-pair">
+            <input type="color" class="tc-color-swatch dc-stop-color" data-id="${stop.id}" data-prop="top" value="${stop.top}">
+            <span class="dc-color-arrow">→</span>
+            <input type="color" class="tc-color-swatch dc-stop-color" data-id="${stop.id}" data-prop="bot" value="${stop.bot}">
+          </div>
+        </div>
+        ${isFirst ? '' : posRow}
+        ${opRow}
+        ${curveRow}
+      `;
+      container.appendChild(card);
+    });
+
+    container.querySelectorAll('.dc-layer-remove').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (gradStops.length <= 2) return; // keep at least a start + end stop
+        const id = parseInt(btn.dataset.id);
+        gradStops = gradStops.filter(s => s.id !== id);
+        _buildStopUI();
+        _refresh();
+      });
+    });
+    container.querySelectorAll('.dc-stop-input').forEach(inp => {
+      _updateRangeFill(inp);
+      inp.addEventListener('input', () => {
+        const id = parseInt(inp.dataset.id);
+        const prop = inp.dataset.prop;
+        const stop = gradStops.find(s => s.id === id);
+        if (!stop) return;
+        stop[prop] = parseFloat(inp.value);
+        _updateRangeFill(inp);
+        const lbl = document.getElementById(`dc-sv-${id}-${prop}`);
+        if (lbl) lbl.textContent = (prop === 'opacity') ? stop.opacity.toFixed(2) : Math.round(stop.pos) + '%';
+        _refresh();
+      });
+    });
+    container.querySelectorAll('.dc-stop-color').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const id = parseInt(inp.dataset.id);
+        const prop = inp.dataset.prop;
+        const stop = gradStops.find(s => s.id === id);
+        if (!stop) return;
+        stop[prop] = inp.value;
+        _refresh();
+      });
+    });
+    container.querySelectorAll('.dc-stop-curve').forEach(sel => {
+      sel.addEventListener('change', () => {
+        const id = parseInt(sel.dataset.id);
+        const stop = gradStops.find(s => s.id === id);
+        if (!stop) return;
+        stop.curve = sel.value;
+        _refresh();
+      });
+    });
+  }
+
   // ── Export ────────────────────────────────────────────────────────────
   function _showToast(msg) {
     const t = document.createElement('div');
@@ -334,8 +510,17 @@ const DC = (() => {
     const raw = prompt('Texture name:', 'DayCycleTex_' + Date.now());
     if (raw === null) return;
     const safeName = raw.trim().replace(/[^a-zA-Z0-9_\-]/g, '_') || ('DayCycleTex_' + Date.now());
-    _drawTexture();
-    const dataUrl = _drawCanvas.toDataURL('image/png');
+
+    // Full-resolution render happens ONLY here, on demand — a temporary
+    // canvas at the real TEX_W×TEX_H (whatever the sliders are set to,
+    // including phone-lagging sizes like 4096×1024) so the live preview
+    // buffer stays small the rest of the time.
+    const fullCanvas = document.createElement('canvas');
+    fullCanvas.width = TEX_W; fullCanvas.height = TEX_H;
+    const fullCtx = fullCanvas.getContext('2d');
+    _drawTexture(fullCtx, TEX_W, TEX_H);
+
+    const dataUrl = fullCanvas.toDataURL('image/png');
     const name = safeName.endsWith('.png') ? safeName : safeName + '.png';
 
     if (typeof assets !== 'undefined' && typeof cacheTexture !== 'undefined') {
@@ -353,8 +538,12 @@ const DC = (() => {
   }
 
   function _copyToClipboard() {
-    _drawTexture();
-    _drawCanvas.toBlob(async blob => {
+    // Same full-resolution one-shot render as export — see _exportTexture.
+    const fullCanvas = document.createElement('canvas');
+    fullCanvas.width = TEX_W; fullCanvas.height = TEX_H;
+    const fullCtx = fullCanvas.getContext('2d');
+    _drawTexture(fullCtx, TEX_W, TEX_H);
+    fullCanvas.toBlob(async blob => {
       try {
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
         _showToast('Copied to clipboard!');
@@ -416,15 +605,12 @@ const DC = (() => {
           <div class="pt-section">Output Size</div>
           ${_row('dc-outW', 'Width', 128, 4096, 128, 1024, v => v + ' px')}
           ${_row('dc-outH', 'Height', 64, 1024, 32, 256, v => v + ' px')}
+          <p class="dc-hint">This sets the exported texture's resolution. The live preview always renders at a small fixed size for speed on phones — changing these only adjusts the preview's aspect ratio, not its render cost. Full resolution is generated once, on Export or Copy.</p>
 
-          <div class="pt-section">Dayside</div>
-          ${_colorPairRow('Color', 'dc-dayColor', 'dc-dayColorBot', '#4da6ff', '#ffe0b0')}
-          ${_row('dc-dayWidth', 'Half-width (% of texture)', 5, 48, 1, 25, v => v + '%')}
-
-          <div class="pt-section">Dawn / Dusk</div>
-          ${_colorPairRow('Color', 'dc-duskColor', 'dc-duskColorBot', '#ff7030', '#ff9a50')}
-          ${_row('dc-duskWidth', 'Transition width', 2, 40, 1, 14, v => v + '%')}
-          ${_row('dc-duskOpacity', 'Intermediate opacity', 0, 1, 0.01, 1.0, v => parseFloat(v).toFixed(2))}
+          <div class="pt-section">Gradient Stops</div>
+          <div id="dc-grad-stops"></div>
+          <button class="dc-add-layer-btn" id="dc-add-stop">+ Add stop</button>
+          <p class="dc-hint">Stops run from centre (0%, noon side) to edge (100%, night side). Each stop sets its own color, opacity, and how it blends in from the previous stop.</p>
 
           <div class="pt-section">Atmosphere Shape</div>
           ${_row('dc-bend', 'Vertical curve (bend)', 0, 1, 0.01, 0.35, v => parseFloat(v).toFixed(2))}
@@ -496,6 +682,7 @@ const DC = (() => {
     _el.status          = ov.querySelector('#dc-status');
     _el.cloudLayers      = ov.querySelector('#dc-cloud-layers');
     _el.cloudSourceLabel = ov.querySelector('#dc-cloud-source-label');
+    _el.gradStops        = ov.querySelector('#dc-grad-stops');
 
     _sizeCanvases();
 
@@ -508,7 +695,11 @@ const DC = (() => {
         const lbl = ov.querySelector('#' + el.id + '-val');
         if (lbl) lbl.textContent = _fmtFor(el.id, el.value);
 
-        // Output size sliders resize the offscreen buffer + display canvas
+        // Output size sliders only change the export aspect ratio now —
+        // they resize the small capped preview buffer to match that aspect
+        // (see PREVIEW_MAX_W/H), not the full TEX_W×TEX_H resolution, so
+        // dragging Width/Height to large values no longer re-renders a
+        // full-size texture on every input event.
         if (el.id === 'dc-outW' || el.id === 'dc-outH') {
           TEX_W = parseInt(_v('dc-outW'));
           TEX_H = parseInt(_v('dc-outH'));
@@ -554,6 +745,23 @@ const DC = (() => {
     };
     _buildLayerUI();
 
+    // ── Gradient stops ──
+    ov.querySelector('#dc-add-stop').onclick = () => {
+      // Insert a new stop halfway between the two stops currently furthest
+      // apart, inheriting the color/opacity of the later of the two so it
+      // starts visually seamless before the user adjusts it.
+      const sorted = [...gradStops].sort((a, b) => a.pos - b.pos);
+      let bestGap = -1, insertAt = 50, inheritFrom = sorted[sorted.length - 1];
+      for (let i = 1; i < sorted.length; i++) {
+        const gap = sorted[i].pos - sorted[i - 1].pos;
+        if (gap > bestGap) { bestGap = gap; insertAt = (sorted[i].pos + sorted[i - 1].pos) / 2; inheritFrom = sorted[i]; }
+      }
+      gradStops.push({ id: nextStopId++, pos: Math.round(insertAt), top: inheritFrom.top, bot: inheritFrom.bot, opacity: inheritFrom.opacity, curve: 'linear' });
+      _buildStopUI();
+      _refresh();
+    };
+    _buildStopUI();
+
     // ── Header actions ──
     ov.querySelector('#dc-close').onclick  = () => close();
     ov.querySelector('#dc-export').onclick = () => _exportTexture();
@@ -570,8 +778,6 @@ const DC = (() => {
   // Per-id label formatters (mirrors the fmt fn baked into each _row() call)
   const _fmtMap = {
     'dc-outW': v => v + ' px', 'dc-outH': v => v + ' px',
-    'dc-dayWidth': v => v + '%', 'dc-duskWidth': v => v + '%',
-    'dc-duskOpacity': v => parseFloat(v).toFixed(2),
     'dc-bend': v => parseFloat(v).toFixed(2), 'dc-topFade': v => parseFloat(v).toFixed(2),
     'dc-botBoost': v => parseFloat(v).toFixed(2), 'dc-opacity': v => parseFloat(v).toFixed(2),
     'dc-cloudBlur': v => parseFloat(v).toFixed(1),
