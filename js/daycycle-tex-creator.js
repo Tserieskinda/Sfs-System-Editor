@@ -408,6 +408,13 @@ const DC = (() => {
     const container = _el.gradStops;
     if (!container) return;
     container.innerHTML = '';
+    // Sort by position for display order only — the "centre" stop is
+    // identified by having pos===0 (enforced below, not just by whichever
+    // stop happens to sort first), so it can never silently swap identity
+    // when another stop's slider crosses it. Every non-centre stop is
+    // clamped to stay strictly between its left and right neighbours
+    // (see the input handler below), so stops can never cross each other
+    // or invert the gradient's order.
     const sorted = [...gradStops].sort((a, b) => a.pos - b.pos);
     sorted.forEach((stop, i) => {
       const card = document.createElement('div');
@@ -422,10 +429,16 @@ const DC = (() => {
             <option value="sharp"${stop.curve === 'sharp' ? ' selected' : ''}>Sharp</option>
           </select>
         </div>`;
+      // Position is clamped live (see input handler) to stay strictly
+      // between this stop's immediate neighbours, so the slider's own
+      // min/max reflect that range rather than the full 0-100 — dragging
+      // to the end of the track can no longer cross a neighbour.
+      const leftBound  = i === 0 ? 0 : sorted[i - 1].pos + 1;
+      const rightBound = i === sorted.length - 1 ? 100 : sorted[i + 1].pos - 1;
       const posRow = `
         <div class="pt-row">
           <div class="pt-row-label"><span>Position</span><span class="pt-val" id="dc-sv-${stop.id}-pos">${Math.round(stop.pos)}%</span></div>
-          <input class="tc-range dc-stop-input" type="range" min="0" max="100" step="1" value="${stop.pos}" data-id="${stop.id}" data-prop="pos">
+          <input class="tc-range dc-stop-input" type="range" min="${leftBound}" max="${Math.max(leftBound, rightBound)}" step="1" value="${stop.pos}" data-id="${stop.id}" data-prop="pos">
         </div>`;
       const opRow = `
         <div class="pt-row">
@@ -434,7 +447,7 @@ const DC = (() => {
         </div>`;
       card.innerHTML = `
         <div class="dc-layer-head">
-          <span>STOP ${i + 1}${isFirst ? ' (centre)' : ''}</span>
+          <span>STOP ${i + 1}${isFirst ? ' (centre — always at 0%)' : ''}</span>
           ${gradStops.length > 2 ? `<button class="dc-layer-remove" data-id="${stop.id}" title="Remove stop">✕</button>` : ''}
         </div>
         <div class="pt-row">
@@ -456,7 +469,15 @@ const DC = (() => {
       btn.addEventListener('click', () => {
         if (gradStops.length <= 2) return; // keep at least a start + end stop
         const id = parseInt(btn.dataset.id);
+        const removed = gradStops.find(s => s.id === id);
         gradStops = gradStops.filter(s => s.id !== id);
+        // If the removed stop happened to be the centre (pos 0), promote
+        // whichever stop is now leftmost to pos 0 so there is always
+        // exactly one centre stop and it's never ambiguous.
+        if (removed && removed.pos === 0) {
+          const newSorted = [...gradStops].sort((a, b) => a.pos - b.pos);
+          if (newSorted[0]) newSorted[0].pos = 0;
+        }
         _buildStopUI();
         _refresh();
       });
@@ -468,10 +489,37 @@ const DC = (() => {
         const prop = inp.dataset.prop;
         const stop = gradStops.find(s => s.id === id);
         if (!stop) return;
-        stop[prop] = parseFloat(inp.value);
+        let val = parseFloat(inp.value);
+        if (prop === 'pos') {
+          const isCentre = stop.pos === 0 && gradStops.every(s => s === stop || s.pos !== 0);
+          if (isCentre) {
+            val = 0; // centre stop's position is permanently locked
+          } else {
+            // Clamp strictly between this stop's nearest lower and nearest
+            // higher neighbour (by CURRENT position, not the slider's
+            // min/max at render time) — this is what actually prevents
+            // stops from crossing each other and swapping the "centre"
+            // identity or inverting the gradient's visible order.
+            const others = gradStops.filter(s => s.id !== id);
+            let leftNeighbour = null, rightNeighbour = null;
+            for (const o of others) {
+              if (o.pos <= stop.pos && (!leftNeighbour || o.pos > leftNeighbour.pos)) leftNeighbour = o;
+              if (o.pos >= stop.pos && (!rightNeighbour || o.pos < rightNeighbour.pos)) rightNeighbour = o;
+            }
+            const minAllowed = leftNeighbour ? leftNeighbour.pos + 1 : 1;
+            const maxAllowed = rightNeighbour ? rightNeighbour.pos - 1 : 100;
+            val = Math.max(minAllowed, Math.min(maxAllowed, val));
+          }
+        }
+        stop[prop] = val;
+        if (prop === 'pos') inp.value = val;
         _updateRangeFill(inp);
         const lbl = document.getElementById(`dc-sv-${id}-${prop}`);
         if (lbl) lbl.textContent = (prop === 'opacity') ? stop.opacity.toFixed(2) : Math.round(stop.pos) + '%';
+        // Rebuild whenever a position changed so neighbouring sliders'
+        // min/max ranges (and the centre label) stay in sync — cheap since
+        // there are only ever a handful of stops.
+        if (prop === 'pos') { _buildStopUI(); }
         _refresh();
       });
     });
@@ -756,7 +804,7 @@ const DC = (() => {
         const gap = sorted[i].pos - sorted[i - 1].pos;
         if (gap > bestGap) { bestGap = gap; insertAt = (sorted[i].pos + sorted[i - 1].pos) / 2; inheritFrom = sorted[i]; }
       }
-      gradStops.push({ id: nextStopId++, pos: Math.round(insertAt), top: inheritFrom.top, bot: inheritFrom.bot, opacity: inheritFrom.opacity, curve: 'linear' });
+      gradStops.push({ id: nextStopId++, pos: Math.max(1, Math.min(99, Math.round(insertAt))), top: inheritFrom.top, bot: inheritFrom.bot, opacity: inheritFrom.opacity, curve: 'linear' });
       _buildStopUI();
       _refresh();
     };
