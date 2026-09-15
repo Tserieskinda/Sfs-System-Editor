@@ -4379,6 +4379,43 @@ function _applyWaterDepressionIfNeeded(b, TD, heights, angles, depressionOut) {
 //
 // To close the hidden back from arcEnd → arcStart going THROUGH the interior
 // (the short way, not around the visible front), we use anticlockwise=true.
+// Local-space variant of _buildTerrainPath — builds the path centered at
+// (0,0) instead of baking in sp.x/sp.y, so the resulting Path2D can be
+// cached independent of the body's screen position and reused via
+// ctx.translate(sp.x, sp.y) at draw/clip time. This is what makes
+// _terrainClipCache safe to key WITHOUT sp — previously the cache key
+// included sp.x|sp.y specifically because the path itself was baked in
+// screen space, so any viewport resize (e.g. opening the sidebar, which
+// shifts vp.width/2 and therefore every body's worldToScreen() output)
+// invalidated every cached terrain clip path simultaneously, forcing a
+// full silhouette + Path2D rebuild for every visible body in one frame —
+// this was the actual source of the sidebar-open terrain lag.
+function _buildTerrainPathLocal(ctx_or_p, result, physR_px, radius_m) {
+  const { heights, angles, arcCulled, arcStart, arcEnd } = result;
+  const N = angles.length;
+
+  if (!arcCulled) {
+    const r0 = physR_px * (1 + heights[0] / radius_m);
+    ctx_or_p.moveTo(Math.cos(angles[0]) * r0, -Math.sin(angles[0]) * r0);
+    for (let i = 1; i < N; i++) {
+      const rPx = physR_px * (1 + heights[i] / radius_m);
+      ctx_or_p.lineTo(Math.cos(angles[i]) * rPx, -Math.sin(angles[i]) * rPx);
+    }
+  } else {
+    if (N === 0) {
+      ctx_or_p.arc(0, 0, physR_px, 0, Math.PI * 2);
+      return;
+    }
+    ctx_or_p.moveTo(Math.cos(arcStart) * physR_px, -Math.sin(arcStart) * physR_px);
+    for (let i = 0; i < N; i++) {
+      const rPx = physR_px * (1 + heights[i] / radius_m);
+      ctx_or_p.lineTo(Math.cos(angles[i]) * rPx, -Math.sin(angles[i]) * rPx);
+    }
+    ctx_or_p.lineTo(Math.cos(arcEnd) * physR_px, -Math.sin(arcEnd) * physR_px);
+    ctx_or_p.arc(0, 0, physR_px, -arcEnd, -arcStart, true);
+  }
+}
+
 function _buildTerrainPath(ctx_or_p, result, sp, physR_px, radius_m) {
   const { heights, angles, arcCulled, arcStart, arcEnd } = result;
   const N = angles.length;
@@ -4631,17 +4668,29 @@ function _terrainClipPath(b, bodyName, sp, physR_px, radius_m, N, arcInfo) {
   }
   if (!result) return null;
 
+  // Cache key intentionally excludes sp.x/sp.y — the path is now built in
+  // LOCAL space (centered at origin) and translated into place at clip
+  // time (see _applyTerrainClip), so the same cached Path2D is valid at
+  // any screen position. Screen position changes constantly (panning,
+  // viewport resize from sidebar/statusbar) and used to bust this cache
+  // on every such change; excluding it here is the actual fix for the
+  // terrain-lag-on-sidebar-open issue.
   const _arcKey = result.arcCulled ? `a${(result.arcStart*10)|0}_${(result.arcEnd*10)|0}` : 'full';
-  const _cacheKey = `${bodyName}|${N}|${sp.x|0}|${sp.y|0}|${physR_px|0}|${_arcKey}`;
+  const _cacheKey = `${bodyName}|${N}|${physR_px|0}|${_arcKey}`;
   if (_terrainClipCache[_cacheKey]) return _terrainClipCache[_cacheKey];
 
   const p = new Path2D();
-  _buildTerrainPath(p, result, sp, physR_px, radius_m);
+  _buildTerrainPathLocal(p, result, physR_px, radius_m);
   _terrainClipCache[_cacheKey] = p;
   return p;
 }
 
-// Apply a screen-space terrain clip path (already in screen coordinates).
+// Apply a LOCAL-space terrain clip path by translating the context to the
+// body's current screen position first. The path itself never needs
+// rebuilding when only sp changes — translate is essentially free compared
+// to rebuilding a few-hundred-to-few-thousand-vertex Path2D every frame.
 function _applyTerrainClip(ctx, path, sp) {
+  ctx.translate(sp.x, sp.y);
   ctx.clip(path);
+  ctx.translate(-sp.x, -sp.y);
 }

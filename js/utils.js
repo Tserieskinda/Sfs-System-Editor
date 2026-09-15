@@ -376,8 +376,8 @@ function calcPolarUpdate() {
   const y = Math.sin(rad);
 
   const res = document.getElementById('calc-res-polar');
-  // Updated to output the radians alongside x and y
-  if (res) res.textContent = `x = ${x.toFixed(4)},  y = ${y.toFixed(4)},  rad = ${rad.toFixed(10)}`;
+   // Updated to output the radians alongside x and 
+if (res) res.textContent = `x = ${x.toFixed(4)},  y = ${y.toFixed(4)},  rad = ${rad.toFixed(10)}`;
 
   _calcDrawPolar(deg, x, y);
 }
