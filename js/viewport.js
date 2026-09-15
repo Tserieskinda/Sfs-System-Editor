@@ -1984,35 +1984,63 @@ function _drawViewportNow(){
     // low the terrain-detail/LOD setting is set, since a fresh N still means
     // a fresh cache miss even at reduced vertex counts.
     //
-    // Fix: widen the quantisation step so fewer distinct N values exist
-    // across a typical zoom range, AND detect that physR_px is currently
-    // changing fast (mid-gesture) — while it is, snap to the PREVIOUS
-    // resolved N for this body instead of requantising every frame. Once
-    // physR_px stops moving for a frame, resolve to the precise N and cache
-    // it as the new baseline. This turns "recompute every frame of the
-    // gesture" into "recompute once when the gesture starts, once when it
-    // settles" — geometry only rebuilds a couple of times per zoom instead
-    // of dozens.
+    // Approach: use a settle TIMER, not a per-frame delta check. A sustained
+    // zoom/pinch moves physR_px on nearly every frame for its whole duration
+    // — comparing consecutive frames alone means "still moving" is true for
+    // the entire gesture, so N would stay frozen at whatever it was when the
+    // gesture STARTED and never reach full LOD even once you stop, if any
+    // residual per-frame jitter kept re-triggering the freeze.
+    //
+    // Instead: track when physR_px last changed meaningfully. While that was
+    // very recently (<120ms ago), draw at a fast, capped "interactive" N so
+    // frames stay cheap and responsive during the gesture. Once physR_px has
+    // been stable for >120ms, resolve to the FULL precise N — this fires
+    // once, reliably, shortly after the gesture ends, rather than depending
+    // on hitting an exact single quiet frame.
     const _rawScreenN = Math.ceil(2 * Math.PI * physR_px);
     const _qStep = physR_px > 500 ? 720 : 180; // widened from 360/90 — fewer boundaries crossed per zoom
     const _detailMult = (typeof window !== 'undefined' && window.terrainDetail != null)
       ? Math.max(0.01, window.terrainDetail / 100) : 1;
 
     if (!drawViewport._lastPhysR) drawViewport._lastPhysR = {};
-    if (!drawViewport._lastTerrN) drawViewport._lastTerrN = {};
+    if (!drawViewport._lastMoveT) drawViewport._lastMoveT = {};
+    const _now = performance.now();
     const _prevPhysR = drawViewport._lastPhysR[name];
-    // "Mid-gesture" = radius moved more than ~1.5% since last frame. Small
-    // pans/idle jitter stay under this and still resolve precisely.
-    const _midGesture = _prevPhysR != null && Math.abs(physR_px - _prevPhysR) > _prevPhysR * 0.015;
+    const _movedNow = _prevPhysR != null && Math.abs(physR_px - _prevPhysR) > _prevPhysR * 0.015;
+    if (_movedNow || _prevPhysR == null) drawViewport._lastMoveT[name] = _now;
     drawViewport._lastPhysR[name] = physR_px;
 
+    const SETTLE_MS = 120;
+    const _settled = (_now - (drawViewport._lastMoveT[name] || 0)) > SETTLE_MS;
+    // drawViewport() is event-driven (called from pan/zoom input handlers
+    // elsewhere) — nothing else guarantees a frame fires ~120ms after the
+    // LAST zoom tick to actually cross the settle threshold and resolve full
+    // LOD. Schedule that follow-up frame ourselves so max detail reliably
+    // arrives shortly after the gesture ends instead of only whenever the
+    // next unrelated redraw happens to occur (which may be never).
+    if (!_settled) {
+      clearTimeout(drawViewport._settleTimer);
+      drawViewport._settleTimer = setTimeout(() => {
+        if (typeof drawViewport === 'function') drawViewport();
+      }, SETTLE_MS + 20);
+    }
+
+    // Fixed interactive cap: while actively zooming, never build more than
+    // this many vertices regardless of how large physR_px gets — this is
+    // the "fixed number of vertices so it never overloads" ceiling. Full
+    // precision (up to _vsMaxN / the screen-density target) only applies
+    // once settled.
+    const INTERACTIVE_N_CAP = 2400;
+
     let terrN;
-    if (_midGesture && drawViewport._lastTerrN[name] != null && LOD !== 0) {
-      terrN = drawViewport._lastTerrN[name]; // reuse — avoids requantising this frame
+    if (LOD === 0) {
+      terrN = 0;
+    } else if (!_settled) {
+      const _fastScreenN = Math.max(90, Math.ceil((_rawScreenN * _detailMult) / _qStep) * _qStep);
+      terrN = Math.min(_vsMaxN, _fastScreenN, INTERACTIVE_N_CAP);
     } else {
       const _screenN = Math.max(90, Math.ceil((_rawScreenN * _detailMult) / _qStep) * _qStep);
-      terrN = LOD === 0 ? 0 : Math.min(_vsMaxN, _screenN);
-      drawViewport._lastTerrN[name] = terrN;
+      terrN = Math.min(_vsMaxN, _screenN);
     }
 
     // Minimum physR_px to draw terrain polygon. Water depression (up to ~3% of radius)
