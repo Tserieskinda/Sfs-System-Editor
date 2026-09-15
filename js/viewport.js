@@ -909,9 +909,17 @@ function _clearPostProcessingFilter(){
   if(vp) vp.style.filter = '';
 }
 function _drawViewportNow(){
-  // Per-frame terrain clip path cache — cleared each frame so stale Path2D
-  // objects from previous zoom/pan positions don't leak across frames.
-  for (const k of Object.keys(_terrainClipCache)) delete _terrainClipCache[k];
+  // NOTE: _terrainClipCache is intentionally NOT cleared here. Its cache key
+  // (bodyName|N|radius_m|arcKey — see _getUnitTerrainPath) already excludes
+  // screen position and zoom level by design: paths are built in unit-radius
+  // space and placed via translate+scale at draw time, so a cached Path2D
+  // stays valid across camera movement and only needs rebuilding when N or
+  // the visible arc genuinely changes. Wiping the whole cache every frame
+  // defeated that entirely — every visible terrain body's Path2D (often
+  // thousands of lineTo calls for a large planet) was being rebuilt from
+  // scratch on every single frame, which was the dominant cost of the
+  // zoom/pan stutter. The cache is still bounded (300-entry eviction) and
+  // still explicitly invalidated on real changes via invalidateTerrainCache().
   // Self-heal: if canvas has no size, set it now
   if(!vp.width || !vp.height){
     vp.width  = window.innerWidth;
