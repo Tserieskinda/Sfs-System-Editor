@@ -1965,12 +1965,47 @@ function _drawViewportNow(){
     // Screen-based N: 2 vertices per pixel around the circumference.
     // Quantise to multiples of 360 at high zoom (stable cache keys, divisible by common angles),
     // multiples of 90 at low zoom (small bodies where cache thrash matters more than precision).
+    //
+    // ── Zoom-gesture stabilisation ──────────────────────────────────────────
+    // physR_px changes on nearly every frame while the user is actively
+    // zooming, which used to make terrN cross a quantisation boundary most
+    // frames too — each crossing is a full cache miss on both
+    // _terrainSampleCache (re-runs the formula: heightmaps, curves, flat
+    // zones, water depression) AND _terrainClipCache (rebuilds the Path2D).
+    // That's the dominant cost of "lag while zooming", independent of how
+    // low the terrain-detail/LOD setting is set, since a fresh N still means
+    // a fresh cache miss even at reduced vertex counts.
+    //
+    // Fix: widen the quantisation step so fewer distinct N values exist
+    // across a typical zoom range, AND detect that physR_px is currently
+    // changing fast (mid-gesture) — while it is, snap to the PREVIOUS
+    // resolved N for this body instead of requantising every frame. Once
+    // physR_px stops moving for a frame, resolve to the precise N and cache
+    // it as the new baseline. This turns "recompute every frame of the
+    // gesture" into "recompute once when the gesture starts, once when it
+    // settles" — geometry only rebuilds a couple of times per zoom instead
+    // of dozens.
     const _rawScreenN = Math.ceil(2 * Math.PI * physR_px);
-    const _qStep = physR_px > 500 ? 360 : 90;
+    const _qStep = physR_px > 500 ? 720 : 180; // widened from 360/90 — fewer boundaries crossed per zoom
     const _detailMult = (typeof window !== 'undefined' && window.terrainDetail != null)
       ? Math.max(0.01, window.terrainDetail / 100) : 1;
-    const _screenN = Math.max(90, Math.ceil((_rawScreenN * _detailMult) / _qStep) * _qStep);
-    const terrN = LOD === 0 ? 0 : Math.min(_vsMaxN, _screenN);
+
+    if (!drawViewport._lastPhysR) drawViewport._lastPhysR = {};
+    if (!drawViewport._lastTerrN) drawViewport._lastTerrN = {};
+    const _prevPhysR = drawViewport._lastPhysR[name];
+    // "Mid-gesture" = radius moved more than ~1.5% since last frame. Small
+    // pans/idle jitter stay under this and still resolve precisely.
+    const _midGesture = _prevPhysR != null && Math.abs(physR_px - _prevPhysR) > _prevPhysR * 0.015;
+    drawViewport._lastPhysR[name] = physR_px;
+
+    let terrN;
+    if (_midGesture && drawViewport._lastTerrN[name] != null && LOD !== 0) {
+      terrN = drawViewport._lastTerrN[name]; // reuse — avoids requantising this frame
+    } else {
+      const _screenN = Math.max(90, Math.ceil((_rawScreenN * _detailMult) / _qStep) * _qStep);
+      terrN = LOD === 0 ? 0 : Math.min(_vsMaxN, _screenN);
+      drawViewport._lastTerrN[name] = terrN;
+    }
 
     // Minimum physR_px to draw terrain polygon. Water depression (up to ~3% of radius)
     // needs sufficient pixel resolution to look smooth rather than jagged.
@@ -4476,9 +4511,18 @@ function drawTerrainBody(ctx, b, bodyName, sp, physR_px, radius_m, mapColor, N, 
   if (!b.data.TERRAIN_DATA) return false;
   if (!N) N = physR_px < 10 ? 90 : physR_px < 40 ? 180 : 360;
 
-  // Always kick off a full-circle N=360 request so it's cached by next frame.
-  // This ensures _terrainClipPath always has a non-arc-culled result available.
-  _getTerrainSamples(bodyName, b, radius_m, 360, null);
+  // Kick off a full-circle N=360 request so it's cached for _terrainClipPath's
+  // fallback path — but only when we don't already have one. Previously this
+  // called _getTerrainSamples(...,360,...) unconditionally every frame, which
+  // meant a full O(360) formula evaluation (heightmaps, curves, flat zones,
+  // water depression) was paid for on top of the real N every single frame
+  // during a zoom, regardless of the terrain-detail/LOD setting.
+  const _baselineKey = `${bodyName}|${radius_m.toFixed(0)}|${viewDiffKey}|360|`;
+  let _haveBaseline = false;
+  for (const k in _terrainSampleCache) {
+    if (k.startsWith(_baselineKey)) { _haveBaseline = true; break; }
+  }
+  if (!_haveBaseline) _getTerrainSamples(bodyName, b, radius_m, 360, null);
 
   const result = _getTerrainSamples(bodyName, b, radius_m, N, arcInfo);
   if (!result) return false;
