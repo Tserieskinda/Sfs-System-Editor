@@ -762,6 +762,72 @@ function drawViewport(){
   _drawPending = true;
   requestAnimationFrame(() => { _drawPending = false; _drawViewportNow(); });
 }
+
+// Terrain quality setting — 'detailed' (default, arc culling off, full
+// correctness) or 'optimized' (arc culling on, faster but currently has a
+// known close-zoom silhouette bug — see notes at the _canArcCull gate).
+// Call this to change and persist the setting; window.terrainQuality is read
+// directly elsewhere for the per-frame gate, this just keeps localStorage in
+// sync and triggers a redraw so the change is visible immediately.
+//
+// Also drives the N% vertex-density slider (window.terrainDetail, see
+// js/tools.js setTerrainDetail): Optimized defaults it to 30%, Detailed to
+// 100%, matching how the two settings were already related before this was
+// a named toggle. The person can still fine-tune the % afterward — this
+// just sets a sensible starting point for whichever quality mode they pick.
+function setTerrainQuality(mode){
+  if (mode !== 'detailed' && mode !== 'optimized') return;
+  window.terrainQuality = mode;
+  try { localStorage.setItem('sfs_terrain_quality', mode); } catch(e) {}
+  if (typeof setTerrainDetail === 'function') {
+    setTerrainDetail(mode === 'detailed' ? 100 : 30);
+  }
+  const lbl = document.getElementById('terrain-quality-label');
+  if (lbl) lbl.textContent = mode === 'detailed' ? 'DETAILED' : 'OPTIMIZED';
+  if (typeof _syncGraphicsSettingsUI === 'function') _syncGraphicsSettingsUI();
+  drawViewport();
+}
+
+// Dev-only diagnostics (Settings > Graphics > Developer section). All off
+// by default and persisted so a visitor who never opens that section never
+// sees the overlay or has culling/LOD behavior changed on them.
+function setDbgTerrainOverlay(on){
+  window.dbgTerrainOverlay = !!on;
+  try { localStorage.setItem('sfs_dbg_terrain_overlay', on ? '1' : '0'); } catch(e) {}
+  if (!on && drawViewport._dbgEl) drawViewport._dbgEl.style.display = 'none';
+  if (typeof _syncGraphicsSettingsUI === 'function') _syncGraphicsSettingsUI();
+  drawViewport();
+}
+function setDbgArcCull(on){
+  window.dbgArcCull = !!on;
+  try { localStorage.setItem('sfs_dbg_arc_cull', on ? '1' : '0'); } catch(e) {}
+  if (typeof _syncGraphicsSettingsUI === 'function') _syncGraphicsSettingsUI();
+  drawViewport();
+}
+function setDbgLOD(on){
+  window.dbgLOD = !!on;
+  try { localStorage.setItem('sfs_dbg_lod', on ? '1' : '0'); } catch(e) {}
+  if (typeof _syncGraphicsSettingsUI === 'function') _syncGraphicsSettingsUI();
+  drawViewport();
+}
+// Load persisted values once at startup. Unset/missing keys keep the
+// existing defaults ('detailed' quality, dbgArcCull/dbgLOD both true i.e.
+// "on" meaning not forced off, dbgTerrainOverlay false/undefined i.e. hidden).
+(function _loadTerrainDevSettings(){
+  try {
+    const q = localStorage.getItem('sfs_terrain_quality');
+    if (q === 'detailed' || q === 'optimized') window.terrainQuality = q;
+    const ov = localStorage.getItem('sfs_dbg_terrain_overlay');
+    if (ov != null) window.dbgTerrainOverlay = ov === '1';
+    const ac = localStorage.getItem('sfs_dbg_arc_cull');
+    if (ac != null) window.dbgArcCull = ac === '1';
+    const lod = localStorage.getItem('sfs_dbg_lod');
+    if (lod != null) window.dbgLOD = lod === '1';
+  } catch(e) {}
+  const lbl = document.getElementById('terrain-quality-label');
+  if (lbl) lbl.textContent = (window.terrainQuality === 'optimized') ? 'OPTIMIZED' : 'DETAILED';
+})();
+
 // ── Post-processing helpers (mirrors SFS PostProcessingModule.Evaluate + SetAmbient) ──
 function _lerpPPKey(a, b, t){
   const L = (x,y) => x + (y-x)*t;
@@ -1984,12 +2050,23 @@ function _drawViewportNow(){
     // stingier than what the screen actually needs, right at the zoom level
     // where fine terrain (small craters, Perlin hills) matters most.
     //
-    // 'detailed' mode simply disables arc culling — falling back to the
-    // exact full-circle sampling behavior this renderer used before arc
-    // culling existed at all, which is known to have shown full terrain
-    // detail correctly (just slower at high zoom on weak devices).
-    // 'optimized' (default) keeps arc culling + all its dependent fixes.
-    const _terrainQuality = (typeof window !== 'undefined' && window.terrainQuality) || 'optimized';
+    // Despite several rounds of fixes to _computeVisibleArc and
+    // _getTerrainSamples (proportional margin, finer cache-key quantization,
+    // correct boundary-point heights), arc culling has continued to produce
+    // a flat/straight silhouette at close zoom in user testing — confirmed
+    // via direct A/B toggling that arc culling itself is the cause, not the
+    // LOD settle-timer (which is independent and does NOT contribute to this
+    // bug). Given that pattern, 'detailed' mode (arc culling off, LOD
+    // settle-timer still on — full correctness AND zoom-gesture smoothness)
+    // is now the DEFAULT rather than an opt-in fallback, until arc culling's
+    // remaining issue is found. 'optimized' (arc culling on) remains
+    // available as an explicit opt-in for lower-end devices once trusted.
+    //
+    // Persisted the same way as the existing terrain-detail % control.
+    // (Loaded once at script init via the _loadTerrainDevSettings IIFE above
+    // setTerrainQuality — this just supplies a default for the rare case a
+    // draw happens before that ran, or the key was never set.)
+    const _terrainQuality = (typeof window !== 'undefined' && window.terrainQuality) || 'detailed';
     const _canArcCull = _terrainQuality !== 'detailed' && _dbgArcCullOn &&
       envFlags.heightmaps && physR_px > 200 && (bodyRadius_m * radiusMult) >= 15000;
     const _arcInfo = _canArcCull
@@ -2078,51 +2155,40 @@ function _drawViewportNow(){
       terrN = Math.min(_vsMaxN, _screenN);
     }
 
-    // TEMP DEBUG — remove after diagnosing missing crater/hill detail.
-    // On-screen overlay (mobile has no easy console access) — updates a
-    // fixed-position div in the corner instead of console.log. Includes
-    // tappable toggle buttons since typing window.dbgArcCull=false into a
-    // console isn't practical on mobile.
-    if (!drawViewport._dbgEl) {
-      const el = document.createElement('div');
-      el.id = '_terrDbgOverlay';
-      el.style.cssText = 'position:fixed;top:4px;left:4px;z-index:99999;' +
-        'background:rgba(0,0,0,.75);color:#0f0;font:9px monospace;' +
-        'padding:6px 8px;max-width:96vw;white-space:pre;' +
-        'line-height:1.4;border-radius:4px;';
-      document.body.appendChild(el);
-      drawViewport._dbgEl = el;
-
-      const mkBtn = (label, onTap) => {
-        const btn = document.createElement('button');
-        btn.textContent = label;
-        btn.style.cssText = 'font:9px monospace;margin:4px 4px 0 0;padding:3px 6px;' +
-          'background:#222;color:#0f0;border:1px solid #0f0;border-radius:3px;';
-        btn.addEventListener('click', () => { onTap(); if (typeof drawViewport === 'function') drawViewport(); });
-        return btn;
-      };
-      const btnRow = document.createElement('div');
-      btnRow.style.cssText = 'pointer-events:auto;';
-      btnRow.appendChild(mkBtn('toggle arcCull', () => { window.dbgArcCull = (window.dbgArcCull === false) ? true : false; }));
-      btnRow.appendChild(mkBtn('toggle LOD', () => { window.dbgLOD = (window.dbgLOD === false) ? true : false; }));
-      el.appendChild(btnRow);
-      drawViewport._dbgTextEl = document.createElement('div');
-      el.insertBefore(drawViewport._dbgTextEl, btnRow);
-    }
-    // Only track/print the currently-selected body if there is one, else the
-    // first terrain body seen this frame — avoids the overlay flickering
-    // between multiple bodies' stats every frame.
-    const _dbgTarget = (typeof selectedBody !== 'undefined' && selectedBody) ? selectedBody : name;
-    if (name === _dbgTarget) {
-      drawViewport._dbgTextEl.textContent =
-        `${name}  [arcCullToggle:${_dbgArcCullOn?'ON':'OFF'} lodToggle:${_dbgLODOn?'ON':'OFF'}]\n` +
-        `physR_px: ${physR_px.toFixed(0)}\n` +
-        `settled: ${_settled}\n` +
-        `arcCull: ${_arcInfo ? !_arcInfo.fullCircle : false}\n` +
-        `arcSpan: ${_arcInfo && !_arcInfo.fullCircle ? ((_arcInfo.arcEnd - _arcInfo.arcStart) * 180 / Math.PI).toFixed(1) + '°' : 'n/a'}\n` +
-        `vsMaxN: ${_vsMaxN}\n` +
-        `screenN_target: ${Math.ceil(2 * Math.PI * physR_px)}\n` +
-        `terrN: ${terrN}`;
+    // Dev-only terrain debug overlay — gated behind a Settings > Graphics
+    // toggle (off by default) so regular visitors never see it. The
+    // dbgArcCull/dbgLOD isolation toggles and the quality switch itself now
+    // live in the Settings modal (see openAppSettings/switchAppTab 'graphics'
+    // tab) rather than as buttons drawn on the canvas.
+    if (typeof window !== 'undefined' && window.dbgTerrainOverlay) {
+      if (!drawViewport._dbgEl) {
+        const el = document.createElement('div');
+        el.id = '_terrDbgOverlay';
+        el.style.cssText = 'position:fixed;top:4px;left:4px;z-index:99999;' +
+          'background:rgba(0,0,0,.75);color:#0f0;font:9px monospace;' +
+          'padding:6px 8px;max-width:96vw;white-space:pre;pointer-events:none;' +
+          'line-height:1.4;border-radius:4px;';
+        document.body.appendChild(el);
+        drawViewport._dbgEl = el;
+      }
+      drawViewport._dbgEl.style.display = '';
+      // Only track/print the currently-selected body if there is one, else the
+      // first terrain body seen this frame — avoids the overlay flickering
+      // between multiple bodies' stats every frame.
+      const _dbgTarget = (typeof selectedBody !== 'undefined' && selectedBody) ? selectedBody : name;
+      if (name === _dbgTarget) {
+        drawViewport._dbgEl.textContent =
+          `${name}  quality:${_terrainQuality}  [arcCullToggle:${_dbgArcCullOn?'ON':'OFF'} lodToggle:${_dbgLODOn?'ON':'OFF'}]\n` +
+          `physR_px: ${physR_px.toFixed(0)}\n` +
+          `settled: ${_settled}\n` +
+          `arcCull: ${_arcInfo ? !_arcInfo.fullCircle : false}\n` +
+          `arcSpan: ${_arcInfo && !_arcInfo.fullCircle ? ((_arcInfo.arcEnd - _arcInfo.arcStart) * 180 / Math.PI).toFixed(1) + '°' : 'n/a'}\n` +
+          `vsMaxN: ${_vsMaxN}\n` +
+          `screenN_target: ${Math.ceil(2 * Math.PI * physR_px)}\n` +
+          `terrN: ${terrN}`;
+      }
+    } else if (drawViewport._dbgEl) {
+      drawViewport._dbgEl.style.display = 'none';
     }
 
     // Minimum physR_px to draw terrain polygon. Water depression (up to ~3% of radius)

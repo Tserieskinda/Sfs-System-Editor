@@ -36,7 +36,7 @@ function switchSettingsTab(tab){
 }
 
 function switchAppTab(tab){
-  ['theme','sound','appcredits'].forEach(t=>{
+  ['theme','sound','graphics','appcredits'].forEach(t=>{
     const active = t===tab;
     const btn = document.getElementById('apptab-'+t);
     const content = document.getElementById('apptab-'+t+'-content');
@@ -54,6 +54,34 @@ function switchAppTab(tab){
     _syncThemeBtns();
     _updateCustomBgUI(!!_customBgImg);
   }
+  if(tab === 'graphics'){
+    _syncGraphicsSettingsUI();
+  }
+}
+
+// Reflects current window.terrainQuality / dbgTerrainOverlay / dbgArcCull /
+// dbgLOD state into the Graphics settings tab's buttons and toggles. Called
+// when the tab is opened, and again by setTerrainQuality/setDbgArcCull/
+// setDbgLOD/setDbgTerrainOverlay (in viewport.js) after each change, so the
+// panel stays in sync even if changed from elsewhere (e.g. console).
+function _syncGraphicsSettingsUI(){
+  const q = window.terrainQuality || 'detailed';
+  const detBtn = document.getElementById('gfx-quality-detailed');
+  const optBtn = document.getElementById('gfx-quality-optimized');
+  if(detBtn){
+    detBtn.style.background = q === 'detailed' ? 'var(--ac13)' : 'transparent';
+    detBtn.style.border = q === 'detailed' ? '1px solid var(--ac28)' : '1px solid var(--ac18)';
+    detBtn.style.color = q === 'detailed' ? 'var(--sky2)' : 'var(--ink4)';
+  }
+  if(optBtn){
+    optBtn.style.background = q === 'optimized' ? 'var(--ac13)' : 'transparent';
+    optBtn.style.border = q === 'optimized' ? '1px solid var(--ac28)' : '1px solid var(--ac18)';
+    optBtn.style.color = q === 'optimized' ? 'var(--sky2)' : 'var(--ink4)';
+  }
+  const tog2 = (id,v) => { const e=document.getElementById(id); if(e) e.classList.toggle('on',!!v); };
+  tog2('gfx-tog-overlay', window.dbgTerrainOverlay);
+  tog2('gfx-tog-arccull', window.dbgArcCull === false ? false : true);
+  tog2('gfx-tog-lod',     window.dbgLOD === false ? false : true);
 }
 
 function openAppSettings(){
