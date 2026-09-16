@@ -4659,10 +4659,17 @@ function _getTerrainSamples(bodyName, b, radius_m, N, arcInfo) {
   if (_terrainSampleCache[arcKey]) return _terrainSampleCache[arcKey];
 
   const arcSpan = snapE - snapS; // > 0, < 2π
-  const arcVertexCount = Math.max(1, Math.ceil(N * arcSpan / TWO_PI));
+  const arcVertexCount = Math.max(2, Math.ceil(N * arcSpan / TWO_PI) + 1);
   const arcAngles = new Array(arcVertexCount);
+  // Sample INCLUSIVE of both snapS and snapE (arcVertexCount-1 steps across
+  // arcVertexCount points), not just up to snapS + (N-1)/N * arcSpan. Used to
+  // stop one step short of snapE — meaning the boundary-following fix in
+  // _buildTerrainPathUnit (which plots the closing point exactly at arcEnd)
+  // still had a small synthetic gap between the last REAL sample and arcEnd
+  // itself. Sampling through the true endpoint removes that residual gap
+  // entirely instead of just shrinking it.
   for (let i = 0; i < arcVertexCount; i++) {
-    arcAngles[i] = snapS + (i / arcVertexCount) * arcSpan;
+    arcAngles[i] = snapS + (i / (arcVertexCount - 1)) * arcSpan;
   }
 
   if (arcAngles.length === 0) {
@@ -4776,12 +4783,23 @@ function _buildTerrainPathUnit(ctx_or_p, result, radius_m) {
       ctx_or_p.arc(0, 0, 1, 0, Math.PI * 2);
       return;
     }
-    ctx_or_p.moveTo(Math.cos(arcStart), -Math.sin(arcStart));
-    for (let i = 0; i < N; i++) {
+    // angles[0] === arcStart and angles[N-1] === arcEnd exactly now (see
+    // _getTerrainSamples — sampling is inclusive of both arc boundaries),
+    // so the loop itself already starts/ends precisely at the arc edges
+    // with real terrain heights. (Previously the boundary points were
+    // plotted separately at a flat radius=1 with no height offset, before
+    // jumping to the first/last real sample — at wide arcs that was a
+    // negligible sliver, but at the narrow sub-1° arcs close-zoom arc
+    // culling now correctly produces, it was a large fraction of the
+    // visible silhouette, causing a sharp visible kink where the fake flat
+    // edge met real terrain. Sampling through the true endpoints removes
+    // the synthetic segments entirely instead of just special-casing them.)
+    const r0 = 1 + heights[0] / radius_m;
+    ctx_or_p.moveTo(Math.cos(angles[0]) * r0, -Math.sin(angles[0]) * r0);
+    for (let i = 1; i < N; i++) {
       const rr = 1 + heights[i] / radius_m;
       ctx_or_p.lineTo(Math.cos(angles[i]) * rr, -Math.sin(angles[i]) * rr);
     }
-    ctx_or_p.lineTo(Math.cos(arcEnd), -Math.sin(arcEnd));
     // Close through the interior (hidden back of planet) via anticlockwise arc.
     // canvas arc angle = -trig angle.
     ctx_or_p.arc(0, 0, 1, -arcEnd, -arcStart, true);
