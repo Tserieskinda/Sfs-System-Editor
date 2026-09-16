@@ -4375,7 +4375,22 @@ function _computeVisibleArc(sp, physR_px, vpW, vpH) {
       return { fullCircle: true, arcStart: 0, arcEnd: TWO_PI };
     }
 
-    const ANGLE_MARGIN = 0.05;
+    // Margin used to be a FIXED 0.05 rad (~2.86°) regardless of arc size.
+    // At rover-scale close zoom the true visible arc can be well under 1°
+    // (a single crater filling the screen) — a fixed ~2.86° margin on each
+    // side there doesn't just pad the edges, it inflates a e.g. 0.5° arc
+    // into ~6.2°, over 12x wider than what's actually visible. The extra
+    // vertex BUDGET that unlocks (since _vsMaxN scales with arc span) is
+    // real, but it's spread across a mostly off-screen range — only a small,
+    // shifting fraction of those vertices ever land in the true visible
+    // window, and which fraction shifts as physR_px/arcSpan change slightly
+    // between frames. That reads exactly as "shape changes as you keep
+    // zooming in" even though nothing about the underlying terrain data
+    // changed — this was the actual cause of the close-zoom crater/hill
+    // flattening-and-shifting bug (confirmed by A/B testing arc culling
+    // on/off). Scale the margin to a fraction of the arc's own span instead,
+    // with a small fixed floor/ceiling so it stays sane at both extremes.
+    const ANGLE_MARGIN = Math.min(0.05, Math.max(0.002, arcSpan * 0.08));
     return {
       fullCircle: false,
       arcStart: arcStart - ANGLE_MARGIN,
@@ -4453,8 +4468,12 @@ function _computeVisibleArc(sp, physR_px, vpW, vpH) {
   }
 
 
-  // Add a small angular margin (~3°) so we never clip a vertex right on the edge
-  const ANGLE_MARGIN = 0.05;
+  // Margin used to be a fixed ~3° (0.05 rad) regardless of arc size — same
+  // issue as the fully-inside-disc branch above: at close zoom this can
+  // inflate a small arc many times over, diluting effective on-screen
+  // vertex density right when it matters most. Scale to a fraction of the
+  // arc's own span instead (see full explanation above).
+  const ANGLE_MARGIN = Math.min(0.05, Math.max(0.002, arcSpan * 0.08));
   return {
     fullCircle: false,
     arcStart: arcStart - ANGLE_MARGIN,
