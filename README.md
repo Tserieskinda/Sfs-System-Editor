@@ -48,7 +48,7 @@ Skip if using online
 ### Difficulty Changer-
 Allows you to view the solar system in different difficulties
 
-## Tool bar- has 4 options, 
+## Tool bar-  
 1. Drag to adjust orbit, allows you to physically move a planbet by your finger and itll automatically calculate the orbital values, 
 (if they do not appear at that position the same in game, its because the world starts at time 11 day, but the program shows the world at time 0, so make orbital direction 0 so the planet does not move)
 2. High Resolution surface, self explanatory
@@ -80,7 +80,7 @@ Disable SOI Circle, Atmosphere, Water, Fog, Post processing,
 Clouds, Front clouds, Surface Texture 
 
 # Open existing system- 
-Used to edit an already made system (1.5+)
+Used to edit an already made system
 1) Locate the system folder you want to load
 2) Compress it into a zip, like- system.zip
 3) Open the progrma in a browser, load ths SFS assets that i provided.
@@ -131,7 +131,7 @@ Any unsaved progress will be deleted and progress will be lost if you exit the p
 
 
 things may break, bugs may appear, so i do not reccomend you to make a giant system witht this.
-Its still beta and has limited support for clouds and hieghtmaps, also it does not support 1.4~ and below systems.
+Its still beta and has limited support for advanced planet editing.
 Its aimed to support both pc and mobile.
 
 Before you say, it is **99% vibecoded.**
