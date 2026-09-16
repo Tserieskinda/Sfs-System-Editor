@@ -4530,7 +4530,17 @@ function _getMaxTerrainHeight(bodyName, b, radius_m) {
 const _terrainClipCache = {};
 
 function _getUnitTerrainPath(bodyName, result, N, radius_m) {
-  const arcKey = result.arcCulled ? `a${(result.arcStart*10)|0}_${(result.arcEnd*10)|0}` : 'full';
+  // arcKey quantization was 0.1 rad (~5.7°) — coarse enough that, before the
+  // proportional-margin fix, arcs were inflated wide enough to usually still
+  // round into overlapping buckets between nearby frames. Now that arcs can
+  // correctly be well under 1° at close zoom, that same 5.7° bucket size can
+  // silently merge two genuinely DIFFERENT, non-overlapping small arcs into
+  // the same cache key — serving a stale wedge from a different angular
+  // position than what's actually visible, which reads as terrain vanishing
+  // or showing wrong/edge-artifact geometry as you pan/zoom slightly.
+  // Quantize far finer (0.002 rad ≈ 0.11°) so distinct small arcs reliably
+  // get distinct keys, while still coalescing true sub-pixel jitter.
+  const arcKey = result.arcCulled ? `a${Math.round(result.arcStart / 0.002)}_${Math.round(result.arcEnd / 0.002)}` : 'full';
   const key = `${bodyName}|${N}|${radius_m.toFixed(0)}|${arcKey}`;
   let path = _terrainClipCache[key];
   if (!path) {
@@ -4630,8 +4640,18 @@ function _getTerrainSamples(bodyName, b, radius_m, N, arcInfo) {
   }
 
   // ── Arc-culled path ───────────────────────────────────────────────────────
-  // Snap arc bounds to 2° buckets → stable cache key while panning
-  const DEG2 = TWO_PI / 180;
+  // Snap arc bounds to a stable bucket size so panning doesn't thrash the
+  // cache on every frame. This was a FIXED 2° bucket — fine when arcs were
+  // always wide (orbital-scale views, where 2° is a small fraction of the
+  // whole visible arc), but far too coarse now that arc culling correctly
+  // produces sub-1° arcs at rover-scale close zoom: snapping a 0.5° arc to
+  // the nearest 2° can collapse two genuinely different close-up views onto
+  // the same bucket, serving stale height samples for the wrong angle —
+  // showing as terrain vanishing or wrong shape near screen edges. Scale the
+  // bucket size down proportionally to the arc's own span instead (with a
+  // sane floor so we don't over-fragment the cache on tiny sub-pixel jitter).
+  const arcSpanForSnap = arcInfo.arcEnd - arcInfo.arcStart;
+  const DEG2 = Math.min(TWO_PI / 180, Math.max(TWO_PI / 3600, arcSpanForSnap * 0.02));
   const snapS = Math.round(arcInfo.arcStart / DEG2) * DEG2;
   const snapE = Math.round(arcInfo.arcEnd   / DEG2) * DEG2;
 
