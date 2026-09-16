@@ -4874,6 +4874,40 @@ function _getTerrainSamples(bodyName, b, radius_m, N, arcInfo) {
   const keys = Object.keys(_terrainSampleCache);
   if (keys.length >= 60) delete _terrainSampleCache[keys[0]];
   _terrainSampleCache[arcKey] = result;
+
+  // TEMP DEBUG — checking whether heights[] itself has real crater/hill
+  // variation at close zoom, or whether the formula/cache is flattening the
+  // DATA before it even reaches path-building. Gated behind the same
+  // overlay flag so it never runs for regular visitors.
+  if (typeof window !== 'undefined' && window.dbgTerrainOverlay) {
+    let hMin = Infinity, hMax = -Infinity;
+    for (let i = 0; i < heights.length; i++) {
+      if (heights[i] < hMin) hMin = heights[i];
+      if (heights[i] > hMax) hMax = heights[i];
+    }
+    if (!drawViewport._dbgHeightEl) {
+      const el = document.createElement('div');
+      el.id = '_terrDbgHeightOverlay';
+      el.style.cssText = 'position:fixed;top:4px;right:4px;z-index:99999;' +
+        'background:rgba(0,0,0,.75);color:#ff0;font:9px monospace;' +
+        'padding:6px 8px;max-width:60vw;white-space:pre;pointer-events:none;' +
+        'line-height:1.4;border-radius:4px;';
+      document.body.appendChild(el);
+      drawViewport._dbgHeightEl = el;
+    }
+    drawViewport._dbgHeightEl.style.display = '';
+    drawViewport._dbgHeightEl.textContent =
+      `${bodyName} heights[]\n` +
+      `N: ${heights.length}\n` +
+      `min: ${hMin.toFixed(3)}m\n` +
+      `max: ${hMax.toFixed(3)}m\n` +
+      `range: ${(hMax-hMin).toFixed(3)}m\n` +
+      `radius_m: ${radius_m.toFixed(0)}\n` +
+      `unit-space range: ${((hMax-hMin)/radius_m).toExponential(3)}`;
+  } else if (drawViewport._dbgHeightEl) {
+    drawViewport._dbgHeightEl.style.display = 'none';
+  }
+
   return result;
 }
 
