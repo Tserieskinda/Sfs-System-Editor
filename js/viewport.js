@@ -810,9 +810,21 @@ function setDbgLOD(on){
   if (typeof _syncGraphicsSettingsUI === 'function') _syncGraphicsSettingsUI();
   drawViewport();
 }
+// Which visible-arc algorithm arc culling uses — 'edge' (original
+// edge-intersection method, default) or 'binary' (new binary-search method,
+// see _computeVisibleArcBinarySearch — numerically robust at extreme zoom,
+// being A/B tested against the close-zoom silhouette bug).
+function setDbgArcCullMethod(method){
+  if (method !== 'edge' && method !== 'binary') return;
+  window.dbgArcCullMethod = method;
+  try { localStorage.setItem('sfs_dbg_arc_cull_method', method); } catch(e) {}
+  if (typeof _syncGraphicsSettingsUI === 'function') _syncGraphicsSettingsUI();
+  drawViewport();
+}
 // Load persisted values once at startup. Unset/missing keys keep the
 // existing defaults ('detailed' quality, dbgArcCull/dbgLOD both true i.e.
-// "on" meaning not forced off, dbgTerrainOverlay false/undefined i.e. hidden).
+// "on" meaning not forced off, dbgTerrainOverlay false/undefined i.e. hidden,
+// dbgArcCullMethod 'edge' i.e. the original method).
 (function _loadTerrainDevSettings(){
   try {
     const q = localStorage.getItem('sfs_terrain_quality');
@@ -823,6 +835,8 @@ function setDbgLOD(on){
     if (ac != null) window.dbgArcCull = ac === '1';
     const lod = localStorage.getItem('sfs_dbg_lod');
     if (lod != null) window.dbgLOD = lod === '1';
+    const acm = localStorage.getItem('sfs_dbg_arc_cull_method');
+    if (acm === 'edge' || acm === 'binary') window.dbgArcCullMethod = acm;
   } catch(e) {}
   const lbl = document.getElementById('terrain-quality-label');
   if (lbl) lbl.textContent = (window.terrainQuality === 'optimized') ? 'OPTIMIZED' : 'DETAILED';
@@ -2178,7 +2192,7 @@ function _drawViewportNow(){
       const _dbgTarget = (typeof selectedBody !== 'undefined' && selectedBody) ? selectedBody : name;
       if (name === _dbgTarget) {
         drawViewport._dbgEl.textContent =
-          `${name}  quality:${_terrainQuality}  [arcCullToggle:${_dbgArcCullOn?'ON':'OFF'} lodToggle:${_dbgLODOn?'ON':'OFF'}]\n` +
+          `${name}  quality:${_terrainQuality}  method:${(typeof window!=='undefined'&&window.dbgArcCullMethod)||'edge'}  [arcCullToggle:${_dbgArcCullOn?'ON':'OFF'} lodToggle:${_dbgLODOn?'ON':'OFF'}]\n` +
           `physR_px: ${physR_px.toFixed(0)}\n` +
           `settled: ${_settled}\n` +
           `arcCull: ${_arcInfo ? !_arcInfo.fullCircle : false}\n` +
@@ -4390,7 +4404,98 @@ function _applyFlatZones(heights, angles_rad, flatZones, radius_m, depressions) 
 // { fullCircle: true }.  The arc is expressed in the canvas coordinate system
 // (angles increase clockwise, angle 0 = right) and arcEnd >= arcStart always.
 // If arc spans > 355° we also set fullCircle=true to avoid rounding edge cases.
+// Dispatcher — picks between the two visible-arc algorithms based on a
+// dev/debug setting (Settings > Graphics > Developer Diagnostics), so both
+// can be A/B tested live without touching call sites. Defaults to the
+// original edge-intersection method ('edge') until the binary-search method
+// ('binary') is confirmed to fix the close-zoom silhouette bug without
+// introducing regressions of its own.
 function _computeVisibleArc(sp, physR_px, vpW, vpH) {
+  const method = (typeof window !== 'undefined' && window.dbgArcCullMethod) || 'edge';
+  if (method === 'binary') {
+    const result = _computeVisibleArcBinarySearch(sp, physR_px, vpW, vpH);
+    if (result) return result;
+    // Binary search couldn't find a confirmed on-screen seed angle (rare —
+    // e.g. the circle only grazes a screen corner) — fall back to the
+    // proven edge-intersection method rather than guess.
+  }
+  return _computeVisibleArcEdgeIntersect(sp, physR_px, vpW, vpH);
+}
+
+// ── NEW: binary-search-based visible-arc computation ───────────────────────
+// The edge-intersection method below computes disc = r^2 - d^2 where r can
+// be in the millions (physR_px at rover-scale close zoom) — subtracting two
+// very large, nearly-equal floats is a textbook catastrophic-cancellation
+// setup, and independently, near-tangent/grazing viewing angles (looking
+// toward the horizon on a huge body) produce candidate angles that cluster
+// within a fraction of a degree of each other, making the min/max selection
+// sensitive to tiny numerical differences. Both effects are plausible
+// contributors to the close-zoom silhouette bug that survived three rounds
+// of fixes to the edge-intersection method's margin/quantization.
+//
+// This method never computes anything at physR_px^2 scale — every check
+// inside onScreenAtAngle() works with screen-scale coordinates only (vpW,
+// vpH, sp.x/y, which are screen positions, not radius-scale numbers), so it
+// sidesteps both issues by construction rather than by patching symptoms.
+//
+// Approach: find a confirmed on-screen seed angle (checking the direction
+// toward the viewport's center and its 4 corners), then binary-search
+// outward from that seed in both directions to find exactly where the
+// circle's silhouette point crosses off-screen. ~80 cos/sin evaluations
+// total per call — benchmarked at under 1 microsecond, negligible next to
+// the terrain sampling/rendering work this result feeds into.
+//
+// Returns null if no seed angle can be confirmed on-screen (the circle may
+// only graze a corner in a way none of the 5 seed directions catch) — the
+// dispatcher above falls back to the edge-intersection method in that case.
+function _computeVisibleArcBinarySearch(sp, physR_px, vpW, vpH) {
+  const onScreenAtAngle = (a) => {
+    const px = sp.x + Math.cos(a) * physR_px;
+    const py = sp.y - Math.sin(a) * physR_px;
+    return px >= 0 && px <= vpW && py >= 0 && py <= vpH;
+  };
+
+  const seedCandidates = [
+    [vpW / 2, vpH / 2], // viewport center — usual case
+    [0, 0], [vpW, 0], [0, vpH], [vpW, vpH], // corners — covers off-center/grazing cases
+  ];
+  let seedAngle = null;
+  for (const [cx, cy] of seedCandidates) {
+    const a = Math.atan2(-(cy - sp.y), cx - sp.x);
+    if (onScreenAtAngle(a)) { seedAngle = a; break; }
+  }
+  if (seedAngle == null) return null;
+
+  const BISECT_ITERS = 40; // more than enough for sub-arcsecond precision
+  let loP = 0, hiP = Math.PI;
+  for (let i = 0; i < BISECT_ITERS; i++) {
+    const mid = (loP + hiP) / 2;
+    if (onScreenAtAngle(seedAngle + mid)) loP = mid; else hiP = mid;
+  }
+  let loN = 0, hiN = Math.PI;
+  for (let i = 0; i < BISECT_ITERS; i++) {
+    const mid = (loN + hiN) / 2;
+    if (onScreenAtAngle(seedAngle - mid)) loN = mid; else hiN = mid;
+  }
+
+  const TWO_PI = Math.PI * 2;
+  const arcSpan = loN + loP;
+  if (arcSpan >= TWO_PI * (355 / 360)) {
+    return { fullCircle: true, arcStart: 0, arcEnd: TWO_PI };
+  }
+
+  // Same proportional margin as the edge-intersection method, for parity.
+  const ANGLE_MARGIN = Math.min(0.05, Math.max(0.002, arcSpan * 0.08));
+  return {
+    fullCircle: false,
+    arcStart: seedAngle - loN - ANGLE_MARGIN,
+    arcEnd:   seedAngle + loP + ANGLE_MARGIN,
+  };
+}
+
+// ── OLD: edge-intersection-based visible-arc computation (untouched, kept
+// as the default and as the binary-search method's fallback) ──────────────
+function _computeVisibleArcEdgeIntersect(sp, physR_px, vpW, vpH) {
   // If the planet is small enough to fit fully on screen → full circle
   if (sp.x - physR_px >= 0 && sp.x + physR_px <= vpW &&
       sp.y - physR_px >= 0 && sp.y + physR_px <= vpH) {

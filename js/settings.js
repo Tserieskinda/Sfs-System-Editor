@@ -82,6 +82,20 @@ function _syncGraphicsSettingsUI(){
   tog2('gfx-tog-overlay', window.dbgTerrainOverlay);
   tog2('gfx-tog-arccull', window.dbgArcCull === false ? false : true);
   tog2('gfx-tog-lod',     window.dbgLOD === false ? false : true);
+
+  const method = window.dbgArcCullMethod || 'edge';
+  const edgeBtn = document.getElementById('gfx-arcmethod-edge');
+  const binBtn  = document.getElementById('gfx-arcmethod-binary');
+  if(edgeBtn){
+    edgeBtn.style.background = method === 'edge' ? 'var(--ac13)' : 'transparent';
+    edgeBtn.style.border = method === 'edge' ? '1px solid var(--ac28)' : '1px solid var(--ac18)';
+    edgeBtn.style.color = method === 'edge' ? 'var(--sky2)' : 'var(--ink4)';
+  }
+  if(binBtn){
+    binBtn.style.background = method === 'binary' ? 'var(--ac13)' : 'transparent';
+    binBtn.style.border = method === 'binary' ? '1px solid var(--ac28)' : '1px solid var(--ac18)';
+    binBtn.style.color = method === 'binary' ? 'var(--sky2)' : 'var(--ink4)';
+  }
 }
 
 function openAppSettings(){

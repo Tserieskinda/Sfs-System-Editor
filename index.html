@@ -2158,12 +2158,29 @@
           <div class="tog on" id="gfx-tog-arccull" onclick="setDbgArcCull(!(window.dbgArcCull === false ? false : true))"></div>
         </div>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--ac10)">
           <div>
             <div style="font-family:'JetBrains Mono',monospace;font-size:.63rem;color:var(--ink2);letter-spacing:.05em">LOD SETTLE TIMER (force)</div>
             <div style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:var(--ink4);margin-top:1px">Independent override — caps detail briefly during zoom</div>
           </div>
           <div class="tog on" id="gfx-tog-lod" onclick="setDbgLOD(!(window.dbgLOD === false ? false : true))"></div>
+        </div>
+
+        <div style="padding:10px 0 4px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.63rem;color:var(--ink2);letter-spacing:.05em;margin-bottom:2px">ARC CULLING ALGORITHM</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:var(--ink4);margin-bottom:8px;line-height:1.5">
+            Being A/B tested against the close-zoom silhouette bug. Binary-search avoids large-number math that may cause it; only takes effect when Optimized quality + arc culling are active.
+          </div>
+          <div style="display:flex;gap:8px">
+            <button id="gfx-arcmethod-edge" onclick="setDbgArcCullMethod('edge')"
+              style="flex:1;padding:7px 8px;border:1px solid var(--ac28);border-radius:4px;background:var(--ac13);color:var(--sky2);font-family:'JetBrains Mono',monospace;font-size:.58rem;letter-spacing:.04em;cursor:pointer">
+              EDGE <span style="opacity:.6">(default)</span>
+            </button>
+            <button id="gfx-arcmethod-binary" onclick="setDbgArcCullMethod('binary')"
+              style="flex:1;padding:7px 8px;border:1px solid var(--ac18);border-radius:4px;background:transparent;color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.58rem;letter-spacing:.04em;cursor:pointer">
+              BINARY <span style="opacity:.6">(new)</span>
+            </button>
+          </div>
         </div>
       </div>
     </div><!-- end apptab-graphics-content -->
