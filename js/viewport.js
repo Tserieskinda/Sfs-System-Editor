@@ -2332,8 +2332,44 @@ function _drawViewportNow(){
           const _surfCx = _surfSZ / 2, _surfCy = _surfSZ / 2;
           const _pxPerM  = discR_px / radius_m; // screen pixels per metre
 
-          const cKey = `sAB3|${name}|${radius_m.toFixed(0)}|${saName}|${sbName}|${layerM}|${maxFadeV}|${minFadeV}|${N}|${TEX_SZ}|${blendArr?1:0}|${terrRes?1:0}|${saAbsX}|${saAbsY}|${sbAbsX}|${sbAbsY}|${_lodA}|${_lodB}|${_surfSZ}`;
+          // NOTE: cKey previously only recorded terrRes?1:0 (just "do we have
+          // terrain data") rather than which ARC that data covers. Since
+          // surfOff is a persistent offscreen canvas cached across frames,
+          // that meant once built for one visible arc (e.g. while looking at
+          // one part of the planet), it was reused UNCHANGED for every later
+          // frame at the same zoom/N/texture settings — even after panning
+          // to a completely different arc of the same planet. The canvas
+          // just kept showing its original baked-in crater/hill pattern
+          // pasted at the new screen position, which reads as "detail looks
+          // flat/static regardless of panning" even though the underlying
+          // per-pixel sampling math (see the arcCulled branch above) is
+          // correct for whichever single build actually ran.
+          //
+          // Fix: key on the actual arc range so a genuine pan/zoom that
+          // changes what's visible invalidates and rebuilds this canvas.
+          // Rounded to ~0.01 rad (~0.6°) so we don't rebuild on meaningless
+          // sub-degree jitter — still far finer than any visible seam.
+          //
+          // This canvas can be up to 1024×1024 pixels, each doing trig +
+          // texture sampling — genuinely expensive to rebuild, which is
+          // exactly the kind of per-frame cost the terrN settle-timer above
+          // was built to avoid during active pan/zoom. So reuse the same
+          // _settled flag here: keep showing the last-built (possibly
+          // slightly stale/offset) canvas while the gesture is still moving,
+          // and only let the arc key advance — triggering a real rebuild —
+          // once the view has settled. The scheduled settle-timer redraw
+          // above already guarantees a follow-up frame fires shortly after
+          // motion stops, so this reliably catches up within ~150ms.
+          const _liveArcKeyPart = (terrRes && terrRes.arcCulled)
+            ? `${terrRes.arcStart.toFixed(2)},${terrRes.arcEnd.toFixed(2)}`
+            : (terrRes ? 'full' : 'none');
+          if (!drawViewport._lastArcKey) drawViewport._lastArcKey = {};
+          const _arcKeyPart = _settled
+            ? (drawViewport._lastArcKey[name] = _liveArcKeyPart)
+            : (drawViewport._lastArcKey[name] || _liveArcKeyPart);
+          const cKey = `sAB3|${name}|${radius_m.toFixed(0)}|${saName}|${sbName}|${layerM}|${maxFadeV}|${minFadeV}|${N}|${TEX_SZ}|${blendArr?1:0}|${_arcKeyPart}|${saAbsX}|${saAbsY}|${sbAbsX}|${sbAbsY}|${_lodA}|${_lodB}|${_surfSZ}`;
           if(!drawViewport._surfCache) drawViewport._surfCache = {};
+          if(!drawViewport._surfCacheOrder) drawViewport._surfCacheOrder = [];
           let surfOff = drawViewport._surfCache[cKey];
 
           if(!surfOff){
@@ -2434,6 +2470,17 @@ function _drawViewportNow(){
             }
             sc.putImageData(imgData, 0, 0);
             drawViewport._surfCache[cKey] = surfOff;
+            // Bounded LRU-ish eviction — this cache previously had none at
+            // all, and now grows faster since the cache key includes arc
+            // position (a new entry per distinct settled viewing angle, not
+            // just once per body). Cap at 40 entries; each can be up to
+            // 1024×1024, so unbounded growth over a long panning session
+            // could otherwise leak real memory.
+            drawViewport._surfCacheOrder.push(cKey);
+            if (drawViewport._surfCacheOrder.length > 40) {
+              const evict = drawViewport._surfCacheOrder.shift();
+              delete drawViewport._surfCache[evict];
+            }
           }
 
           // Single drawImage — pixel loop already paints only in the surface layer band,

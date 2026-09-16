@@ -1114,6 +1114,14 @@ function _jsonAutoApply(text){
 // NOT when the parsed value is 0 or negative (unlike the `|| fallback` pattern).
 function _fv(str, fallback){ const n = parseFloat(str); return isNaN(n) ? fallback : n; }
 
+// Format a number for display in a sidebar input: high enough precision that
+// it never visibly truncates anything a person would type by hand (12
+// significant figures — was previously capped at 6 via toPrecision(6)/
+// toFixed(6-8) in several places, which silently dropped digits whenever the
+// field redisplayed on body load or unit change), while still cleaning up
+// binary floating-point noise (0.1+0.2 → "0.30000000000000004" → "0.3").
+function _fmtNum(v){ return parseFloat(v.toPrecision(12)).toString(); }
+
 function tog(id){ return document.getElementById(id).classList.contains('on'); }
 
 // ── Gravity unit helpers (m/s², cm/s², km/s²) ────────────────────────────────
@@ -1131,7 +1139,7 @@ function onGravUnitChange() {
   if (!isNaN(raw) && raw !== 0) {
     const prevUnit = input.dataset.gravUnit || 'ms2';
     const ms2 = _gravToMs2(raw, prevUnit);
-    input.value = parseFloat(_ms2ToGrav(ms2, unitSel.value).toPrecision(6)).toString();
+    input.value = _fmtNum(_ms2ToGrav(ms2, unitSel.value));
   }
   input.dataset.gravUnit = unitSel.value;
   if (typeof liveSync === 'function') liveSync();
@@ -1153,7 +1161,7 @@ function setGravDisplay(ms2) {
   if (document.activeElement === input) return;
   const unit = unitSel?.value || 'ms2';
   const v = _ms2ToGrav(ms2, unit);
-  input.value = ms2 !== 0 ? parseFloat(v.toPrecision(6)).toString() : '';
+  input.value = ms2 !== 0 ? _fmtNum(v) : '';
   input.dataset.gravUnit = unit;
 }
 
@@ -1181,7 +1189,7 @@ function onSimpleKmChange(inputId) {
   const newUnit = unitSel.value; // 'm' or 'km'
   const prevUnit = newUnit === 'km' ? 'm' : 'km';
   const metres = prevUnit === 'km' ? raw * 1000 : raw;
-  input.value = (newUnit === 'km' ? parseFloat((metres / 1000).toPrecision(6)) : metres).toString();
+  input.value = (newUnit === 'km' ? _fmtNum(metres / 1000) : _fmtNum(metres));
   if (typeof liveSync === 'function') liveSync();
 }
 
@@ -1201,7 +1209,7 @@ function setSimpleKm(inputId, metres) {
   if (!input) return;
   const unit = unitSel?.value || 'm';
   input.value = unit === 'km'
-    ? (metres !== 0 ? parseFloat((metres / 1000).toPrecision(6)) : '')
+    ? (metres !== 0 ? _fmtNum(metres / 1000) : '')
     : (metres !== 0 ? metres : '');
 }
 
@@ -2513,7 +2521,7 @@ function setCloudVelDisplay(vel){
   }
 
   const inp = document.getElementById('cl-v-input');
-  if(inp) inp.value = (display && display !== 0) ? (+display.toFixed(8)).toString() : '';
+  if(inp) inp.value = (display && display !== 0) ? _fmtNum(display) : '';
   const hidden = document.getElementById('cl-v');
   if(hidden) hidden.value = vel;
   syncCloudVel();
