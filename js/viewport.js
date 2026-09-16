@@ -1956,7 +1956,42 @@ function _drawViewportNow(){
     const _vsRaw = b.data.TERRAIN_DATA?.verticeSize;
     const _vs = (_vsRaw > 0) ? _vsRaw : 2.0; // default 2m matches game default
 
-    const _canArcCull = envFlags.heightmaps && physR_px > 200 && (bodyRadius_m * radiusMult) >= 15000;
+    // ── Dev toggles: isolate arc culling vs LOD settle-timer independently ──
+    // window.terrainQuality='detailed' flips BOTH off at once (convenience
+    // shorthand matching the original pre-optimization behavior). For
+    // narrowing down which specific mechanism causes the close-zoom
+    // shape-shift bug, set them independently instead:
+    //   window.dbgArcCull = false   → disable arc culling only (LOD settle
+    //                                 timer still active, terrN still capped
+    //                                 by INTERACTIVE_N_CAP during gesture)
+    //   window.dbgLOD     = false   → disable the LOD settle timer only
+    //                                 (arc culling still active, terrN
+    //                                 always resolves to full precision
+    //                                 immediately, no interactive cap)
+    // Both default to true (i.e. both optimizations active — normal
+    // 'optimized' behavior) when unset.
+    const _dbgArcCullOn = (typeof window !== 'undefined' && window.dbgArcCull === false) ? false : true;
+    const _dbgLODOn     = (typeof window !== 'undefined' && window.dbgLOD === false) ? false : true;
+
+    // ── Detailed / Optimized quality mode ───────────────────────────────────
+    // Arc culling (and everything built on top of it — the settle-timer LOD
+    // cap, the arc-relative surface-strip indexing, the arc-keyed surface
+    // cache) trades vertex/pixel budget for speed by only sampling the
+    // visible slice of the planet. At very close (rover-scale) zoom, that
+    // visible slice can be angularly tiny even though it fills the whole
+    // screen — and the verticeSize-based vertex ceiling (_vsMaxN below)
+    // scales with arc angle, not screen coverage, so it can end up far
+    // stingier than what the screen actually needs, right at the zoom level
+    // where fine terrain (small craters, Perlin hills) matters most.
+    //
+    // 'detailed' mode simply disables arc culling — falling back to the
+    // exact full-circle sampling behavior this renderer used before arc
+    // culling existed at all, which is known to have shown full terrain
+    // detail correctly (just slower at high zoom on weak devices).
+    // 'optimized' (default) keeps arc culling + all its dependent fixes.
+    const _terrainQuality = (typeof window !== 'undefined' && window.terrainQuality) || 'optimized';
+    const _canArcCull = _terrainQuality !== 'detailed' && _dbgArcCullOn &&
+      envFlags.heightmaps && physR_px > 200 && (bodyRadius_m * radiusMult) >= 15000;
     const _arcInfo = _canArcCull
       ? (() => {
           const _dispR_px = Math.max(r, physR_px);
@@ -2011,14 +2046,14 @@ function _drawViewportNow(){
     drawViewport._lastPhysR[name] = physR_px;
 
     const SETTLE_MS = 120;
-    const _settled = (_now - (drawViewport._lastMoveT[name] || 0)) > SETTLE_MS;
+    const _settled = !_dbgLODOn || (_now - (drawViewport._lastMoveT[name] || 0)) > SETTLE_MS;
     // drawViewport() is event-driven (called from pan/zoom input handlers
     // elsewhere) — nothing else guarantees a frame fires ~120ms after the
     // LAST zoom tick to actually cross the settle threshold and resolve full
     // LOD. Schedule that follow-up frame ourselves so max detail reliably
     // arrives shortly after the gesture ends instead of only whenever the
     // next unrelated redraw happens to occur (which may be never).
-    if (!_settled) {
+    if (_dbgLODOn && !_settled) {
       clearTimeout(drawViewport._settleTimer);
       drawViewport._settleTimer = setTimeout(() => {
         if (typeof drawViewport === 'function') drawViewport();
@@ -2045,24 +2080,42 @@ function _drawViewportNow(){
 
     // TEMP DEBUG — remove after diagnosing missing crater/hill detail.
     // On-screen overlay (mobile has no easy console access) — updates a
-    // fixed-position div in the corner instead of console.log.
+    // fixed-position div in the corner instead of console.log. Includes
+    // tappable toggle buttons since typing window.dbgArcCull=false into a
+    // console isn't practical on mobile.
     if (!drawViewport._dbgEl) {
       const el = document.createElement('div');
       el.id = '_terrDbgOverlay';
       el.style.cssText = 'position:fixed;top:4px;left:4px;z-index:99999;' +
         'background:rgba(0,0,0,.75);color:#0f0;font:9px monospace;' +
-        'padding:6px 8px;max-width:96vw;white-space:pre;pointer-events:none;' +
+        'padding:6px 8px;max-width:96vw;white-space:pre;' +
         'line-height:1.4;border-radius:4px;';
       document.body.appendChild(el);
       drawViewport._dbgEl = el;
+
+      const mkBtn = (label, onTap) => {
+        const btn = document.createElement('button');
+        btn.textContent = label;
+        btn.style.cssText = 'font:9px monospace;margin:4px 4px 0 0;padding:3px 6px;' +
+          'background:#222;color:#0f0;border:1px solid #0f0;border-radius:3px;';
+        btn.addEventListener('click', () => { onTap(); if (typeof drawViewport === 'function') drawViewport(); });
+        return btn;
+      };
+      const btnRow = document.createElement('div');
+      btnRow.style.cssText = 'pointer-events:auto;';
+      btnRow.appendChild(mkBtn('toggle arcCull', () => { window.dbgArcCull = (window.dbgArcCull === false) ? true : false; }));
+      btnRow.appendChild(mkBtn('toggle LOD', () => { window.dbgLOD = (window.dbgLOD === false) ? true : false; }));
+      el.appendChild(btnRow);
+      drawViewport._dbgTextEl = document.createElement('div');
+      el.insertBefore(drawViewport._dbgTextEl, btnRow);
     }
     // Only track/print the currently-selected body if there is one, else the
     // first terrain body seen this frame — avoids the overlay flickering
     // between multiple bodies' stats every frame.
     const _dbgTarget = (typeof selectedBody !== 'undefined' && selectedBody) ? selectedBody : name;
     if (name === _dbgTarget) {
-      drawViewport._dbgEl.textContent =
-        `${name}\n` +
+      drawViewport._dbgTextEl.textContent =
+        `${name}  [arcCullToggle:${_dbgArcCullOn?'ON':'OFF'} lodToggle:${_dbgLODOn?'ON':'OFF'}]\n` +
         `physR_px: ${physR_px.toFixed(0)}\n` +
         `settled: ${_settled}\n` +
         `arcCull: ${_arcInfo ? !_arcInfo.fullCircle : false}\n` +
