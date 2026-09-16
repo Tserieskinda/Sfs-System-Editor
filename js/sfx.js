@@ -109,7 +109,6 @@ const SFX = (() => {
     // ── OPEN PANELS / DROPDOWNS ───────────────────────────────────
     patch('toggleToolsDropdown',      select);
     patch('toggleEnvDropdown',        select);
-    patch('toggleTerrainDetailDrop',  select);
     patch('openBodySearch',           select);
     patch('openAppSettings',          select);
     patch('openSysSettings',          select);

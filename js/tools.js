@@ -1,58 +1,10 @@
 // ════════════════════════════════ TOOLS: TERRAIN DETAIL ════════════════════════════════
 
-// 0 = fewest vertices, 100 = full resolution (default). Applied as a multiplier on _screenN.
-window.terrainDetail = 30;
-
-let _terrainDetailDropOpen = false;
-
-function toggleTerrainDetailDrop(){
-  _terrainDetailDropOpen = !_terrainDetailDropOpen;
-  const dd = document.getElementById('terrain-detail-dropdown');
-  if(_terrainDetailDropOpen){
-    dd.style.display = 'block';
-    const btn = document.getElementById('btn-terrain-detail');
-    positionToolbarDropdown(dd, btn);
-  } else {
-    dd.style.display = 'none';
-  }
-}
-
-function setTerrainDetail(val){
-  window.terrainDetail = Math.max(0, Math.min(100, val));
-  const slider  = document.getElementById('terrain-detail-slider');
-  const valSpan = document.getElementById('terrain-detail-val');
-  if(slider)  slider.value          = window.terrainDetail;
-  if(valSpan) valSpan.textContent   = window.terrainDetail + '%';
-  // Update the compact label on the TERRAIN button
-  const lbl = document.getElementById('terrain-detail-label');
-  if(lbl) lbl.textContent = window.terrainDetail + '%';
-  // Lag warning: show above 70%
-  const warn = document.getElementById('terrain-detail-warn');
-  if(warn) warn.style.display = window.terrainDetail > 70 ? 'block' : 'none';
-  // Flush terrain geometry cache (affects _screenN vertex count)
-  if(typeof invalidateTerrainCache === 'function') invalidateTerrainCache('*');
-  // Flush surface A/B strip canvas cache (N and TEX_SZ both embed terrainDetail in cKey,
-  // but clearing explicitly ensures stale entries don't accumulate indefinitely)
-  if(typeof drawViewport === 'function' && drawViewport._surfCache)   drawViewport._surfCache   = {};
-  // Flush texture C downscale cache
-  if(typeof drawViewport === 'function' && drawViewport._tcDownCache) drawViewport._tcDownCache = {};
-  if(typeof drawViewport === 'function') drawViewport();
-}
-
-// Close detail dropdown on outside click (registered together with other dropdowns)
-// handled in the existing mousedown listener below — we append to it via a second listener
-document.addEventListener('mousedown', e => {
-  try {
-    const wrap = document.getElementById('btn-terrain-detail');
-    const dd   = document.getElementById('terrain-detail-dropdown');
-    if(dd && dd.style.display !== 'none'){
-      if((!wrap || !wrap.contains(e.target)) && !dd.contains(e.target)){
-        _terrainDetailDropOpen = false;
-        dd.style.display = 'none';
-      }
-    }
-  } catch(_){}
-}, true);
+// Vertex-density multiplier on _screenN. Was a user-adjustable 0-100% slider
+// (a manual perf/quality tradeoff for the old, buggy arc-culling opt-in);
+// now that arc culling is always on and fixed, full detail is the default
+// and the control has been removed.
+window.terrainDetail = 100;
 
 // ════════════════════════════════ TOOLS: HIGH RES SURFACE ════════════════════════════════
 

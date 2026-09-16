@@ -511,15 +511,7 @@
       </div>
       <div style="position:relative;display:inline-flex;align-items:stretch">
         <button class="tb-btn env-off" id="env-btn-heightmaps" onclick="toggleEnvFlag('heightmaps')" title="Toggle terrain heightmap rendering"
-          style="font-size:.78rem;letter-spacing:.06em;padding:7px 10px;border-right:none;border-radius:4px 0 0 4px">▲ LAND</button>
-        <button id="btn-terrain-detail" onclick="toggleTerrainDetailDrop()" title="Terrain detail level"
-          style="border:1px solid var(--ac25);border-left:1px solid var(--ac15);color:var(--sky2);background:var(--ac08);cursor:pointer;padding:0 7px;border-right:none;font-family:'JetBrains Mono',monospace;font-size:.58rem;letter-spacing:.04em;display:flex;align-items:center;gap:4px;white-space:nowrap">
-          <span id="terrain-detail-label">30%</span><span style="font-size:.6rem;opacity:.6">&#9662;</span>
-        </button>
-        <button id="btn-terrain-quality" onclick="setTerrainQuality(window.terrainQuality === 'detailed' ? 'optimized' : 'detailed')" title="Terrain quality: Detailed (correct, default) or Optimized (faster, has a known close-zoom bug)"
-          style="border:1px solid var(--ac25);border-left:1px solid var(--ac15);color:var(--sky2);background:var(--ac08);cursor:pointer;padding:0 8px;border-radius:0 4px 4px 0;font-family:'JetBrains Mono',monospace;font-size:.58rem;letter-spacing:.04em;display:flex;align-items:center;white-space:nowrap">
-          <span id="terrain-quality-label">DETAILED</span>
-        </button>
+          style="font-size:.78rem;letter-spacing:.06em;padding:7px 10px;border-radius:4px">▲ LAND</button>
       </div>
       <button class="tb-btn" onclick="openBodySearch()" title="Search bodies in system" style="font-size:.85rem;padding:7px 10px"><svg class="icon"><use href="#icon-search"></use></svg></button>
       <button class="tb-btn" id="btn-difficulty" onclick="cycleDifficulty()" title="Switch orbit display difficulty" style="min-width:96px"><svg class="icon"><use href="#icon-scale"></use></svg> NORMAL</button>
@@ -1959,7 +1951,6 @@
     <div style="display:flex;gap:0;margin:10px 0 18px;border-bottom:1px solid var(--ac18)">
       <button id="apptab-theme" onclick="switchAppTab('theme')" style="flex:1;padding:7px 0;background:var(--ac13);border:1px solid var(--ac28);border-bottom:none;color:var(--sky2);font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.08em;cursor:pointer;border-radius:4px 4px 0 0;margin-right:2px">THEME</button>
       <button id="apptab-sound" onclick="switchAppTab('sound')" style="flex:1;padding:7px 0;background:transparent;border:1px solid transparent;border-bottom:none;color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.08em;cursor:pointer;border-radius:4px 4px 0 0;margin-right:2px">SOUND</button>
-      <button id="apptab-graphics" onclick="switchAppTab('graphics')" style="flex:1;padding:7px 0;background:transparent;border:1px solid transparent;border-bottom:none;color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.08em;cursor:pointer;border-radius:4px 4px 0 0;margin-right:2px">GRAPHICS</button>
       <button id="apptab-appcredits" onclick="switchAppTab('appcredits')" style="flex:1;padding:7px 0;background:transparent;border:1px solid transparent;border-bottom:none;color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.08em;cursor:pointer;border-radius:4px 4px 0 0">CREDITS</button>
     </div>
 
@@ -2115,75 +2106,6 @@
       </div>
 
     </div><!-- end apptab-sound-content -->
-
-    <!-- GRAPHICS tab -->
-    <div id="apptab-graphics-content" style="display:none">
-      <p style="margin-top:-6px;margin-bottom:16px;font-size:.68rem;color:var(--ink4);font-family:'JetBrains Mono',monospace">Terrain rendering quality &amp; diagnostics</p>
-
-      <!-- Terrain quality -->
-      <div style="border-bottom:1px solid var(--ac10);padding-bottom:14px;margin-bottom:14px">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:.66rem;color:var(--ink2);letter-spacing:.06em;margin-bottom:4px">TERRAIN QUALITY</div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:.54rem;color:var(--ink4);margin-bottom:10px;line-height:1.5">
-          Detailed always renders full terrain correctly. Optimized culls off-screen terrain for speed, but currently has a known close-zoom rendering bug.
-        </div>
-        <div style="display:flex;gap:8px">
-          <button id="gfx-quality-detailed" onclick="setTerrainQuality('detailed')"
-            style="flex:1;padding:9px 8px;border:1px solid var(--ac28);border-radius:4px;background:var(--ac13);color:var(--sky2);font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.05em;cursor:pointer">
-            DETAILED <span style="opacity:.6">(default)</span>
-          </button>
-          <button id="gfx-quality-optimized" onclick="setTerrainQuality('optimized')"
-            style="flex:1;padding:9px 8px;border:1px solid var(--ac18);border-radius:4px;background:transparent;color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.05em;cursor:pointer">
-            OPTIMIZED <span style="opacity:.6">(faster, buggy)</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Developer diagnostics -->
-      <div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:.56rem;color:var(--ink4);letter-spacing:.1em;margin-bottom:10px;text-transform:uppercase">Developer Diagnostics</div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--ac10)">
-          <div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.63rem;color:var(--ink2);letter-spacing:.05em">TERRAIN DEBUG OVERLAY</div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:var(--ink4);margin-top:1px">On-screen stats: physR_px, arc span, vertex counts</div>
-          </div>
-          <div class="tog" id="gfx-tog-overlay" onclick="setDbgTerrainOverlay(!window.dbgTerrainOverlay)"></div>
-        </div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--ac10)">
-          <div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.63rem;color:var(--ink2);letter-spacing:.05em">ARC CULLING (force)</div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:var(--ink4);margin-top:1px">Independent override, ignores quality mode above</div>
-          </div>
-          <div class="tog on" id="gfx-tog-arccull" onclick="setDbgArcCull(!(window.dbgArcCull === false ? false : true))"></div>
-        </div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--ac10)">
-          <div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.63rem;color:var(--ink2);letter-spacing:.05em">LOD SETTLE TIMER (force)</div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:var(--ink4);margin-top:1px">Independent override — caps detail briefly during zoom</div>
-          </div>
-          <div class="tog on" id="gfx-tog-lod" onclick="setDbgLOD(!(window.dbgLOD === false ? false : true))"></div>
-        </div>
-
-        <div style="padding:10px 0 4px">
-          <div style="font-family:'JetBrains Mono',monospace;font-size:.63rem;color:var(--ink2);letter-spacing:.05em;margin-bottom:2px">ARC CULLING ALGORITHM</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:.52rem;color:var(--ink4);margin-bottom:8px;line-height:1.5">
-            Being A/B tested against the close-zoom silhouette bug. Binary-search avoids large-number math that may cause it; only takes effect when Optimized quality + arc culling are active.
-          </div>
-          <div style="display:flex;gap:8px">
-            <button id="gfx-arcmethod-edge" onclick="setDbgArcCullMethod('edge')"
-              style="flex:1;padding:7px 8px;border:1px solid var(--ac28);border-radius:4px;background:var(--ac13);color:var(--sky2);font-family:'JetBrains Mono',monospace;font-size:.58rem;letter-spacing:.04em;cursor:pointer">
-              EDGE <span style="opacity:.6">(default)</span>
-            </button>
-            <button id="gfx-arcmethod-binary" onclick="setDbgArcCullMethod('binary')"
-              style="flex:1;padding:7px 8px;border:1px solid var(--ac18);border-radius:4px;background:transparent;color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.58rem;letter-spacing:.04em;cursor:pointer">
-              BINARY <span style="opacity:.6">(new)</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div><!-- end apptab-graphics-content -->
 
     <div id="apptab-appcredits-content" style="display:none">
       <div style="font-family:'JetBrains Mono',monospace;font-size:.66rem;line-height:2;color:var(--ink2)">
@@ -2488,31 +2410,6 @@
 <script src="js/procgen.js?v=1.0"></script>
 <script src="js/landmark-features.js?v=1.1"></script>
 <script src="js/help-modal.js?v=1.0"></script>
-<!-- ══ TERRAIN DETAIL DROPDOWN (body-level to escape topbar stacking context) ══ -->
-<div id="terrain-detail-dropdown" style="display:none;position:fixed;
-  min-width:200px;background:rgba(6,10,22,.97);border:1px solid rgba(180,140,255,.25);
-  border-radius:4px;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:99999;overflow:hidden">
-  <div style="padding:5px 10px 4px;font-family:'Orbitron',sans-serif;font-size:.5rem;
-    color:rgba(180,140,255,.5);letter-spacing:.12em;border-bottom:1px solid rgba(180,140,255,.1)">TERRAIN DETAIL</div>
-  <div style="padding:10px 14px 12px;display:flex;flex-direction:column;gap:6px">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <span style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:rgba(180,140,255,.85);letter-spacing:.05em">VERTEX DENSITY</span>
-      <span id="terrain-detail-val" style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:rgba(150,200,255,.9);min-width:36px;text-align:right">30%</span>
-    </div>
-    <input type="range" id="terrain-detail-slider" min="0" max="100" step="5" value="30"
-      style="width:100%;accent-color:rgba(180,140,255,.85);cursor:pointer"
-      oninput="setTerrainDetail(parseInt(this.value))">
-    <div style="display:flex;justify-content:space-between">
-      <span style="font-size:.5rem;color:rgba(150,150,180,.5);letter-spacing:.04em">Low (fast)</span>
-      <span style="font-size:.5rem;color:rgba(150,150,180,.5);letter-spacing:.04em">Full (slow)</span>
-    </div>
-    <div id="terrain-detail-warn" style="display:none;padding:5px 8px;background:rgba(255,160,40,.1);border:1px solid rgba(255,160,40,.35);border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:.52rem;color:rgba(255,180,60,.9);letter-spacing:.03em;line-height:1.5">
-      ⚠ High detail may lag<br><span style="color:rgba(255,180,60,.6)">Recommended: keep below 70%</span>
-    </div>
-    <span style="font-size:.5rem;color:rgba(150,150,180,.45);letter-spacing:.03em;line-height:1.4">Scales vertices per frame.<br>Lower = smoother performance.</span>
-  </div>
-</div>
-
 <!-- ══ ENV DROPDOWN (body-level to escape topbar stacking context) ══ -->
 <div id="env-dropdown" style="display:none;position:fixed;
   min-width:210px;background:rgba(6,10,22,.97);border:1px solid rgba(64,200,255,.22);
