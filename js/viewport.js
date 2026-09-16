@@ -4830,7 +4830,25 @@ function _getTerrainSamples(bodyName, b, radius_m, N, arcInfo) {
   if (_terrainSampleCache[arcKey]) return _terrainSampleCache[arcKey];
 
   const arcSpan = snapE - snapS; // > 0, < 2π
-  const arcVertexCount = Math.max(2, Math.ceil(N * arcSpan / TWO_PI) + 1);
+  // BUG (fixed): this used to be Math.max(2, Math.ceil(N * arcSpan / TWO_PI) + 1)
+  // — treating N as a FULL-CIRCLE vertex density and scaling it down by the
+  // arc's fraction of the full circle, e.g. N=445 at arcSpan=0.6° became
+  // ceil(445 * 0.6/360) + 1 = 2 vertices. That formula is only correct for
+  // the (different) full-circle code path above, where angles are generated
+  // as (i/N)*TWO_PI and N genuinely IS a full-circle density.
+  //
+  // N here is _drawTerrainBody's terrN, which is already computed upstream
+  // as "target vertex count for the visible arc" (~2 vertices per screen
+  // pixel around the ACTUAL visible circumference, already arc-scoped — see
+  // the terrN derivation comment: "terrN = 2π × physR_px" using physR_px,
+  // not the body's full circumference). Re-multiplying that already-scoped
+  // count by arcSpan/TWO_PI was applying the same culling twice, collapsing
+  // e.g. 445 requested vertices down to 2 — one straight line segment —
+  // which is exactly the "craters flatten into straight edges at close zoom"
+  // bug reported after switching between the edge-intersection and
+  // binary-search arc methods made no difference (because the actual bug
+  // was here, downstream of both, not in either arc computation).
+  const arcVertexCount = Math.max(2, Math.round(N) + 1);
   const arcAngles = new Array(arcVertexCount);
   // Sample INCLUSIVE of both snapS and snapE (arcVertexCount-1 steps across
   // arcVertexCount points), not just up to snapS + (N-1)/N * arcSpan. Used to
