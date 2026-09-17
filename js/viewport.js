@@ -965,11 +965,20 @@ function _drawViewportNow(){
 
   const names = Object.keys(bodies);
   if(names.length === 0) return;
+  // Computed once and reused everywhere below — was a separate names.find()
+  // linear scan in 3 different places every frame (distance rings, the
+  // habitable-zone band, and the post-processing pass).
+  const _centerBodyName = names.find(n => bodies[n].isCenter);
 
   // ── STEP 1: compute all world positions (centre = origin) ──
   // Multi-pass so moons (children of planets) resolve correctly
   // Reset the module-level position map for this frame
-  Object.keys(bodyWorldPos).forEach(k => delete bodyWorldPos[k]);
+  // Reassigning a fresh object is faster than deleting keys one at a time
+  // (delete-heavy mutation forces V8 to de-optimize the object's hidden
+  // class every frame). Safe because every reader (sidebar.js, tools.js,
+  // and the rest of this file) reads the current value of the module-level
+  // `bodyWorldPos` binding, not a captured reference to the old object.
+  bodyWorldPos = {};
   // Seed center at origin; bodies with no orbit data also sit at origin
   names.forEach(n => { if(bodies[n].isCenter || !bodies[n].data.ORBIT_DATA) bodyWorldPos[n] = {x:0, y:0}; });
   // Also seed any parent name that's referenced but not in bodies (e.g. 'Sun' fallback)
@@ -1066,7 +1075,7 @@ function _drawViewportNow(){
     // Only create the temp canvas when there's a cache miss
     let tmp = null, tc = null;
     names.forEach(name => {
-      const colorStr = bodies[name].color.split(',')[0].trim();
+      const colorStr = (bodies[name].color || '#aaaaaa,#555555').split(',')[0].trim();
       if(!drawViewport._orbitRGBCache[colorStr]){
         if(!tmp){ tmp = document.createElement('canvas'); tmp.width=1; tmp.height=1; tc = tmp.getContext('2d'); }
         tc.clearRect(0,0,1,1); tc.fillStyle = colorStr; tc.fillRect(0,0,1,1);
@@ -1080,6 +1089,17 @@ function _drawViewportNow(){
   // Additive compositing — overlapping orbits brighten naturally
   ctx2.save();
   ctx2.globalCompositeOperation = 'lighter';
+
+  // Batch orbit lines that share the same stroke style (color + line width +
+  // quantized alpha) into one Path2D, stroked once per bucket instead of
+  // once per body. Canvas draw-call overhead (state changes + submission)
+  // dominates over raw path cost once there are many bodies — asteroid
+  // belts especially, where most bodies already share the exact same preset
+  // color, collapsing hundreds of stroke() calls into a handful of buckets.
+  // Alpha is quantized to steps of 1/48 (~0.021) — far finer than
+  // perceptible for a translucent orbit line — so bodies at slightly
+  // different fade levels still land in the same bucket.
+  const _orbitBuckets = new Map(); // "cr,cg,cb|lineWidth|quantizedAlpha" -> {path, rgb, lineWidth, alpha}
 
   names.forEach(name => {
     const b = bodies[name];
@@ -1108,16 +1128,23 @@ function _drawViewportNow(){
     const isSelected = selectedBody === name;
     const [cr,cg,cb] = orbitRGB[name];
     const alpha = isSelected ? Math.min(1, 0.8 * fade) : Math.min(1, 0.22 * fade);
+    const lineWidth = isSelected ? 2 : 1;
 
-    ctx2.save();
-    ctx2.strokeStyle = `rgba(${cr},${cg},${cb},${alpha})`;
-    ctx2.lineWidth = isSelected ? 2 : 1;
-    ctx2.beginPath();
+    const qa = Math.round(alpha * 48) / 48;
+    const key = cr+','+cg+','+cb+'|'+lineWidth+'|'+qa;
+    let bucket = _orbitBuckets.get(key);
+    if(!bucket){
+      bucket = { path: new Path2D(), cr, cg, cb, lineWidth, alpha: qa };
+      _orbitBuckets.set(key, bucket);
+    }
+    const path = bucket.path;
 
     if(rxS > diagPx * 0.5) {
       // Zoomed in: ellipse is larger than viewport.
-      // ctx2.ellipse() on a giant arc is slow because the browser bezier-approximates
+      // A giant-arc ellipse() is slow because the browser bezier-approximates
       // the full curve. Instead: manually tessellate ONLY the visible arc window.
+      // Computed in absolute screen coordinates so it drops straight into a
+      // shared batched path regardless of which body it belongs to.
 
       // Direction from ellipse centre toward viewport centre, in ellipse-local space
       const cosRot = Math.cos(-g.angle), sinRot = Math.sin(-g.angle);
@@ -1141,18 +1168,23 @@ function _drawViewportNow(){
         const ey = ryS * Math.sin(t);
         const sx = sc.x + ex * cosG - ey * sinG;
         const sy = sc.y + ex * sinG + ey * cosG;
-        i === 0 ? ctx2.moveTo(sx, sy) : ctx2.lineTo(sx, sy);
+        i === 0 ? path.moveTo(sx, sy) : path.lineTo(sx, sy);
       }
     } else {
-      // Small enough — native ellipse is fast and smooth
-      ctx2.translate(sc.x, sc.y);
-      ctx2.rotate(g.angle);
-      ctx2.ellipse(0, 0, rxS, ryS, 0, 0, Math.PI * 2);
+      // Small enough — native ellipse() is fast and smooth. Its own rotation
+      // parameter replaces the old per-body translate+rotate+ellipse(0,0,...),
+      // since a shared batched path can't carry a per-body context transform —
+      // each body's ellipse must already be positioned/rotated in absolute
+      // coordinates when added to the path.
+      path.ellipse(sc.x, sc.y, rxS, ryS, g.angle, 0, Math.PI * 2);
     }
-
-    ctx2.stroke();
-    ctx2.restore();
   });
+
+  for(const {path, cr, cg, cb, lineWidth, alpha} of _orbitBuckets.values()){
+    ctx2.strokeStyle = `rgba(${cr},${cg},${cb},${alpha})`;
+    ctx2.lineWidth = lineWidth;
+    ctx2.stroke(path);
+  }
 
   ctx2.restore(); // end lighter composite
 
@@ -1163,7 +1195,7 @@ function _drawViewportNow(){
     // Determine ring centre: prefer selected body, fall back to system centre
     const _ringBodyName = (typeof selectedBody !== 'undefined' && selectedBody && bodies[selectedBody])
       ? selectedBody
-      : names.find(n => bodies[n].isCenter);
+      : _centerBodyName;
     if(_ringBodyName){
       const _rWP = bodyWorldPos[_ringBodyName] || {x:0, y:0};
       const _cSP = worldToScreen(_rWP.x, _rWP.y);
@@ -1289,7 +1321,7 @@ function _drawViewportNow(){
   // ── End habitable-zone band ──────────────────────────────────────────────
 
 
-  const centerName2 = names.find(n => bodies[n].isCenter);
+  const centerName2 = _centerBodyName;
   const centerR_m = centerName2 ? ((bodies[centerName2].data.BASE_DATA||{}).radius || 1) : 1;
   const CENTER_PX = BODY_PX['star'];
 
@@ -1470,7 +1502,7 @@ function _drawViewportNow(){
 
     const bodyFadeA  = bodyFadeVal[name]  ?? 1;
     const labelFadeA = labelFadeVal[name] ?? 1;
-    const [c1, c2] = b.color.split(',');
+    const [c1, c2] = (b.color || '#aaaaaa,#555555').split(',');
 
     ctx2.save();
     ctx2.globalAlpha = bodyFadeA;
@@ -3617,7 +3649,7 @@ function _drawViewportNow(){
   // ── Post-processing: find the relevant body's PP key once ──
   // Prefer system center PP keys; fall back to any body that has keys.
   let _ppBody = null;
-  const _cname = Object.keys(bodies).find(n => bodies[n].isCenter);
+  const _cname = _centerBodyName;
   if(_cname && bodies[_cname].data?.POST_PROCESSING?.keys?.length) _ppBody = bodies[_cname];
   if(!_ppBody){
     const _fallback = Object.keys(bodies).find(n => bodies[n].data?.POST_PROCESSING?.keys?.length);
@@ -3645,6 +3677,47 @@ function _drawViewportNow(){
   // ── SOI pass — drawn on top of everything else ──
   if(envFlags.soi){
     ctx2.save();
+
+    // Batch unselected SOI circles (usually the vast majority — e.g. hundreds
+    // of asteroids) into alpha-quantized Path2D buckets, stroked once per
+    // bucket instead of once per body. They all share the same dash pattern
+    // and line width, so only strokeStyle differs between buckets. The
+    // selected body (at most one) keeps its own draw — a different dash
+    // pattern/line width anyway, and there's no batching benefit for one shape.
+    // Alpha quantized to steps of 1/48 (~0.021) — imperceptibly fine for a
+    // translucent dashed circle.
+    const _soiBuckets = new Map(); // quantizedAlpha -> Path2D
+    const _soiLabels  = [];        // deferred — only selected/large-on-screen SOIs get one
+
+    function _buildSoiPath(path, sp, soiR_px, W2, H2){
+      if(soiR_px > diagPx * 0.5) {
+        const toVX = W2 * 0.5 - sp.x;
+        const toVY = H2 * 0.5 - sp.y;
+        const baseAngle = Math.atan2(toVY, toVX);
+        const halfAngle = Math.min(Math.PI, (diagPx * 2.4) / soiR_px);
+        const segs = 48;
+        const startA = baseAngle - halfAngle;
+        const arcStep = (halfAngle * 2) / segs;
+        for(let i = 0; i <= segs; i++){
+          const a = startA + i * arcStep;
+          const px = sp.x + soiR_px * Math.cos(a);
+          const py = sp.y + soiR_px * Math.sin(a);
+          i === 0 ? path.moveTo(px, py) : path.lineTo(px, py);
+        }
+        // open arc — no closePath
+      } else {
+        const sides = Math.max(32, Math.min(96, Math.ceil(soiR_px * 0.5)));
+        const step  = (Math.PI * 2) / sides;
+        for(let i = 0; i <= sides; i++){
+          const a = i * step;
+          const px = sp.x + soiR_px * Math.cos(a);
+          const py = sp.y + soiR_px * Math.sin(a);
+          i === 0 ? path.moveTo(px, py) : path.lineTo(px, py);
+        }
+        path.closePath();
+      }
+    }
+
     names.forEach(name => {
       const b = bodies[name];
       if(b.isCenter || !b.data.ORBIT_DATA) return;
@@ -3675,52 +3748,46 @@ function _drawViewportNow(){
 
       const isSelected = selectedBody === name;
 
-      // ── Draw SOI circle ──
-      // When the SOI is larger than the viewport we are inside it — only a small
-      // arc is visible. Draw only that arc with a fixed segment count so cost is
-      // O(1) regardless of how large soiR_px grows.
-      ctx2.beginPath();
-      if(soiR_px > diagPx * 0.5) {
-        const toVX = W2 * 0.5 - sp.x;
-        const toVY = H2 * 0.5 - sp.y;
-        const baseAngle = Math.atan2(toVY, toVX);
-        const halfAngle = Math.min(Math.PI, (diagPx * 2.4) / soiR_px);
-        const segs = 48;
-        const startA = baseAngle - halfAngle;
-        const arcStep = (halfAngle * 2) / segs;
-        for(let i = 0; i <= segs; i++){
-          const a = startA + i * arcStep;
-          const px = sp.x + soiR_px * Math.cos(a);
-          const py = sp.y + soiR_px * Math.sin(a);
-          i === 0 ? ctx2.moveTo(px, py) : ctx2.lineTo(px, py);
-        }
-        // open arc — no closePath
-      } else {
-        const sides = Math.max(32, Math.min(96, Math.ceil(soiR_px * 0.5)));
-        const step  = (Math.PI * 2) / sides;
-        for(let i = 0; i <= sides; i++){
-          const a = i * step;
-          const px = sp.x + soiR_px * Math.cos(a);
-          const py = sp.y + soiR_px * Math.sin(a);
-          i === 0 ? ctx2.moveTo(px, py) : ctx2.lineTo(px, py);
-        }
-        ctx2.closePath();
-      }
-
       if(isSelected){
+        // Drawn immediately — different dash/width, and batching a single
+        // shape has no benefit.
+        const path = new Path2D();
+        _buildSoiPath(path, sp, soiR_px, W2, H2);
         ctx2.setLineDash([8, 5]);
         ctx2.strokeStyle = `rgba(192,128,255,${(alpha * 0.9).toFixed(3)})`;
         ctx2.lineWidth = 1.5;
+        ctx2.stroke(path);
+        ctx2.setLineDash([]);
       } else {
-        ctx2.setLineDash([4, 6]);
-        ctx2.strokeStyle = `rgba(160,100,255,${(alpha * 0.55).toFixed(3)})`;
-        ctx2.lineWidth = 1;
+        const qa = Math.round((alpha * 0.55) * 48) / 48;
+        let path = _soiBuckets.get(qa);
+        if(!path){ path = new Path2D(); _soiBuckets.set(qa, path); }
+        _buildSoiPath(path, sp, soiR_px, W2, H2);
       }
-      ctx2.stroke();
-      ctx2.setLineDash([]);
 
       // Small label showing SOI radius when body is selected or SOI > 40px
       if((isSelected || soiR_px > 40) && alpha > 0.2){
+        _soiLabels.push({sp, soiR_px, soiR_m, isSelected, alpha});
+      }
+    });
+
+    // Stroke each unselected alpha bucket once — dash pattern and line width
+    // are identical across the whole group, so only strokeStyle changes.
+    if(_soiBuckets.size){
+      ctx2.setLineDash([4, 6]);
+      ctx2.lineWidth = 1;
+      for(const [qa, path] of _soiBuckets){
+        ctx2.strokeStyle = `rgba(160,100,255,${qa})`;
+        ctx2.stroke(path);
+      }
+      ctx2.setLineDash([]);
+    }
+
+    // Labels — rare (only selected or large-on-screen SOIs), drawn individually.
+    if(_soiLabels.length){
+      ctx2.font = '8px "JetBrains Mono",monospace';
+      ctx2.textAlign = 'center';
+      _soiLabels.forEach(({sp, soiR_px, soiR_m, isSelected, alpha}) => {
         const soiKm = soiR_m / 1000;
         const soiLabel = soiKm >= 1e6
           ? (soiKm / 1e6).toFixed(2) + ' Gm'
@@ -3728,13 +3795,12 @@ function _drawViewportNow(){
           ? (soiKm / 1e3).toFixed(1) + ' Mm'
           : soiKm.toFixed(0) + ' km';
         ctx2.globalAlpha = alpha * 0.75;
-        ctx2.font = '8px "JetBrains Mono",monospace';
         ctx2.fillStyle = isSelected ? 'rgba(210,170,255,0.9)' : 'rgba(180,140,255,0.75)';
-        ctx2.textAlign = 'center';
         ctx2.fillText('SOI ' + soiLabel, sp.x, sp.y - soiR_px - 4);
-        ctx2.globalAlpha = 1;
-      }
-    });
+      });
+      ctx2.globalAlpha = 1;
+    }
+
     ctx2.restore();
   }
 
