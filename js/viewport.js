@@ -3912,7 +3912,20 @@ function _getHeightMap(hmName) {
   if (entry.url) {
     _hmCache[hmName] = _parseHmPng(entry.url).then(pts => {
       _hmCache[hmName] = pts;
-      if (typeof invalidateTerrainCache === 'function') invalidateTerrainCache('*');
+      // No cache invalidation needed: bodies whose terrain formula didn't
+      // depend on this heightmap already have valid cached entries (a
+      // pending/null heightmap makes _getTerrainSamples bail out WITHOUT
+      // caching — see the `if (!heights) return fallback;` guard there), so
+      // there's nothing stale to clear. A redraw alone lets any body that
+      // WAS blocked on this specific heightmap retry and cache successfully
+      // now that it's ready — without forcing every other body in the
+      // system to recompute and rebuild its terrain for no reason. (This
+      // used to call invalidateTerrainCache('*') here, which wiped the
+      // whole system's terrain cache on every single heightmap PNG that
+      // finished decoding — the more custom heightmaps a system has, the
+      // more redundant full-system rebuilds happened in the seconds after
+      // load, which is almost certainly the dropped-fps window you're
+      // seeing after loading a system with several custom heightmaps.)
       if (typeof drawViewport === 'function') drawViewport();
     });
     return null;
