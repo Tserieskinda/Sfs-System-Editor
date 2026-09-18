@@ -1596,7 +1596,10 @@ function _clipboardAdd(name, removeFromSystem){
   const entry = {
     name,
     data:   JSON.parse(JSON.stringify(bodies[name].data)),
-    preset: bodies[name].preset
+    preset: bodies[name].preset,
+    color:  bodies[name].color,
+    glow:   bodies[name].glow,
+    icon:   bodies[name].icon
   };
   // Avoid duplicates by name — replace if already in clipboard
   const idx = _bodyClipboard.findIndex(e => e.name === name);

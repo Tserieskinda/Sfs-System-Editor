@@ -2031,6 +2031,48 @@ function _liveSyncNow(){
     invalidateTerrainCache(selectedBody);
   }
 
+  // ORBIT — the most critical for visual update
+  // Non-center bodies always have orbit (it's mandatory)
+  const _orbitAllowed = tog('or-has') || !b.isCenter;
+  if(_orbitAllowed){
+    const dirRaw = document.getElementById('or-dir').value;
+    d.ORBIT_DATA = {
+      parent:             val('or-par') || 'Sun',
+      semiMajorAxis:      (() => {
+        // Recover stored SMA by dividing out the same effective scale used in fillSidebar.
+        // Per-body smaDifficultyScale replaces global default entirely (mirrors game SmaScale()).
+        const _sds  = buildDiffScale('or-sn','or-sh','or-sr');
+        const _vdk  = (typeof viewDiffKey !== 'undefined') ? viewDiffKey : 'Normal';
+        const _defS = (typeof _DEF_SMA_SCALE !== 'undefined') ? _DEF_SMA_SCALE : {Normal:1,Hard:2,Realistic:20};
+        const gm    = (_sds[_vdk] != null) ? _sds[_vdk] : (_defS[_vdk] ?? 1);
+        const raw   = getDistMetres('or-sma');
+        return gm > 0 ? raw / gm : raw;
+      })(),
+      smaDifficultyScale: buildDiffScale('or-sn','or-sh','or-sr'),
+      eccentricity:       Math.min(_sf('or-ecc', 0), 0.999),
+      argumentOfPeriapsis:_sf('or-aop', 0),
+      direction:          parseInt(dirRaw),   // parseInt('0') = 0 correctly
+      multiplierSOI:      _sf('or-soi', 2.5),
+      soiDifficultyScale: buildDiffScale('or-soin','or-soih','or-soir')
+    };
+  } else delete d.ORBIT_DATA;
+
+  // Update sidebar header to reflect current body state
+  document.getElementById('sbb-type').textContent = b.isCenter ? 'System Center' : (d.ORBIT_DATA ? `orbiting ${d.ORBIT_DATA.parent}` : '');
+  // Refresh orbital period display whenever SMA / parent / diff scale may have changed
+  if (typeof updatePeriodFromSMA === 'function') updatePeriodFromSMA();
+
+  // Fast path: the field that triggered this sync only affects orbit geometry
+  // (SMA/eccentricity/AoP/direction/period) — ORBIT_DATA is already fully
+  // rebuilt above, so skip re-parsing every other section (atmosphere,
+  // clouds, terrain formulas, rings, water, post-processing, landmarks).
+  // Dragging the eccentricity or argument-of-periapsis slider was rebuilding
+  // ALL of that, every single frame, for a field that touches none of it.
+  if(_orbitOnlyIds.has(_focusId)){
+    drawViewport();
+    return;
+  }
+
   // BASE DATA
   d.BASE_DATA = d.BASE_DATA || {};
   { const _rm = (typeof getRadiusDifficultyMult === 'function') ? getRadiusDifficultyMult(d.BASE_DATA) : 1;
@@ -2193,32 +2235,6 @@ function _liveSyncNow(){
   if(drawViewport._fcCache) drawViewport._fcCache = {};
   if(drawViewport._fogCache) drawViewport._fogCache = {};
 
-  // ORBIT — the most critical for visual update
-  // Non-center bodies always have orbit (it's mandatory)
-  const _orbitAllowed = tog('or-has') || !b.isCenter;
-  if(_orbitAllowed){
-    const dirRaw = document.getElementById('or-dir').value;
-    d.ORBIT_DATA = {
-      parent:             val('or-par') || 'Sun',
-      semiMajorAxis:      (() => {
-        // Recover stored SMA by dividing out the same effective scale used in fillSidebar.
-        // Per-body smaDifficultyScale replaces global default entirely (mirrors game SmaScale()).
-        const _sds  = buildDiffScale('or-sn','or-sh','or-sr');
-        const _vdk  = (typeof viewDiffKey !== 'undefined') ? viewDiffKey : 'Normal';
-        const _defS = (typeof _DEF_SMA_SCALE !== 'undefined') ? _DEF_SMA_SCALE : {Normal:1,Hard:2,Realistic:20};
-        const gm    = (_sds[_vdk] != null) ? _sds[_vdk] : (_defS[_vdk] ?? 1);
-        const raw   = getDistMetres('or-sma');
-        return gm > 0 ? raw / gm : raw;
-      })(),
-      smaDifficultyScale: buildDiffScale('or-sn','or-sh','or-sr'),
-      eccentricity:       Math.min(_sf('or-ecc', 0), 0.999),
-      argumentOfPeriapsis:_sf('or-aop', 0),
-      direction:          parseInt(dirRaw),   // parseInt('0') = 0 correctly
-      multiplierSOI:      _sf('or-soi', 2.5),
-      soiDifficultyScale: buildDiffScale('or-soin','or-soih','or-soir')
-    };
-  } else delete d.ORBIT_DATA;
-
   // POST PROCESSING — only write if keys exist (off by default)
   const _ppKeys = collectPPKeys();
   if(_ppKeys.length) d.POST_PROCESSING = { keys: _ppKeys };
@@ -2226,12 +2242,6 @@ function _liveSyncNow(){
 
   // LANDMARKS
   d.LANDMARKS = collectLandmarks();
-
-  // Update sidebar header to reflect current body state
-  document.getElementById('sbb-type').textContent = b.isCenter ? 'System Center' : (d.ORBIT_DATA ? `orbiting ${d.ORBIT_DATA.parent}` : '');
-
-  // Refresh orbital period display whenever SMA / parent / diff scale may have changed
-  if (typeof updatePeriodFromSMA === 'function') updatePeriodFromSMA();
 
   // Invalidate cloud canvas cache so any atmosphere/texture change renders immediately
   if(drawViewport._cloudCache) drawViewport._cloudCache = {};

@@ -698,9 +698,16 @@ function confirmPreset(){
       const centre = Object.keys(bodies).find(k => bodies[k].isCenter);
       newData.ORBIT_DATA = { parent: centre || 'Sun', SMA: 1e8, E: 0, direction: 1 };
     }
-    bodies[newName] = { preset: entry.preset, data: newData };
-    if(typeof drawViewport === 'function') drawViewport();
-    if(typeof updateStatusBar === 'function') updateStatusBar();
+    bodies[newName] = {
+      preset: entry.preset, data: newData, isCenter: false,
+      color: entry.color || '#aaaaaa,#555555', glow: entry.glow, icon: entry.icon
+    };
+    document.getElementById('empty-state').classList.add('gone');
+    resizeViewport();
+    renderBody(newName);
+    updateStatusBar();
+    syncAddBodyBtn();
+    selectBody(newName);
     return;
   }
 
