@@ -1384,9 +1384,29 @@ function _drawViewportNow(){
     const fcd = bodies[n]?.data?.FRONT_CLOUDS_DATA;
     _bodyFcZ[n] = (fcd && typeof fcd.positionZ === 'number') ? fcd.positionZ : 0;
   });
-  const drawOrder = names.slice().sort((a, b) =>
-    (_bodyDepth[a] - _bodyDepth[b]) || (_bodyFcZ[b] - _bodyFcZ[a])
-  );
+  // Day/night carrier bodies (named e.g. "DN", "DayNightCycle", "Day and Night" —
+  // whether hand-named or built with the DN tool, which auto-names them
+  // "<parent>_DayNight") are physically tiny invisible carriers whose own icon
+  // has no business appearing in front of the real planet it orbits (parent)
+  // or that planet's own parent (grandparent) once zoomed out to icon scale.
+  // This ONLY reorders which body's ICON draws first in this same pass — it
+  // does not touch _bodyFcZ or the separate _fcDeferred front-cloud disc pass
+  // below, which is what actually renders the day/night terminator effect and
+  // must keep sorting purely by positionZ regardless of hierarchy depth.
+  // Forcing these bodies to draw_order-first means every other body (their
+  // parent/grandparent included) naturally paints over their icon afterward,
+  // via ordinary painter's-algorithm — no cull, no special-case skip, just
+  // correct back-to-front order for the icon specifically.
+  const _DN_NAME_RE = /(?:^|[^a-z0-9])(d[\s_-]?n|day[\s_-]?(?:and[\s_-]?)?night(?:[\s_-]?cycle)?)(?:[^a-z0-9]|$)/i;
+  function _isDayNightCarrier(n){
+    if(bodies[n]?.preset === 'dayNightCycle') return true;
+    return _DN_NAME_RE.test(n);
+  }
+  const drawOrder = names.slice().sort((a, b) => {
+    const dnA = _isDayNightCarrier(a), dnB = _isDayNightCarrier(b);
+    if(dnA !== dnB) return dnA ? -1 : 1; // DN carriers always draw first (furthest back)
+    return (_bodyDepth[a] - _bodyDepth[b]) || (_bodyFcZ[b] - _bodyFcZ[a]);
+  });
 
   bodyScreenPos = {};
   // Front-cloud composites are collected here instead of drawn immediately.
@@ -2836,7 +2856,15 @@ function _drawViewportNow(){
                       //   cloudV = _CloudSizeY * ( v1.y*(_CloudStartY+1) - _CloudStartY )
                       // — not a simple offset+scale. That's now the default ('real' mode
                       // below). 'legacy' (the old shape) stays selectable for comparison.
-                      const cloudSizeYEff = cloudSizeY;
+                      // Earth_Clouds exception: this is the vanilla, hardcoded texture —
+                      // in-game it is fixed/authored to always render as a single
+                      // non-repeating pass, unlike a custom CLOUDS texture where the
+                      // (R+gradH)/cloudH ratio genuinely does tile the texture radially
+                      // (that's real engine behavior, faithfully reproduced above). Force
+                      // cloudSizeY to 1 only for this exact vanilla texture name so every
+                      // other (including custom "Earth_Clouds"-derived) texture keeps
+                      // going through the real formula unchanged.
+                      const cloudSizeYEff = (CLD.texture === 'Earth_Clouds') ? 1 : cloudSizeY;
                       // Everything below reads from window._cldDebug, wired to the live
                       // cloud debug panel (window.showCloudDebugPanel()) so these can be
                       // experimented with in real time without editing code:
