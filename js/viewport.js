@@ -2926,11 +2926,15 @@ function _drawViewportNow(){
                       // in-game it is fixed/authored to always render as a single
                       // non-repeating pass, unlike a custom CLOUDS texture where the
                       // (R+gradH)/cloudH ratio genuinely does tile the texture radially
-                      // (that's real engine behavior, faithfully reproduced above). Force
-                      // cloudSizeY to 1 only for this exact vanilla texture name so every
-                      // other (including custom "Earth_Clouds"-derived) texture keeps
-                      // going through the real formula unchanged.
-                      const cloudSizeYEff = (CLD.texture === 'Earth_Clouds') ? 1 : cloudSizeY;
+                      // (that's real engine behavior, faithfully reproduced above).
+                      // cloudH_m is the one quantity all three formula modes below
+                      // ultimately scale by, so overriding it here (rather than only
+                      // cloudSizeYEff, which the default 'exact' mode never reads) is
+                      // what actually forces a single non-repeating pass regardless of
+                      // which formulaMode is active.
+                      const _isEarthCloudsExempt = (CLD.texture === 'Earth_Clouds');
+                      const cloudH_mEff = _isEarthCloudsExempt ? (R_eff_px + gradH_cld) : cloudH_m;
+                      const cloudSizeYEff = _isEarthCloudsExempt ? 1 : cloudSizeY;
                       // Everything below reads from window._cldDebug, wired to the live
                       // cloud debug panel (window.showCloudDebugPanel()) so these can be
                       // experimented with in real time without editing code:
@@ -2987,7 +2991,7 @@ function _drawViewportNow(){
                         // show bright content near the planet fading to black outward.
                         const csY = dbg.scaleY;
                         const num = (R_eff_px + gradH_cld) - v_disc * (R_eff_px + startH_m + gradH_cld);
-                        v_raw = dbg.offsetY + (1 - csY * (num / cloudH_m));
+                        v_raw = dbg.offsetY + (1 - csY * (num / cloudH_mEff));
                       } else if(dbg.formulaMode === 'real'){
                       // v_disc_input: which physical end feeds the formula as "0". The
                       // real formula is NOT symmetric (it's not simply mirrored by
