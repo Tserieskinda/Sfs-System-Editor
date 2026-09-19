@@ -923,6 +923,14 @@ function zoomToBody(name){
   if(!b) return;
   const wp = bodyWorldPos[name];
   if(!wp) return;
+  // Cancel any in-flight zoom transition so overlapping double-clicks don't
+  // race two panStep/zoomStep loops against each other (each with its own
+  // stale startZ/startX/startY captured at call time) and don't leave
+  // _zoomTransitionFocus/terrainDetail stuck from an abandoned run.
+  if(window._zoomTransitionToken) window._zoomTransitionToken.cancelled = true;
+  const myToken = { cancelled: false };
+  window._zoomTransitionToken = myToken;
+
   const vp = document.getElementById('viewport');
   const W = vp.width, H = vp.height;
   const bodyR   = (b.data.BASE_DATA||{}).radius || 1;
@@ -943,13 +951,39 @@ function zoomToBody(name){
 
   const startZ = vpZ, startX = vpOffX, startY = vpOffY;
   const endX = -wp.x, endY = -wp.y - yShift;
-  const panDur = 380, zoomDur = 320;
+  // Slowed from 380/320 — the faster timings meant vpZ swept through several
+  // cache-bucket boundaries (atmosphere polar disc, water overlay, surface
+  // pixel samples — all quantised by zoom level) within a handful of frames,
+  // forcing repeated full rebuilds of those caches for every visible body on
+  // a big system, all inside one ~700ms window. Slower timing spreads the
+  // same number of bucket-crossings over more frames, so each frame does less
+  // new-bucket work; combined with the transition-only detail drop and
+  // other-body culling below, this is what actually fixes the double-click
+  // stutter rather than just hiding it.
+  const panDur = 480, zoomDur = 460;
   const t0 = performance.now();
 
   function _ease(t){ return t<0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2; }
 
+  // Reduce render detail and cull every other body for the duration of the
+  // transition — restored the instant the animation finishes. This targets
+  // the two biggest per-frame costs (terrain/surface sample resolution, and
+  // rebuilding caches for bodies that aren't even the one being zoomed to)
+  // without touching steady-state render quality at all.
+  const _prevTerrainDetail = (typeof window.terrainDetail === 'number') ? window.terrainDetail : 100;
+  window.terrainDetail = Math.min(_prevTerrainDetail, 35);
+  window._zoomTransitionFocus = name;
+
+  function _endTransition(){
+    if(window._zoomTransitionToken === myToken) window._zoomTransitionToken = null;
+    window._zoomTransitionFocus = null;
+    window.terrainDetail = _prevTerrainDetail;
+    drawViewport(); // one final full-detail, full-system redraw to settle
+  }
+
   // Phase 1: pan to body at current zoom
   function panStep(now){
+    if(myToken.cancelled) return;
     const t = Math.min(1, (now-t0)/panDur);
     const e = _ease(t);
     vpOffX = startX + (endX-startX)*e;
@@ -963,6 +997,7 @@ function zoomToBody(name){
 
   // Phase 2: zoom in once pan is done
   function zoomStep(t1, now){
+    if(myToken.cancelled) return;
     const t = Math.min(1, (now-t1)/zoomDur);
     const e = _ease(t);
     vpZ = startZ + (endZ-startZ)*e;
@@ -970,6 +1005,7 @@ function zoomToBody(name){
     if(zb) zb.textContent = Math.round(vpZ*100)+'%';
     drawViewport();
     if(t<1){ const _t1=t1; requestAnimationFrame(now2 => zoomStep(_t1, now2)); }
+    else{ _endTransition(); }
   }
 
   requestAnimationFrame(panStep);

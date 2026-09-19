@@ -1025,7 +1025,9 @@ function _drawViewportNow(){
     const b = bodies[name];
     const od = b.data.ORBIT_DATA;
 
-    // Center: always fully visible
+    // Center: always fully visible (also exempt from zoom-transition culling
+    // below — keeping the star/anchor visible during a zoom avoids a
+    // disorienting "everything but the sun vanished" flash)
     if(b.isCenter || !od){
       bodyVisible[name]=true; bodyFadeVal[name]=1; labelFadeVal[name]=1; return;
     }
@@ -1039,6 +1041,20 @@ function _drawViewportNow(){
     bodyVisible[name]  = f > 0;
     bodyFadeVal[name]  = f;
     labelFadeVal[name] = lf;
+
+    // During a zoomToBody() pan/zoom transition, cull every body except the
+    // one being zoomed to. This avoids repeatedly rebuilding per-body caches
+    // (atmosphere polar disc, water overlay, surface pixel samples) for every
+    // OTHER visible body on every animation frame while vpZ sweeps through
+    // multiple cache-bucket boundaries — that repeated rebuild across many
+    // bodies, every frame, for ~300ms is what caused the double-click-to-zoom
+    // stutter on large systems. Only the target body still needs to render at
+    // full fidelity throughout the transition; everything else reappears
+    // instantly once _zoomTransitionFocus is cleared at animation end.
+    if(window._zoomTransitionFocus && name !== window._zoomTransitionFocus){
+      bodyVisible[name] = false;
+      return;
+    }
 
     // Front-cloud decorator exemption: bodies whose only job is to paint a
     // FRONT_CLOUDS_DATA disc over their parent (day/night terminators, city
