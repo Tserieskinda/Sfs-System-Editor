@@ -919,7 +919,85 @@ function _applyPostProcessingOverlay(ctx, w, h, key){
 function _clearPostProcessingFilter(){
   if(vp) vp.style.filter = '';
 }
+// Day/night carrier detection — shared with tools.js hit-testing (selectBody/
+// zoomToBody click paths) so these physically-tiny invisible carrier bodies
+// (named e.g. "DN", "DayNightCycle", "Day and Night", or auto-named
+// "<parent>_DayNight" by the DN tool) are never the thing a click/double-click
+// resolves to instead of the real planet they orbit. Kept at module scope
+// (not inside _drawViewportNow) precisely so it's one definition used
+// everywhere this needs to be checked, rather than drifting copies.
+const DN_CARRIER_NAME_RE = /(?:^|[^a-z0-9])(d[\s_-]?n|day[\s_-]?(?:and[\s_-]?)?night(?:[\s_-]?cycle)?)(?:[^a-z0-9]|$)/i;
+function isDayNightCarrier(n){
+  if(bodies[n]?.preset === 'dayNightCycle') return true;
+  return DN_CARRIER_NAME_RE.test(n);
+}
+
+// Per-body effective detail fraction (0-1), combining three independent
+// inputs into the one number every terrain/texture-resolution read below
+// actually uses:
+//   1. window.terrainDetail — the user's own manual baseline slider (0-100)
+//   2. drawViewport._adaptiveDetail — the FPS-driven multiplier computed at
+//      the top of _drawViewportNow (backs off automatically when frames are
+//      coming in slow, recovers when they're fast again)
+//   3. Selected-body priority — the currently selected body always renders
+//      at full detail (both 1 and 2 above are bypassed for it entirely) so
+//      the one body the user is actually looking at/editing never degrades,
+//      even while every other visible body is being scaled back to keep
+//      the frame rate up.
+// Called once per body per detail-consuming site, so it stays cheap (a
+// couple of property reads and a comparison) rather than doing anything
+// expensive here.
+function _effectiveDetailFrac(name){
+  // Priority applies to whichever body the user is actually focused on right
+  // now: the sidebar-selected body normally, or — during a double-click zoom
+  // transition specifically — the zoom target, even before selectBody() (if
+  // ever) catches up to it. Both cases mean "this is the one body the user
+  // is looking at/about to look at", so both get full detail.
+  if(typeof selectedBody !== 'undefined' && name === selectedBody) return 1;
+  if(window._zoomTransitionFocus === name) return 1;
+  const manual = (typeof window !== 'undefined' && window.terrainDetail != null)
+    ? window.terrainDetail / 100 : 1;
+  const adaptive = (drawViewport._adaptiveDetail != null) ? drawViewport._adaptiveDetail : 1;
+  return manual * adaptive;
+}
+
 function _drawViewportNow(){
+  // ── Adaptive detail: measure real frame-to-frame time and back off the
+  // shared detail baseline when frames are coming in slow, recover when
+  // they're fast again. Only samples while draws are actually happening
+  // (pan/zoom/animation) — idle periods between draws don't fire this and
+  // the last resolved value just holds, which is the right behavior since
+  // there's no rendering work to be slow at when nothing's being drawn.
+  (function _sampleAdaptiveDetail(){
+    const now = performance.now();
+    const last = drawViewport._lastFrameT;
+    drawViewport._lastFrameT = now;
+    if(last == null) return; // first frame this session — nothing to compare yet
+    const dt = now - last;
+    // Ignore gaps that are clearly "was idle, not actually slow" — e.g. the
+    // first frame after minutes of no interaction shouldn't read as a stall.
+    if(dt <= 0 || dt > 500) return;
+    const fps = 1000 / dt;
+    if(!drawViewport._fpsHistory) drawViewport._fpsHistory = [];
+    const hist = drawViewport._fpsHistory;
+    hist.push(fps);
+    if(hist.length > 20) hist.shift(); // ~last 20 drawn frames, not wall-clock time
+    const avgFps = hist.reduce((a,b)=>a+b, 0) / hist.length;
+
+    // Target window: above 50fps we're comfortable and drift detail back up;
+    // below 30fps we're visibly stuttering and back detail off. Between the
+    // two, hold steady rather than hunting — avoids oscillating every frame
+    // right at the boundary.
+    if(drawViewport._adaptiveDetail == null) drawViewport._adaptiveDetail = 1;
+    const FPS_LOW = 30, FPS_HIGH = 50;
+    const STEP = 0.03; // per-frame nudge — reaches full range over ~1-2s of sustained low/high fps, not an instant jump
+    if(avgFps < FPS_LOW){
+      drawViewport._adaptiveDetail = Math.max(0.2, drawViewport._adaptiveDetail - STEP);
+    } else if(avgFps > FPS_HIGH){
+      drawViewport._adaptiveDetail = Math.min(1, drawViewport._adaptiveDetail + STEP);
+    }
+  })();
+
   // NOTE: _terrainClipCache is intentionally NOT cleared here. Its cache key
   // (bodyName|N|radius_m|arcKey — see _getUnitTerrainPath) already excludes
   // screen position and zoom level by design: paths are built in unit-radius
@@ -1384,11 +1462,6 @@ function _drawViewportNow(){
     const fcd = bodies[n]?.data?.FRONT_CLOUDS_DATA;
     _bodyFcZ[n] = (fcd && typeof fcd.positionZ === 'number') ? fcd.positionZ : 0;
   });
-  // Day/night carrier bodies (named e.g. "DN", "DayNightCycle", "Day and Night" —
-  // whether hand-named or built with the DN tool, which auto-names them
-  // "<parent>_DayNight") are physically tiny invisible carriers whose own icon
-  // has no business appearing in front of the real planet it orbits (parent)
-  // or that planet's own parent (grandparent) once zoomed out to icon scale.
   // This ONLY reorders which body's ICON draws first in this same pass — it
   // does not touch _bodyFcZ or the separate _fcDeferred front-cloud disc pass
   // below, which is what actually renders the day/night terminator effect and
@@ -1396,14 +1469,10 @@ function _drawViewportNow(){
   // Forcing these bodies to draw_order-first means every other body (their
   // parent/grandparent included) naturally paints over their icon afterward,
   // via ordinary painter's-algorithm — no cull, no special-case skip, just
-  // correct back-to-front order for the icon specifically.
-  const _DN_NAME_RE = /(?:^|[^a-z0-9])(d[\s_-]?n|day[\s_-]?(?:and[\s_-]?)?night(?:[\s_-]?cycle)?)(?:[^a-z0-9]|$)/i;
-  function _isDayNightCarrier(n){
-    if(bodies[n]?.preset === 'dayNightCycle') return true;
-    return _DN_NAME_RE.test(n);
-  }
+  // correct back-to-front order for the icon specifically. (isDayNightCarrier
+  // is defined at module scope above, shared with tools.js hit-testing.)
   const drawOrder = names.slice().sort((a, b) => {
-    const dnA = _isDayNightCarrier(a), dnB = _isDayNightCarrier(b);
+    const dnA = isDayNightCarrier(a), dnB = isDayNightCarrier(b);
     if(dnA !== dnB) return dnA ? -1 : 1; // DN carriers always draw first (furthest back)
     return (_bodyDepth[a] - _bodyDepth[b]) || (_bodyFcZ[b] - _bodyFcZ[a]);
   });
@@ -2085,8 +2154,7 @@ function _drawViewportNow(){
     // on hitting an exact single quiet frame.
     const _rawScreenN = Math.ceil(2 * Math.PI * physR_px);
     const _qStep = physR_px > 500 ? 720 : 180; // widened from 360/90 — fewer boundaries crossed per zoom
-    const _detailMult = (typeof window !== 'undefined' && window.terrainDetail != null)
-      ? Math.max(0.01, window.terrainDetail / 100) : 1;
+    const _detailMult = Math.max(0.01, _effectiveDetailFrac(name));
 
     if (!drawViewport._lastPhysR) drawViewport._lastPhysR = {};
     if (!drawViewport._lastMoveT) drawViewport._lastMoveT = {};
@@ -2332,8 +2400,7 @@ function _drawViewportNow(){
           const radius_m = bodyRadius_m * radiusMult;
           // N: strips per revolution — derived from LOD tier, then scaled by terrain detail.
           // LOD 2 (mid) = 90 strips, LOD 3 (near) = 180. Each strip is one drawImage call.
-          const _detailFracSurf = (typeof window !== 'undefined' && window.terrainDetail != null)
-            ? Math.max(0.05, window.terrainDetail / 100) : 1;
+          const _detailFracSurf = Math.max(0.05, _effectiveDetailFrac(name));
           const N = Math.max(12, Math.round((LOD >= 3 ? 180 : 90) * _detailFracSurf));
 
           // GetRepeat: SurfaceArea = 2π*radius_m, factor = 4.712389 = 3π/2
@@ -2701,8 +2768,7 @@ function _drawViewportNow(){
           ctx2.globalCompositeOperation = 'multiply';
           // Scale down the source image for texture C when detail < 100 —
           // lower detail → smaller internal canvas → coarser tiling quality.
-          const _detailFracC = (typeof window !== 'undefined' && window.terrainDetail != null)
-            ? Math.max(0.05, window.terrainDetail / 100) : 1;
+          const _detailFracC = Math.max(0.05, _effectiveDetailFrac(name));
           const _tcSrc = (() => {
             if(_detailFracC >= 1) return tcImg;
             const _tcSz = Math.max(4, Math.round(tcImg.naturalWidth * _detailFracC));

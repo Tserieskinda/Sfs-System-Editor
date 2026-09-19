@@ -411,6 +411,7 @@ vp.addEventListener('click', e => {
   const hitCandidates = [];
   Object.entries(bodyScreenPos).forEach(([name, sp]) => {
     if(!bodyVisibleMap[name]) return;
+    if(isDayNightCarrier(name)) return; // never let the invisible DN carrier steal a click meant for its planet
     const b = bodies[name];
     const bodyRadius_m = (b.data.BASE_DATA||{}).radius || 1;
     const iconR = (b.isCenter?18 : b.preset==='star'?14 : (b.preset==='gasgiant'||b.preset==='ringedgiant')?10:(b.preset==='planet'||b.preset==='marslike'||b.preset==='mercurylike')?7:b.preset==='moon'?5:4) * iconScale;
@@ -448,6 +449,7 @@ vp.addEventListener('dblclick', e => {
   const hits = [];
   Object.entries(bodyScreenPos).forEach(([name, sp]) => {
     if(!bodyVisibleMap[name]) return;
+    if(isDayNightCarrier(name)) return; // double-click should zoom to the planet, never its invisible DN carrier
     const b = bodies[name];
     const br = (b.data.BASE_DATA||{}).radius || 1;
     const iconR = (b.isCenter?18 : b.preset==='star'?14 : (b.preset==='gasgiant'||b.preset==='ringedgiant')?10:(b.preset==='planet'||b.preset==='marslike'||b.preset==='mercurylike')?7:b.preset==='moon'?5:4) * iconScale;
@@ -659,6 +661,7 @@ vp.addEventListener('touchend', e => {
         const hits = [];
         Object.entries(bodyScreenPos).forEach(([name, sp]) => {
           if(!bodyVisibleMap[name]) return;
+          if(isDayNightCarrier(name)) return; // double-tap should zoom to the planet, never its invisible DN carrier
           const b = bodies[name];
           const br = (b.data.BASE_DATA||{}).radius || 1;
           const iconR = (b.isCenter?18:b.preset==='star'?14:(b.preset==='gasgiant'||b.preset==='ringedgiant')?10:(b.preset==='planet'||b.preset==='marslike'||b.preset==='mercurylike')?7:b.preset==='moon'?5:4) * iconScale;
@@ -682,6 +685,7 @@ vp.addEventListener('touchend', e => {
       const hitCandidatesT = [];
       Object.entries(bodyScreenPos).forEach(([name, sp]) => {
         if(!bodyVisibleMap[name]) return;
+        if(isDayNightCarrier(name)) return; // tap-to-select should never land on the invisible DN carrier
         const b = bodies[name];
         const br = (b.data.BASE_DATA||{}).radius || 1;
         const iconR = b.isCenter?18 : b.preset==='star'?14 : (b.preset==='gasgiant'||b.preset==='ringedgiant')?10:(b.preset==='planet'||b.preset==='marslike'||b.preset==='mercurylike')?7:b.preset==='moon'?5:4;
@@ -1478,6 +1482,7 @@ function _hitBodyAt(clientX, clientY){
   Object.entries(bodyScreenPos).forEach(([name, sp]) => {
     const b = bodies[name];
     if(!b) return;
+    if(isDayNightCarrier(name)) return; // long-press context menu should target the planet, never its invisible DN carrier
     const br = (b.data.BASE_DATA||{}).radius || 1;
     const iconR = (b.isCenter?18 : b.preset==='star'?14 : (b.preset==='gasgiant'||b.preset==='ringedgiant')?10 :
                   (b.preset==='planet'||b.preset==='marslike'||b.preset==='mercurylike')?7 : b.preset==='moon'?5:4) * iconScale;
