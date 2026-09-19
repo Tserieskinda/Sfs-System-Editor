@@ -2927,14 +2927,18 @@ function _drawViewportNow(){
                       // non-repeating pass, unlike a custom CLOUDS texture where the
                       // (R+gradH)/cloudH ratio genuinely does tile the texture radially
                       // (that's real engine behavior, faithfully reproduced above).
-                      // cloudH_m is the one quantity all three formula modes below
-                      // ultimately scale by, so overriding it here (rather than only
-                      // cloudSizeYEff, which the default 'exact' mode never reads) is
-                      // what actually forces a single non-repeating pass regardless of
-                      // which formulaMode is active.
+                      // NOTE: cloudH_m/cloudSizeY must NOT be overridden to force this —
+                      // setting cloudH_mEff = (R+gradH) forces cloudSizeY to exactly 1,
+                      // which maps the full v_disc [0,1] range to one whole texture pass —
+                      // i.e. it stretches the single layer across the ENTIRE gradient disc
+                      // (planet surface to atmo outer edge), regardless of the texture's
+                      // real authored height. That's wrong: keep the real physical
+                      // cloudH_m/cloudSizeY (below) so the pass keeps its natural radial
+                      // size, and instead suppress repetition by clamping v_frac instead
+                      // of wrapping it (see wrapMode override a few lines down).
                       const _isEarthCloudsExempt = (CLD.texture === 'Earth_Clouds');
-                      const cloudH_mEff = _isEarthCloudsExempt ? (R_eff_px + gradH_cld) : cloudH_m;
-                      const cloudSizeYEff = _isEarthCloudsExempt ? 1 : cloudSizeY;
+                      const cloudH_mEff = cloudH_m;
+                      const cloudSizeYEff = cloudSizeY;
                       // Everything below reads from window._cldDebug, wired to the live
                       // cloud debug panel (window.showCloudDebugPanel()) so these can be
                       // experimented with in real time without editing code:
@@ -3010,7 +3014,7 @@ function _drawViewportNow(){
                         const v_disc_input = dbg.vInputFlip ? (1 - v_disc) : v_disc;
                         v_raw = dbg.offsetY + v_disc_input * cloudSizeYEff * dbg.scaleY;
                       }
-                      let v_frac = (dbg.wrapMode === 'clamp')
+                      let v_frac = (_isEarthCloudsExempt || dbg.wrapMode === 'clamp')
                         ? Math.max(0, Math.min(1, v_raw))
                         : v_raw - Math.floor(v_raw);
                       if(dbg.radialFlip) v_frac = 1 - v_frac;
