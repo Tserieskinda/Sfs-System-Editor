@@ -364,12 +364,36 @@ function sortTexForPicker(names, pickId){
   });
 }
 
+// Index of assets.textures keyed by name-without-extension, so getTexThumb
+// doesn't do a linear .find() scan (with a regex per element) on every call.
+// Rebuilt lazily whenever assets.textures has changed (detected via reference
+// identity + length — cheap to check, and robust even if some other module
+// reassigns assets.textures wholesale, e.g. on system load).
+let _texByNameIndex    = null;
+let _texByNameIndexSrc = null; // the assets.textures reference the index was built from
+let _texByNameIndexLen = -1;
+
+function _getTexByNameIndex(){
+  const src = assets.textures;
+  if(_texByNameIndex && _texByNameIndexSrc === src && _texByNameIndexLen === src.length){
+    return _texByNameIndex;
+  }
+  const idx = new Map();
+  for(const a of src){
+    idx.set(a.name.replace(/\.[^.]+$/,''), a);
+  }
+  _texByNameIndex    = idx;
+  _texByNameIndexSrc = src;
+  _texByNameIndexLen = src.length;
+  return idx;
+}
+
 function getTexThumb(name){
   // Check textureCache first (works for all built-ins and uploads)
   const img = textureCache[name];
   if(img && img.src) return img.src;
-  // Check uploaded entry
-  const entry = assets.textures.find(a=>a.name.replace(/\.[^.]+$/,'')===name);
+  // Check uploaded entry via indexed lookup (O(1) instead of a full-array .find())
+  const entry = _getTexByNameIndex().get(name);
   if(entry) return entry.url;
   return null;
 }
@@ -604,12 +628,17 @@ function initTexPickers(){
     setTexPick(pickId, inp.value || 'None');
   });
 
-  // Click/touch outside closes all
+  // Click/touch outside closes all — but only ones that are actually open.
+  // Without the `dd.classList.contains('open')` guard, this fired closeTexPicker
+  // (and therefore a getTexThumb lookup) for all TPICK_IDS on every single
+  // touchstart/mousedown anywhere on the page (panning the viewport, tapping
+  // any button, etc.), even when no picker was open at all.
   function _tpickOutside(e){
     TPICK_IDS.forEach(id => {
+      const dd = document.getElementById('tpd-'+id);
+      if(!dd || !dd.classList.contains('open')) return;
       const wrap = document.getElementById('tpw-'+id);
-      const dd   = document.getElementById('tpd-'+id);
-      if(wrap && !wrap.contains(e.target) && dd && !dd.contains(e.target))
+      if(wrap && !wrap.contains(e.target) && !dd.contains(e.target))
         closeTexPicker(id);
     });
   }
@@ -622,10 +651,14 @@ function initTexPickers(){
     dd.addEventListener('mousedown', e => e.stopPropagation());
     dd.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
   });
-  // Close on sb-body scroll (desktop fixed dropdown drifts on scroll)
+  // Close on sb-body scroll (desktop fixed dropdown drifts on scroll).
+  // Same guard as _tpickOutside: only close pickers that are actually open.
   const sbBody = document.querySelector('.sb-body');
   if(sbBody) sbBody.addEventListener('scroll', () => {
-    TPICK_IDS.forEach(id => closeTexPicker(id));
+    TPICK_IDS.forEach(id => {
+      const dd = document.getElementById('tpd-'+id);
+      if(dd && dd.classList.contains('open')) closeTexPicker(id);
+    });
   }, {passive: true});
 }
 
