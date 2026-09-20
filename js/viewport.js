@@ -1356,9 +1356,24 @@ function _drawViewportNow(){
     if(_hz && bodyWorldPos[_hz.starName]){
       const _hzWP  = bodyWorldPos[_hz.starName];
       const _hzSP  = worldToScreen(_hzWP.x, _hzWP.y);
+      // _hz.inner_m/outer_m are TRUE physical AU distances (inverse-square-law
+      // from the star's real luminosity) — i.e. they're already in "Realistic
+      // difficulty" terms, since Realistic scales the file's Normal-mode SMA
+      // up by the default 20x to approximate real-world distances (see
+      // _DEF_SMA_SCALE / effectiveSMA above). getSMAScale() converts
+      // *difficulty-scaled* (effectiveSMA) metres to px, matching where bodies
+      // actually render — so a physically-real HZ radius has to be brought
+      // into the current difficulty's terms first (i.e. divided back down out
+      // of the 20x Realistic scaling, then scaled up by whatever the current
+      // difficulty's own default multiplier is) before that conversion is
+      // valid. Without this, the band only lined up in Realistic mode (where
+      // this ratio is 1) and was oversized relative to actual planet
+      // positions in Normal/Hard. This only matches the *default* per-body
+      // scale, not a custom smaDifficultyScale override on a particular body.
+      const _hzDiffAdjust = (_DEF_SMA_SCALE[viewDiffKey] ?? 1) / _DEF_SMA_SCALE.Realistic;
       const _hzScl = getSMAScale() * vpZ;
-      const _innerPx = _hz.inner_m * _hzScl;
-      const _outerPx = _hz.outer_m * _hzScl;
+      const _innerPx = _hz.inner_m * _hzDiffAdjust * _hzScl;
+      const _outerPx = _hz.outer_m * _hzDiffAdjust * _hzScl;
       // Inner/outer glow radii — extend a bit past the HZ edges themselves so
       // the red (too-hot) and blue (too-cold) zones are visually legible
       // rather than clipping exactly at the boundary. Scaled relative to the
