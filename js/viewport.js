@@ -961,6 +961,27 @@ function _effectiveDetailFrac(name){
   return manual * adaptive;
 }
 
+// -- Large-scene fast paths ---------------------------------------------------
+// Once more than this many bodies are being drawn in one frame, plain icon-only
+// bodies switch to a cheaper (flat-fill) icon, labels are thinned so they don't
+// pile up, and tiny SOI circles use fewer segments. Scenes at or below the
+// threshold render exactly as before.
+const FAST_ICON_BODY_THRESHOLD = 200;
+
+// A "plain icon" carries none of the per-body data that the full draw pipeline
+// exists to render (terrain, atmosphere, clouds, rings, water, landmarks) and is
+// not a star/black hole/barycentre, so the only thing the full pipeline would
+// draw for it is the icon disc, selection rings and label.
+function _isPlainIconBody(b){
+  if(b.isCenter) return false;
+  const p = b.preset;
+  if(p === 'star' || p === 'blackhole' || p === 'barycentre') return false;
+  const d = b.data;
+  return !(d.TERRAIN_DATA || d.ATMOSPHERE_PHYSICS_DATA || d.ATMOSPHERE_VISUALS_DATA ||
+           d.FRONT_CLOUDS_DATA || d.RINGS_DATA || d.WATER_DATA ||
+           (d.LANDMARKS && d.LANDMARKS.length));
+}
+
 function _drawViewportNow(){
   // ── Adaptive detail: measure real frame-to-frame time and back off the
   // shared detail baseline when frames are coming in slow, recover when
@@ -1518,6 +1539,14 @@ function _drawViewportNow(){
   // Screen-space discs drawn so far this frame, used by the icon-overlap cull
   // below to keep bigger bodies visually on top of smaller ones.
   const _drawnDiscs = [];
+  // Large-scene mode is decided once per frame from the number of bodies that
+  // survived LOD culling, so it can't flip mid-frame.
+  let _visCount = 0;
+  for(let _vi = 0; _vi < names.length; _vi++) if(bodyVisible[names[_vi]]) _visCount++;
+  const _fastMode = _visCount > FAST_ICON_BODY_THRESHOLD;
+  // Coarse spatial hash of label anchor points already placed this frame.
+  const _labelGrid = new Set();
+  const _LABEL_CELL_W = 64, _LABEL_CELL_H = 14;
   drawOrder.forEach(name => {
     try {
     const b = bodies[name];
@@ -1619,6 +1648,49 @@ function _drawViewportNow(){
       }
     }
     _drawnDiscs.push({x: sp.x, y: sp.y, r, name});
+
+    // -- Fast path for plain icon bodies in large scenes --------------------------
+    // Draws exactly what the full pipeline would for such a body (disc, then label)
+    // but with a flat fill and without walking the atmosphere/cloud/terrain code.
+    if(_fastMode && r <= iconR && physR_px <= iconR && selectedBody !== name &&
+       !(typeof groupSelectMode !== 'undefined' && groupSelectMode &&
+         typeof groupSelected !== 'undefined' && groupSelected.has(name)) &&
+       _isPlainIconBody(b)){
+      const _fA = bodyFadeVal[name] ?? 1;
+      const _mc = b.data.BASE_DATA?.mapColor;
+      // The shaded icon's area-weighted average colour is ~20 levels below its mid
+      // stop (most of the disc is the darker outer half), so use that for the flat
+      // fill -- otherwise icons visibly brighten when crossing the large-scene threshold.
+      const _fr = Math.max(0, (_mc ? Math.min(255, Math.round(_mc.r * 255)) : 170) - 20);
+      const _fg = Math.max(0, (_mc ? Math.min(255, Math.round(_mc.g * 255)) : 170) - 20);
+      const _fb = Math.max(0, (_mc ? Math.min(255, Math.round(_mc.b * 255)) : 204) - 20);
+      const _iconFade = Math.max(0, Math.min(1, 1 - (physR_px - 8) / 22));
+      if(_iconFade > 0){
+        ctx2.globalAlpha = _fA * _iconFade;
+        ctx2.fillStyle = `rgb(${_fr},${_fg},${_fb})`;
+        ctx2.beginPath(); ctx2.arc(sp.x, sp.y, r, 0, Math.PI*2); ctx2.fill();
+      }
+      const _lA = labelFadeVal[name] ?? 1;
+      if(_lA > 0.01){
+        // Skip this label if another one has already claimed this screen cell.
+        const _gx = Math.floor(sp.x / _LABEL_CELL_W), _gy = Math.floor(sp.y / _LABEL_CELL_H);
+        const _gk = _gx * 100003 + _gy;
+        if(!_labelGrid.has(_gk)){
+          _labelGrid.add(_gk);
+          const _fs = Math.round(9 * iconScale);
+          ctx2.globalAlpha = _lA;
+          ctx2.font = `${_fs}px "JetBrains Mono",monospace`;
+          ctx2.textAlign = 'center';
+          const _ly = sp.y + r + _fs + 2;
+          ctx2.fillStyle = 'rgba(0,0,0,0.65)';
+          ctx2.fillText(name, sp.x+1, _ly+1);
+          ctx2.fillStyle = 'rgba(160,210,255,0.85)';
+          ctx2.fillText(name, sp.x, _ly);
+        }
+      }
+      ctx2.globalAlpha = 1;
+      return;
+    }
 
     const bodyFadeA  = bodyFadeVal[name]  ?? 1;
     const labelFadeA = labelFadeVal[name] ?? 1;
@@ -3479,7 +3551,14 @@ function _drawViewportNow(){
     ctx2.restore(); // end bodyFadeA globalAlpha
 
     // ── Label — fades out earlier than the body ──
-    if(labelFadeA > 0.01){
+    // In large scenes, thin labels that would land in an already-claimed screen
+    // cell. The selected body's label is always drawn.
+    let _labelOk = true;
+    if(_fastMode && selectedBody !== name){
+      const _gk2 = Math.floor(sp.x / _LABEL_CELL_W) * 100003 + Math.floor(sp.y / _LABEL_CELL_H);
+      if(_labelGrid.has(_gk2)) _labelOk = false; else _labelGrid.add(_gk2);
+    }
+    if(labelFadeA > 0.01 && _labelOk){
       const fontSize = Math.round(9 * iconScale);
       ctx2.globalAlpha = labelFadeA;
       ctx2.font = `${fontSize}px "JetBrains Mono",monospace`;
@@ -3819,6 +3898,7 @@ function _drawViewportNow(){
     // pattern/line width anyway, and there's no batching benefit for one shape.
     // Alpha quantized to steps of 1/48 (~0.021) — imperceptibly fine for a
     // translucent dashed circle.
+    const _soiFast = _fastMode; // same per-frame decision as the icon fast path
     const _soiBuckets = new Map(); // quantizedAlpha -> Path2D
     const _soiLabels  = [];        // deferred — only selected/large-on-screen SOIs get one
 
@@ -3839,7 +3919,7 @@ function _drawViewportNow(){
         }
         // open arc — no closePath
       } else {
-        const sides = Math.max(32, Math.min(96, Math.ceil(soiR_px * 0.5)));
+        const sides = (_soiFast && soiR_px < 40) ? 16 : Math.max(32, Math.min(96, Math.ceil(soiR_px * 0.5)));
         const step  = (Math.PI * 2) / sides;
         for(let i = 0; i <= sides; i++){
           const a = i * step;
@@ -3867,6 +3947,9 @@ function _drawViewportNow(){
       const W2 = vp.width, H2 = vp.height;
       if(sp.x + soiR_px < 0 || sp.x - soiR_px > W2 ||
          sp.y + soiR_px < 0 || sp.y - soiR_px > H2) return;
+
+      // Large scenes: a circle under 8px is already fading to invisible -- skip building it.
+      if(_soiFast && soiR_px < 8 && selectedBody !== name) return;
 
       // Fade-out when the SOI circle is very small on screen (< 10px = almost invisible)
       // Fade-out also when very far away — use body's own LOD fade value.
