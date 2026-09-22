@@ -794,6 +794,13 @@ body.pseudo-fullscreen {
 .menu-btn:hover .mico { opacity: .9; }
 .menu-btn .arr { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); opacity: .2; transition: opacity .15s, right .15s; font-size: .9rem; }
 .menu-btn:hover .arr { opacity: .6; right: 0; }
+/* Small descriptive line under a menu button's title (e.g. TEXTURE CONVERTERS) */
+.menu-btn .menu-btn-sub {
+  display: block; margin: 7px 0 0 34px;
+  font-family: 'JetBrains Mono', monospace; font-size: .5rem; font-weight: 400;
+  letter-spacing: .04em; line-height: 1.55; text-transform: none;
+  color: rgba(165,165,195,.78); white-space: normal;
+}
 
 /* ═══════════════════════════ NEW SYSTEM SCREEN ═══════════════════════════ */
 #s-new { flex-direction: column; align-items: stretch; }

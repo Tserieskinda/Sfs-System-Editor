@@ -446,7 +446,10 @@ function _calcDrawPolar(deg, x, y) {
 }
 
 // ════════════════════════════════════════════════════════════
-//  HEIGHTMAP TOOLS
+//  TEXTURE CONVERTERS  (bump map -> heightmap, texture map -> SFS texture, watermask generator)
+//  Launched from the start screen: CREATE TEXTURES > TEXTURE CONVERTERS.
+//  Internal names (openHeightmapTools, hmt*/htx*/wmk*, #hmt-modal) are unchanged on purpose --
+//  sfx.js patches several of them by name.
 // ════════════════════════════════════════════════════════════
 
 let _hmtBmpImg   = null;   // loaded Image element
@@ -466,8 +469,6 @@ let _hmtBreakpoints = [
 let _hmtDragBpIdx = -1;   // index of currently dragged breakpoint
 
 function openHeightmapTools() {
-  _utilsDropOpen = false;
-  document.getElementById('utils-dropdown').style.display = 'none';
   const modal = document.getElementById('hmt-modal');
   modal.style.display = 'flex';
   hmtSetTab('bumpmap');

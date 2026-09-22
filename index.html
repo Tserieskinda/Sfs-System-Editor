@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>SFS System Editor</title>
-<link rel="stylesheet" href="style.css?v=5.13">
+<link rel="stylesheet" href="style.css?v=5.14">
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
@@ -482,6 +482,11 @@
     </button>
     <button class="menu-btn" onclick="PT.open()">
       <span class="mico"><svg class="icon"><use href="#icon-mountain-snow"></use></svg></span>CREATE PLANET TEXTURE
+      <span class="arr">›</span>
+    </button>
+    <button class="menu-btn" onclick="openHeightmapTools()">
+      <span class="mico"><svg class="icon"><use href="#icon-map"></use></svg></span>TEXTURE CONVERTERS
+      <span class="menu-btn-sub">3 separate tools in one window: bump map &rarr; heightmap &middot; texture map &rarr; SFS texture &middot; watermask generator</span>
       <span class="arr">›</span>
     </button>
   </nav>
@@ -2423,7 +2428,7 @@
 <script src="js/planet-tex-creator.js?v=1.0"></script>
 <script src="js/daycycle-tex-creator.js?v=1.0"></script>
 <script src="js/sfx.js?v=5.13"></script>
-<script src="js/utils.js?v=5.16"></script>
+<script src="js/utils.js?v=5.17"></script>
 <script src="js/images.js?v=5.13"></script>
 <script src="js/placer.js?v=1.0"></script>
 <script src="js/procgen.js?v=1.0"></script>
@@ -4501,15 +4506,6 @@ document.addEventListener('keydown', function(e){
     <span><span style="display:block;color:var(--sky2)">IMAGE OVERLAY</span>
     <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Place reference images on the viewport</span></span>
   </button>
-  <button onclick="openHeightmapTools()" style="display:flex;align-items:center;gap:10px;
-    width:100%;padding:9px 14px;background:none;border:none;cursor:pointer;
-    font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
-    letter-spacing:.05em;transition:background .12s;text-align:left"
-    onmouseover="this.style.background='var(--ac12)'" onmouseout="this.style.background='none'">
-    <span style="font-size:1rem"><svg class="icon"><use href="#icon-map"></use></svg></span>
-    <span><span style="display:block;color:var(--sky2)">HEIGHTMAP TOOLS</span>
-    <span style="display:block;font-size:.54rem;color:rgba(150,150,180,.6);margin-top:1px">Bump map → heightmap converter &amp; more</span></span>
-  </button>
   <button onclick="openProceduralGen()" style="display:flex;align-items:center;gap:10px;
     width:100%;padding:9px 14px;background:none;border:none;cursor:pointer;
     font-family:'JetBrains Mono',monospace;font-size:.62rem;color:rgba(220,220,255,.85);
@@ -5350,7 +5346,7 @@ document.addEventListener('keydown', function(e){
   <button class="bctx-btn bctx-group" id="bctx-group" onclick="bctxGroupSelect()">◉ Group Select</button>
 </div>
 
-<!-- ══════════════ HEIGHTMAP TOOLS MODAL ══════════════ -->
+<!-- ══════════════ TEXTURE CONVERTERS MODAL ══════════════ -->
 <div id="hmt-modal" style="display:none;position:fixed;inset:0;z-index:210000;
   background:rgba(2,5,14,.92);backdrop-filter:blur(4px);
   flex-direction:column;align-items:center;justify-content:flex-start;
@@ -5361,7 +5357,7 @@ document.addEventListener('keydown', function(e){
     padding:10px 14px;background:rgba(6,10,22,.97);
     border:1px solid rgba(100,220,180,.2);border-bottom:none;
     border-radius:6px 6px 0 0;flex-shrink:0;margin-top:auto">
-    <span style="font-family:'Orbitron',sans-serif;font-size:.65rem;color:rgba(100,220,180,.9);letter-spacing:.14em;flex:1"><svg class="icon"><use href="#icon-map"></use></svg> HEIGHTMAP TOOLS</span>
+    <span style="font-family:'Orbitron',sans-serif;font-size:.65rem;color:rgba(100,220,180,.9);letter-spacing:.14em;flex:1"><svg class="icon"><use href="#icon-map"></use></svg> TEXTURE CONVERTERS<span style="display:block;margin-top:5px;font-family:'JetBrains Mono',monospace;font-size:.5rem;letter-spacing:.06em;font-weight:400;color:rgba(140,180,170,.65)">3 separate tools in one window: bump map &rarr; heightmap &middot; texture map &rarr; SFS texture &middot; watermask generator</span></span>
     <button onclick="closeHeightmapTools()" style="background:none;border:1px solid rgba(255,80,80,.3);border-radius:3px;color:rgba(255,100,100,.7);font-size:.75rem;padding:3px 8px;cursor:pointer">✕</button>
   </div>
 
