@@ -634,10 +634,12 @@ const PT = (() => {
             <span class="tc-title"><span class="tc-title-accent">◆</span>PLANET TEXTURE CREATOR</span>
           </div>
           <div class="tc-header-right">
+            <button class="tc-mode-btn active" id="pt-tab-gen">GENERATOR</button>
+            <button class="tc-mode-btn" id="pt-tab-var">BATCH VARIATOR</button>
             <button class="tc-export-btn" id="pt-export">⬇ EXPORT & ADD TO ASSETS</button>
           </div>
         </div>
-        <div class="tc-body">
+        <div class="tc-body" id="pt-pane-gen">
           <div class="tc-sidebar pt-sidebar">
             <div class="pt-panel">
 
@@ -735,6 +737,9 @@ const PT = (() => {
             </div>
           </div>
         </div>
+        <div class="et-body" id="pt-pane-var" style="display:none">
+          <iframe class="et-iframe" id="pt-var-iframe" title="Planet texture batch variator"></iframe>
+        </div>
       </div>`;
 
     _el.overlay = document.createElement('div');
@@ -742,6 +747,25 @@ const PT = (() => {
     _el.overlay.id = 'pt-overlay';
     _el.overlay.innerHTML = html;
     document.body.appendChild(_el.overlay);
+
+    // ── Tab switching: GENERATOR (native) vs BATCH VARIATOR (external tool) ──
+    const tabGen = _el.overlay.querySelector('#pt-tab-gen');
+    const tabVar = _el.overlay.querySelector('#pt-tab-var');
+    const paneGen = _el.overlay.querySelector('#pt-pane-gen');
+    const paneVar = _el.overlay.querySelector('#pt-pane-var');
+    const varIframe = _el.overlay.querySelector('#pt-var-iframe');
+    tabGen.addEventListener('click', () => {
+      tabGen.classList.add('active'); tabVar.classList.remove('active');
+      paneGen.style.display = ''; paneVar.style.display = 'none';
+      varIframe.src = 'about:blank'; // stop it running in the background
+    });
+    tabVar.addEventListener('click', () => {
+      tabVar.classList.add('active'); tabGen.classList.remove('active');
+      paneVar.style.display = 'flex'; paneGen.style.display = 'none';
+      if (varIframe.src === 'about:blank' || !varIframe.src) {
+        varIframe.src = 'tools/planet-texture-variator.html';
+      }
+    });
 
     // Grab element refs
     const ids = [

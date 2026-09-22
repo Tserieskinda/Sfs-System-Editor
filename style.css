@@ -1972,6 +1972,13 @@ body.pseudo-fullscreen {
   display: flex; flex: 1; overflow: hidden;
 }
 
+/* ════════════════════════════════════════════════════════════
+   EXTERNAL TOOL MODAL (ET) — generic full-window wrapper for
+   standalone texture-tool HTML files, loaded via <iframe>.
+   ════════════════════════════════════════════════════════════ */
+.et-body { flex: 1; overflow: hidden; background: #05070f; }
+.et-iframe { width: 100%; height: 100%; border: none; display: block; background: #05070f; }
+
 /* ── Sidebar ── */
 .tc-sidebar {
   width: 280px; flex-shrink: 0;

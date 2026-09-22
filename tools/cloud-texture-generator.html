@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Advanced Procedural Cloud Generator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #080c14;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      min-height: 100vh;
+      touch-action: manipulation;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      max-width: 520px;
+      width: 100%;
+    }
+    @media (min-width: 860px) {
+      .container {
+        flex-direction: row;
+        align-items: flex-start;
+        max-width: 1060px;
+      }
+    }
+    .canvas-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 16px;
+      width: 100%;
+      max-width: 440px;
+    }
+    canvas#cgCanvas {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      max-width: 440px;
+      max-height: 440px;
+      border-radius: 50%;
+      background-color: #0d131f;
+      background-image: 
+        linear-gradient(45deg, #162032 25%, transparent 25%), 
+        linear-gradient(-45deg, #162032 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #162032 75%), 
+        linear-gradient(-45deg, transparent 75%, #162032 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+      cursor: grab;
+      touch-action: none;
+      box-shadow: 0 0 45px rgba(226, 232, 240, 0.12);
+    }
+    canvas#cgCanvas:active { cursor: grabbing; }
+    .hint { font-size: 0.82rem; color: #64748b; text-align: center; }
+    #cgPanel {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 18px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .cgSection {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 14px;
+    }
+    .cgSection:last-child { border-bottom: none; padding-bottom: 0; }
+    .cgSectionTitle {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+    }
+    .cgRow { display: flex; flex-direction: column; gap: 4px; }
+    .cgRowHead { display: flex; justify-content: space-between; font-size: 0.85rem; color: #94a3b8; }
+    .cgRowHead .val { color: #f8fafc; font-weight: 600; }
+    input[type="range"] { width: 100%; accent-color: #cbd5e1; cursor: pointer; height: 24px; }
+    input[type="color"] { border: none; width: 36px; height: 32px; border-radius: 6px; cursor: pointer; background: transparent; flex-shrink: 0; }
+    select, input[type="text"] {
+      background: #1e293b; border: 1px solid #334155; color: #fff;
+      padding: 8px 10px; border-radius: 6px; width: 100%; font-size: 0.85rem; outline: none;
+    }
+    select:focus, input[type="text"]:focus { border-color: #94a3b8; }
+    .palette-preview-bar { width: 100%; height: 24px; border-radius: 6px; border: 1px solid #334155; box-shadow: inset 0 0 4px rgba(0,0,0,0.5); }
+    .cgColorGrid { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; max-height: 220px; overflow-y: auto; }
+    .cgColorItem {
+      display: flex; align-items: center; gap: 10px; background: #1e293b50;
+      padding: 4px 8px; border-radius: 6px; border: 1px solid #33415540;
+    }
+    .cgColorItem label { font-size: 0.8rem; color: #94a3b8; flex: 1; }
+    .remove-stop-btn { background: transparent; border: none; color: #ef4444; font-size: 1rem; cursor: pointer; padding: 0 6px; }
+    .remove-stop-btn:hover { color: #f87171; }
+    .cgBtnRow { display: flex; gap: 8px; }
+    button {
+      flex: 1; background: #1e293b; border: 1px solid #334155; color: #e2e8f0;
+      padding: 9px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 500;
+      cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    button:hover:not(:disabled) { background: #334155; }
+    button.primary { background: #475569; border-color: #64748b; color: #fff; }
+    button.primary:hover:not(:disabled) { background: #64748b; }
+    button.accent { background: #0f172a; border-color: #334155; color: #fff; }
+    button.accent:hover:not(:disabled) { background: #1e293b; }
+    
+    .export-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(8, 12, 20, 0.88); backdrop-filter: blur(5px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+    }
+    .export-overlay.active { opacity: 1; pointer-events: auto; }
+    .spinner {
+      width: 48px; height: 48px; border: 4px solid #1e293b;
+      border-top: 4px solid #cbd5e1; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .progress-bar-bg { width: 260px; height: 8px; background: #1e293b; border-radius: 4px; overflow: hidden; margin-top: 12px; }
+    .progress-bar-fill { width: 0%; height: 100%; background: #f8fafc; transition: width 0.08s linear; }
+    .export-text { font-size: 1.1rem; font-weight: 600; color: #f8fafc; }
+    .export-subtext { font-size: 0.85rem; color: #94a3b8; margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+<div class="export-overlay" id="exportOverlay">
+  <div class="spinner"></div>
+  <div class="export-text" id="exportStatusText">Exporting....</div>
+  <div class="export-subtext" id="exportSubtext">Rendering transparent procedural map</div>
+  <div class="progress-bar-bg"><div class="progress-bar-fill" id="exportProgressBar"></div></div>
+</div>
+
+<div class="container">
+  <div class="canvas-container">
+    <canvas id="cgCanvas" width="256" height="256"></canvas>
+    <div class="hint">Transparent Preview · Drag to rotate sphere</div>
+  </div>
+
+  <div id="cgPanel">
+
+    <!-- CAMERA -->
+    <div class="cgSection">
+      <div class="cgSectionTitle">Camera & Auto Spin</div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Preview Quality / Resolution</span></div>
+        <select id="cgPreviewResSelect">
+          <option value="192">192 × 192 (Ultra Fast Mobile)</option>
+          <option value="256" selected>256 × 256 (Fast / Mobile Default)</option>
+          <option value="384">384 × 384 (Balanced PC)</option>
+          <option value="512">512 × 512 (High Quality PC)</option>
+        </select>
+      </div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Longitude</span><span class="val" id="cgLonVal">-118°</span></div>
+        <input type="range" id="cgLon" min="-180" max="180" step="1" value="-118">
+      </div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Latitude</span><span class="val" id="cgLatVal">9°</span></div>
+        <input type="range" id="cgLat" min="-89" max="89" step="1" value="9">
+      </div>
+      <div class="cgRow" style="margin-top: 4px;">
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button id="cgToggleSpin" class="primary">▶ Play Spin</button>
+          <div style="flex:1;">
+            <div class="cgRowHead"><span>Speed</span><span class="val" id="cgSpeedVal">2.4x</span></div>
+            <input type="range" id="cgSpinSpeed" min="0.1" max="5.0" step="0.1" value="2.4">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COVERAGE -->
+    <div class="cgSection">
+      <div class="cgSectionTitle">Global Coverage & Density</div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Cloud Coverage</span><span class="val" id="cgCovVal">55%</span></div>
+        <input type="range" id="cgCov" min="0" max="100" step="1" value="55">
+      </div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Cloud Edge Sharpness</span><span class="val" id="cgSharpVal">56%</span></div>
+        <input type="range" id="cgSharp" min="0" max="100" step="1" value="56">
+      </div>
+    </div>
+
+    <!-- MORPHOLOGY -->
+    <div class="cgSection">
+      <div class="cgSectionTitle">Cloud Shapes & Morphology</div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Macro Noise Scale (Giant vs Small)</span><span class="val" id="cgScaleVal">3.5</span></div>
+        <input type="range" id="cgScale" min="1" max="8" step="0.1" value="3.5">
+      </div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Cloud Banding (Horizontal Stretch)</span><span class="val" id="cgBandingVal">25%</span></div>
+        <input type="range" id="cgBanding" min="0" max="100" step="1" value="25">
+      </div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Cloud Gaps (Macro Spacing Mask)</span><span class="val" id="cgGapsVal">57%</span></div>
+        <input type="range" id="cgGaps" min="0" max="100" step="1" value="57">
+      </div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Detail Roughness (Blocky vs Wispy)</span><span class="val" id="cgWispyVal">100%</span></div>
+        <input type="range" id="cgWispy" min="0" max="100" step="1" value="100">
+      </div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Wind Turbulence (Domain Warp)</span><span class="val" id="cgWarpVal">43%</span></div>
+        <input type="range" id="cgWarp" min="0" max="100" step="1" value="43">
+      </div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Grain Noise (High-Frequency Detail)</span><span class="val" id="cgGrainVal">15%</span></div>
+        <input type="range" id="cgGrain" min="0" max="100" step="1" value="15">
+      </div>
+    </div>
+
+    <!-- CYCLONES -->
+    <div class="cgSection">
+      <div class="cgSectionTitle">Cyclone & Polar Structures</div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Polar Vortex Swirl</span><span class="val" id="cgPolarSwirlVal">30%</span></div>
+        <input type="range" id="cgPolarSwirl" min="0" max="100" step="1" value="30">
+      </div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Global Cyclone Count</span><span class="val" id="cgStormCountVal">6</span></div>
+        <input type="range" id="cgStormCount" min="0" max="25" step="1" value="6">
+      </div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Average Storm Size</span><span class="val" id="cgStormSizeVal">20%</span></div>
+        <input type="range" id="cgStormSize" min="10" max="150" step="1" value="20">
+      </div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Storm Eye Radius (Clear Center)</span><span class="val" id="cgStormEyeVal">3%</span></div>
+        <input type="range" id="cgStormEye" min="0" max="100" step="1" value="3">
+      </div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Spiral Arm Count</span><span class="val" id="cgStormArmsVal">2</span></div>
+        <input type="range" id="cgStormArms" min="0" max="8" step="1" value="2">
+      </div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Spiral Arm Definition (Spacing)</span><span class="val" id="cgStormArmDefVal">11%</span></div>
+        <input type="range" id="cgStormArmDef" min="0" max="100" step="1" value="11">
+      </div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Storm Swirl / Twist Intensity</span><span class="val" id="cgStormWhirlVal">64%</span></div>
+        <input type="range" id="cgStormWhirl" min="0" max="400" step="1" value="64">
+      </div>
+    </div>
+
+    <!-- SHADING & COLOR -->
+    <div class="cgSection">
+      <div class="cgSectionTitle">Color & Shading</div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Atmosphere Preset</span></div>
+        <select id="cgPresetSelect">
+          <option value="bw">Grayscale Map (Alpha Mask)</option>
+          <option value="earth">Earth-like (White/Blue Tint)</option>
+          <option value="toxic">Toxic Spores (Green/Black)</option>
+          <option value="venus">Venusian Sulfur (Gold/Red)</option>
+          <option value="custom" selected>Custom Palette</option>
+        </select>
+      </div>
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Cloud Gradient Continuum</span></div>
+        <div id="cgGradientPreview" class="palette-preview-bar"></div>
+      </div>
+      <div class="cgColorGrid" id="cgColorPaletteContainer"></div>
+      <div class="cgBtnRow" style="margin-top:4px;">
+        <button id="cgAddColor">+ Add Color</button>
+        <button id="cgReverseColor">⇄ Reverse Order</button>
+      </div>
+      <div class="cgRow" style="margin-top:10px;">
+        <div class="cgRowHead"><span>3D Limb Shading (Sphere Preview)</span><span class="val" id="cgShadeVal">3%</span></div>
+        <input type="range" id="cgShade" min="0" max="100" step="1" value="3">
+      </div>
+      <div class="cgRow" style="margin-top:4px;">
+        <div class="cgRowHead"><span>Volumetric Self-Shadows (Deep Crevices)</span><span class="val" id="cgVolShadowVal">15%</span></div>
+        <input type="range" id="cgVolShadow" min="0" max="100" step="1" value="15">
+      </div>
+    </div>
+
+    <!-- SEED & EXPORT -->
+    <div class="cgSection">
+      <div class="cgSectionTitle">Seed & Configuration</div>
+      <div style="display: flex; gap: 8px;">
+        <input type="text" id="cgSeed" value="41576">
+        <button id="cgRandomSeed">Randomize</button>
+      </div>
+    </div>
+
+    <div class="cgSection" style="background: #141a24; margin: -4px; padding: 14px; border-radius: 8px; border: 1px solid #47556940;">
+      <div class="cgSectionTitle" style="color: #cbd5e1;">High-Res Texture Exporter (Transparent PNG)</div>
+      
+      <div class="cgRow">
+        <div class="cgRowHead"><span>3D Planet Sphere Resolution</span></div>
+        <select id="cgSphereRes">
+          <option value="512">512 × 512 (Standard)</option>
+          <option value="1024">1024 × 1024 (HD)</option>
+          <option value="2048">2048 × 2048 (2K)</option>
+          <option value="4096" selected>4096 × 4096 (4K High Quality)</option>
+        </select>
+        <button id="cgExportPng" class="primary" style="margin-top: 4px;">Export Sphere PNG (Transparent)</button>
+      </div>
+      <hr style="border: none; border-top: 1px solid #1e293b; margin: 4px 0;">
+      <div class="cgRow">
+        <div class="cgRowHead"><span>Equirectangular Map Resolution</span></div>
+        <select id="cgEquiRes">
+          <option value="1024x512">1024 × 512 (Mobile)</option>
+          <option value="2048x1024">2048 × 1024 (1K Standard)</option>
+          <option value="4096x2048" selected>4096 × 2048 (4K Seamless Global)</option>
+        </select>
+        <button id="cgExportEqui" class="accent" style="margin-top: 4px;">Export 2:1 Global Map (Transparent)</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('cgCanvas');
+  const ctx = canvas.getContext('2d');
+  
+  // Smart detection: default to 256px for mobile/touch devices, 384px or configurable for PC
+  const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.innerWidth < 860);
+  let previewRes = isTouchDevice ? 256 : 384;
+  const previewResSelect = document.getElementById('cgPreviewResSelect');
+  if (previewResSelect) {
+    previewResSelect.value = previewRes.toString();
+    previewResSelect.addEventListener('change', (e) => {
+      previewRes = parseInt(e.target.value, 10);
+      render(previewRes);
+    });
+  }
+
+  canvas.width = previewRes; canvas.height = previewRes;
+
+  const PRESETS = {
+    bw: { colors: ['#555555', '#999999', '#dddddd', '#ffffff'] },
+    earth: { colors: ['#8ab4d6', '#b0d0e8', '#eaf2fb', '#ffffff'] },
+    toxic: { colors: ['#236b2d', '#49ad55', '#96dba0', '#e8f7ec'] },
+    venus: { colors: ['#994e10', '#d68729', '#f2c16f', '#fffaf0'] }
+  };
+
+  const S = {
+    colors: ['#b5b5b5', '#cccccc', '#d9d9d9', '#e3e3e3', '#ebebeb', '#f2f2f2', '#f7f7f7', '#fafafa', '#ffffff'],
+    cov: 55, sharp: 56, scale: 3.5, warp: 43, 
+    banding: 25, gaps: 57, wispy: 100, grain: 15,
+    polarSwirl: 30, stormCount: 6, stormSize: 20, stormWhirl: 64,
+    stormEye: 3, stormArms: 2, stormArmDef: 11,
+    shade: 3, volShadow: 15, lon: -118, lat: 9, seed: 41576
+  };
+
+  const LUT_SIZE = 512;
+  let paletteLUT = new Array(LUT_SIZE);
+
+  function hexToRgb(hex){
+    if(!hex || hex.length < 6) return [255, 255, 255];
+    const n = parseInt(hex.replace('#',''), 16);
+    return isNaN(n) ? [255, 255, 255] : [(n>>16)&255, (n>>8)&255, n&255];
+  }
+  function lerp(a,b,t){ return a+(b-a)*Math.max(0, Math.min(1, t)); }
+  function lerpColorRGB(c1, c2, t){
+    if(!c1) return c2 || [255,255,255]; if(!c2) return c1 || [255,255,255];
+    t = Math.max(0, Math.min(1, t));
+    return [Math.round(lerp(c1[0], c2[0], t)), Math.round(lerp(c1[1], c2[1], t)), Math.round(lerp(c1[2], c2[2], t))];
+  }
+  function samplePaletteRaw(t, list) {
+    if (!list || list.length === 0) return [255,255,255];
+    if (list.length === 1) return list[0];
+    t = Math.max(0, Math.min(1, t));
+    const scaled = t * (list.length - 1);
+    const idx = Math.floor(scaled);
+    if (idx >= list.length - 1) return list[list.length - 1];
+    return lerpColorRGB(list[idx], list[idx + 1], scaled - idx);
+  }
+  function rebuildPaletteLUT() {
+    const rawList = (S.colors && S.colors.length > 0) ? S.colors.map(hexToRgb) : [[255,255,255],[255,255,255]];
+    for (let i = 0; i < LUT_SIZE; i++) paletteLUT[i] = samplePaletteRaw(i / (LUT_SIZE - 1), rawList);
+  }
+  function samplePaletteFast(t) {
+    return paletteLUT[(Math.max(0, Math.min(1, t)) * (LUT_SIZE - 1) + 0.5) | 0];
+  }
+  function smootherstep(min, max, value) {
+    if (min === max) return value >= max ? 1 : 0;
+    const x = Math.max(0, Math.min(1, (value - min) / (max - min)));
+    return x * x * x * (x * (x * 6 - 15) + 10);
+  }
+
+  function hash3(x, y, z) {
+    let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453123;
+    return n - Math.floor(n);
+  }
+  function valueNoise3D(x, y, z) {
+    const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+    const xf = x - xi, yf = y - yi, zf = z - zi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+    let res = 0;
+    for(let i=0; i<=1; i++) for(let j=0; j<=1; j++) for(let k=0; k<=1; k++) {
+      res += ((i ? u : 1-u) * (j ? v : 1-v) * (k ? w : 1-w)) * hash3(xi + i, yi + j, zi + k);
+    }
+    return isNaN(res) ? 0.5 : res;
+  }
+  function fbm3D(x, y, z, octaves = 5, roughness = 0.5) {
+    let val = 0, amp = 0.5, freq = 1.0, max = 0;
+    for(let i = 0; i < octaves; i++) {
+      val += amp * valueNoise3D(x * freq, y * freq, z * freq);
+      max += amp; freq *= 2.0; amp *= roughness;
+    }
+    return isNaN(val) ? 0.5 : (val / max);
+  }
+
+  function getStorms(){
+    const storms = [];
+    const count = Math.max(0, S.stormCount || 0);
+    const sizeMult = Math.max(0.05, (S.stormSize || 40) / 100);
+
+    for(let i=0; i<count; i++){
+      const rs = (S.seed || 1) + i * 191.3;
+      let lat = (hash3(rs, 1.1, 2.2) - 0.5) * Math.PI * 0.75; 
+      const lon = hash3(rs, 3.3, 4.4) * Math.PI * 2;
+      const size = (0.08 + sizeMult * 0.25);
+      
+      const x = Math.cos(lat) * Math.cos(lon);
+      const y = Math.sin(lat);
+      const z = Math.cos(lat) * Math.sin(lon);
+
+      let UX = 0, UY = 1, UZ = 0;
+      if (Math.abs(y) > 0.99) { UX = 1; UY = 0; UZ = 0; }
+      
+      let T1X = UY * z - UZ * y, T1Y = UZ * x - UX * z, T1Z = UX * y - UY * x;
+      let lenT1 = Math.hypot(T1X, T1Y, T1Z);
+      T1X /= lenT1; T1Y /= lenT1; T1Z /= lenT1;
+
+      let T2X = y * T1Z - z * T1Y, T2Y = z * T1X - x * T1Z, T2Z = x * T1Y - y * T1X;
+
+      storms.push({ x, y, z, size, T1X, T1Y, T1Z, T2X, T2Y, T2Z });
+    }
+    return storms;
+  }
+
+  function getCloudDensity(pX, pY, pZ, storms) {
+    let sWX = pX, sWY = pY, sWZ = pZ;
+
+    const polarStr = ((S.polarSwirl || 40) / 100) * 2.5;
+    if (polarStr > 0) {
+      const absY = Math.abs(sWY);
+      if (absY > 0.4) {
+        const pFactor = smootherstep(0.4, 0.98, absY);
+        const pAngle = pFactor * polarStr * (sWY >= 0 ? -1 : 1);
+        const cosP = Math.cos(pAngle), sinP = Math.sin(pAngle);
+        const rx = sWX * cosP - sWZ * sinP, rz = sWX * sinP + sWZ * cosP;
+        sWX = rx; sWZ = rz;
+      }
+    }
+
+    let stormEyeMask = 1.0;
+    let stormArmMask = 1.0;
+
+    for (let i = 0; i < storms.length; i++) {
+      const st = storms[i];
+      const dotP = sWX * st.x + sWY * st.y + sWZ * st.z;
+      const clampedDot = Math.max(-1.0, Math.min(1.0, dotP));
+      const angleDist = Math.acos(clampedDot);
+      const maxRadius = st.size * Math.PI * 0.8;
+
+      if (angleDist < maxRadius) {
+        const normDist = angleDist / maxRadius;
+        const falloff = smootherstep(1.0, 0.0, normDist);
+        if (falloff <= 0) continue;
+
+        const whirlStr = ((S.stormWhirl || 180) / 100) * 3.5;
+        const spinDir = st.y >= 0 ? -1 : 1;
+        
+        const arms = S.stormArms || 0;
+        if (arms > 0) {
+          const dotT1 = pX * st.T1X + pY * st.T1Y + pZ * st.T1Z;
+          const dotT2 = pX * st.T2X + pY * st.T2Y + pZ * st.T2Z;
+          const angle = Math.atan2(dotT2, dotT1);
+          
+          const spiralAngle = angle + (1.0 - normDist) * whirlStr * spinDir;
+          let armVal = Math.sin(spiralAngle * arms);
+          armVal = Math.max(0, armVal);
+
+          const armDef = (S.stormArmDef || 75) / 100;
+          const armFalloff = falloff * smootherstep(0.0, 0.3, normDist);
+          
+          stormArmMask *= lerp(1.0, armVal, armDef * armFalloff);
+        }
+
+        const eyeRadius = (S.stormEye || 25) / 100;
+        if (eyeRadius > 0 && normDist < eyeRadius * 1.5) {
+          stormEyeMask = Math.min(stormEyeMask, smootherstep(eyeRadius * 0.2, eyeRadius, normDist));
+        }
+
+        const twistAngle = falloff * whirlStr * spinDir;
+        const cosT = Math.cos(twistAngle), sinT = Math.sin(twistAngle);
+        const dp = sWX * st.x + sWY * st.y + sWZ * st.z;
+        const cX = st.y * sWZ - st.z * sWY, cY = st.z * sWX - st.x * sWZ, cZ = st.x * sWY - st.y * sWX;
+
+        sWX = sWX * cosT + cX * sinT + st.x * dp * (1.0 - cosT);
+        sWY = sWY * cosT + cY * sinT + st.y * dp * (1.0 - cosT);
+        sWZ = sWZ * cosT + cZ * sinT + st.z * dp * (1.0 - cosT);
+
+        const sLen = Math.hypot(sWX, sWY, sWZ) || 1.0;
+        sWX /= sLen; sWY /= sLen; sWZ /= sLen;
+      }
+    }
+
+    const scale = S.scale || 3.5;
+    const warpStr = ((S.warp || 35) / 100) * 0.6;
+    const bandVal = 1.0 - ((S.banding || 25) / 100) * 0.85; 
+    const wispyVal = 0.3 + ((S.wispy || 55) / 100) * 0.45;
+
+    const qX = fbm3D(sWX * scale + S.seed, sWY * bandVal * scale, sWZ * scale, 3, wispyVal);
+    const qY = fbm3D(sWX * scale + 5.2, sWY * bandVal * scale + 1.3, sWZ * scale + 8.4, 3, wispyVal);
+    const qZ = fbm3D(sWX * scale - 2.1, sWY * bandVal * scale - 4.4, sWZ * scale - 1.2, 3, wispyVal);
+
+    const wX = sWX + warpStr * (qX - 0.5);
+    const wY = sWY + warpStr * (qY - 0.5);
+    const wZ = sWZ + warpStr * (qZ - 0.5);
+
+    const noiseVal = fbm3D(wX * scale * 1.5, wY * bandVal * scale * 1.5, wZ * scale * 1.5, 6, wispyVal);
+
+    const cov = (S.cov !== undefined ? S.cov : 55) / 100;
+    const sharp = (S.sharp !== undefined ? S.sharp : 65) / 100;
+
+    const threshold = lerp(0.85, -0.2, cov);
+    const soft = lerp(0.45, 0.01, sharp);
+
+    let cloudDensity = (noiseVal - threshold) / soft;
+
+    const gapStr = (S.gaps || 30) / 100;
+    if (gapStr > 0) {
+      let gapMask = fbm3D(wX * scale * 0.4 + 12.5, wY * bandVal * scale * 0.4 + 3.1, wZ * scale * 0.4 + 9.8, 3, 0.5);
+      gapMask = smootherstep(0.25, 0.75, gapMask);
+      cloudDensity -= gapMask * gapStr * 1.8;
+    }
+
+    cloudDensity *= stormEyeMask;
+    cloudDensity *= stormArmMask;
+
+    const grainAmt = (S.grain !== undefined ? S.grain : 15) / 100;
+    if (grainAmt > 0) {
+      const gNoise = hash3(pX * 850.0 + S.seed, pY * 850.0, pZ * 850.0) - 0.5;
+      cloudDensity += gNoise * grainAmt * 0.4;
+    }
+
+    cloudDensity = Math.max(0, Math.min(1, cloudDensity));
+
+    if (cloudDensity > 0 && cloudDensity < 1) {
+      cloudDensity = cloudDensity * cloudDensity * (3.0 - 2.0 * cloudDensity);
+    }
+
+    return cloudDensity;
+  }
+
+  function computeSurfaceColor(pX, pY, pZ, storms, lightDir) {
+    let cloudDensity = getCloudDensity(pX, pY, pZ, storms);
+    if (cloudDensity <= 0) return [0, 0, 0, 0];
+
+    let shadowFactor = 1.0;
+    const volShadowIntensity = (S.volShadow !== undefined ? S.volShadow : 15) / 100;
+    if (volShadowIntensity > 0 && lightDir) {
+      let forwardDensity = 0;
+      const steps = 3;
+      for (let s = 1; s <= steps; s++) {
+        const d = s * 0.04;
+        const sx = pX + lightDir.x * d;
+        const sy = pY + lightDir.y * d;
+        const sz = pZ + lightDir.z * d;
+        const slen = Math.hypot(sx, sy, sz) || 1.0;
+        forwardDensity += getCloudDensity(sx / slen, sy / slen, sz / slen, storms);
+      }
+      forwardDensity /= steps;
+
+      const occlusion = Math.max(0, forwardDensity - cloudDensity * 0.3);
+      shadowFactor = 1.0 - occlusion * volShadowIntensity * 1.4;
+      shadowFactor = Math.max(0.3, Math.min(1.0, shadowFactor));
+    }
+
+    const rgb = samplePaletteFast(cloudDensity);
+    const finalR = Math.round(rgb[0] * shadowFactor);
+    const finalG = Math.round(rgb[1] * shadowFactor);
+    const finalB = Math.round(rgb[2] * shadowFactor);
+    const alpha = Math.round(cloudDensity * 255);
+
+    return [finalR, finalG, finalB, alpha];
+  }
+
+  function render(renderSize = previewRes){
+    if (canvas.width !== renderSize) { canvas.width = renderSize; canvas.height = renderSize; }
+    const W = renderSize, H = renderSize;
+    const cx = W/2, cy = H/2, R = W/2 - 2;
+
+    ctx.clearRect(0, 0, W, H);
+    const lonRad = (S.lon || 0) * Math.PI/180, latRad = (S.lat || 0) * Math.PI/180;
+    const storms = getStorms();
+
+    const img = ctx.createImageData(W, H);
+    const data = img.data;
+    const lightDir = {x:-0.5, y:-0.4, z:0.75};
+    const lightLen = Math.hypot(lightDir.x, lightDir.y, lightDir.z) || 1;
+    lightDir.x /= lightLen; lightDir.y /= lightLen; lightDir.z /= lightLen;
+
+    const cosLon = Math.cos(-lonRad), sinLon = Math.sin(-lonRad);
+    const cosLat = Math.cos(-latRad), sinLat = Math.sin(-latRad);
+    const shadeAmt = (S.shade || 75) / 100;
+
+    for (let py = 0; py < H; py++) {
+      for (let px = 0; px < W; px++) {
+        const idx = (py * W + px) * 4;
+        const dx = (px - cx) / R, dy = (py - cy) / R, d2 = dx * dx + dy * dy;
+
+        if (d2 > 1) { data[idx + 3] = 0; continue; }
+
+        const dz = Math.sqrt(Math.max(0, 1 - d2));
+        let rx = dx * cosLon - dz * sinLon, rz = dx * sinLon + dz * cosLon;
+        let ry2 = -dy * cosLat - rz * sinLat, rz2 = -dy * sinLat + rz * cosLat;
+
+        let rgba = computeSurfaceColor(rx, ry2, rz2, storms, lightDir);
+
+        if (rgba[3] > 0) {
+          let diffuse = dx * lightDir.x + -dy * lightDir.y + dz * lightDir.z;
+          diffuse = diffuse * 0.5 + 0.5;
+          const lightMul = lerp(1, diffuse * 0.9 + 0.1 * Math.pow(dz, 0.4), shadeAmt);
+          data[idx]   = Math.max(0, Math.min(255, rgba[0] * lightMul));
+          data[idx+1] = Math.max(0, Math.min(255, rgba[1] * lightMul));
+          data[idx+2] = Math.max(0, Math.min(255, rgba[2] * lightMul));
+          data[idx+3] = rgba[3];
+        } else {
+          data[idx+3] = 0;
+        }
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  async function renderHighResAsync({ targetW, targetH, isEquirectangular, onProgress }) {
+    const offCanvas = document.createElement('canvas'); offCanvas.width = targetW; offCanvas.height = targetH;
+    const offCtx = offCanvas.getContext('2d');
+    const imgData = offCtx.createImageData(targetW, targetH); const data = imgData.data;
+    const storms = getStorms();
+    const lonRad = (S.lon || 0) * Math.PI/180, latRad = (S.lat || 0) * Math.PI/180;
+    const cosLon = Math.cos(-lonRad), sinLon = Math.sin(-lonRad), cosLat = Math.cos(-latRad), sinLat = Math.sin(-latRad);
+    const shadeAmt = (S.shade || 75) / 100;
+    const lightDir = {x:-0.5, y:-0.4, z:0.75};
+    const lightLen = Math.hypot(lightDir.x, lightDir.y, lightDir.z) || 1;
+    lightDir.x /= lightLen; lightDir.y /= lightLen; lightDir.z /= lightLen;
+
+    const cx = targetW / 2, cy = targetH / 2, R = targetW / 2 - 4;
+    const CHUNK_ROWS = Math.max(16, Math.floor(2048 / targetW * 16));
+
+    for (let py = 0; py < targetH; py += CHUNK_ROWS) {
+      const endY = Math.min(targetH, py + CHUNK_ROWS);
+      for (let y = py; y < endY; y++) {
+        for (let px = 0; px < targetW; px++) {
+          const idx = (y * targetW + px) * 4;
+          if (isEquirectangular) {
+            const latitude = (0.5 - y / targetH) * Math.PI;
+            const longitude = (px / targetW - 0.5) * Math.PI * 2;
+            const pY = Math.sin(latitude), cosLatP = Math.cos(latitude);
+            const pX = cosLatP * Math.cos(longitude), pZ = cosLatP * Math.sin(longitude);
+
+            let rgba = computeSurfaceColor(pX, pY, pZ, storms, lightDir);
+            data[idx] = rgba[0]; data[idx+1] = rgba[1]; data[idx+2] = rgba[2]; data[idx+3] = rgba[3];
+          } else {
+            const dx = (px - cx) / R, dy = (y - cy) / R, d2 = dx * dx + dy * dy;
+            if (d2 > 1) { data[idx+3] = 0; continue; }
+            const dz = Math.sqrt(Math.max(0, 1 - d2));
+            let rx = dx * cosLon - dz * sinLon, rz = dx * sinLon + dz * cosLon;
+            let ry2 = -dy * cosLat - rz * sinLat, rz2 = -dy * sinLat + rz * cosLat;
+            let rgba = computeSurfaceColor(rx, ry2, rz2, storms, lightDir);
+            
+            if (rgba[3] > 0) {
+              let diffuse = dx * lightDir.x + -dy * lightDir.y + dz * lightDir.z;
+              diffuse = diffuse * 0.5 + 0.5;
+              const lightMul = lerp(1, diffuse * 0.9 + 0.1 * Math.pow(dz, 0.4), shadeAmt);
+              data[idx]   = Math.max(0, Math.min(255, rgba[0] * lightMul));
+              data[idx+1] = Math.max(0, Math.min(255, rgba[1] * lightMul));
+              data[idx+2] = Math.max(0, Math.min(255, rgba[2] * lightMul));
+              data[idx+3] = rgba[3];
+            } else { data[idx+3] = 0; }
+          }
+        }
+      }
+      if (onProgress) onProgress(Math.round((endY / targetH) * 100));
+      await new Promise(res => setTimeout(res, 0));
+    }
+    offCtx.putImageData(imgData, 0, 0); return offCanvas;
+  }
+
+  function updateGradientBar() {
+    const bar = document.getElementById('cgGradientPreview');
+    if (!bar) return;
+    bar.style.background = S.colors.length === 0 ? 'transparent' : `linear-gradient(to right, ${S.colors.join(', ')})`;
+  }
+
+  function renderPaletteControls(){
+    const container = document.getElementById('cgColorPaletteContainer');
+    container.innerHTML = '';
+    S.colors.forEach((col, idx) => {
+      const item = document.createElement('div'); item.className = 'cgColorItem';
+      const percent = Math.round((idx/(S.colors.length-1))*100);
+      item.innerHTML = `
+        <input type="color" value="${col}" data-index="${idx}">
+        <label>Density Stop ${percent}% <span style="font-size:0.75rem; color:#64748b;">(${col})</span></label>
+        <button class="remove-stop-btn" title="Remove Color Stop" data-index="${idx}">✕</button>`;
+      item.querySelector('input').addEventListener('input', (e) => {
+        S.colors[idx] = e.target.value;
+        item.querySelector('label span').textContent = `(${e.target.value})`;
+        document.getElementById('cgPresetSelect').value = 'custom';
+        updateGradientBar();
+      });
+      item.querySelector('input').addEventListener('change', () => { rebuildPaletteLUT(); render(previewRes); });
+      item.querySelector('.remove-stop-btn').addEventListener('click', () => {
+        if (S.colors.length > 2) {
+          S.colors.splice(idx, 1);
+          document.getElementById('cgPresetSelect').value = 'custom';
+          renderPaletteControls(); rebuildPaletteLUT(); render(previewRes);
+        }
+      });
+      container.appendChild(item);
+    });
+    updateGradientBar();
+  }
+
+  document.getElementById('cgPresetSelect').addEventListener('change', (e) => {
+    if (PRESETS[e.target.value]) {
+      S.colors = [...PRESETS[e.target.value].colors];
+      renderPaletteControls(); rebuildPaletteLUT(); render(previewRes);
+    }
+  });
+
+  document.getElementById('cgAddColor').addEventListener('click', () => {
+    if (S.colors.length < 10) {
+      S.colors.push(S.colors[S.colors.length - 1] || '#ffffff');
+      document.getElementById('cgPresetSelect').value = 'custom';
+      renderPaletteControls(); rebuildPaletteLUT(); render(previewRes);
+    }
+  });
+
+  document.getElementById('cgReverseColor').addEventListener('click', () => {
+    S.colors.reverse();
+    document.getElementById('cgPresetSelect').value = 'custom';
+    renderPaletteControls(); rebuildPaletteLUT(); render(previewRes);
+  });
+
+  function bindRange(id, valId, key, suffix, isFloat){
+    const el = document.getElementById(id), valEl = document.getElementById(valId);
+    if(!el) return;
+    el.addEventListener('input', ()=>{
+      S[key] = isFloat ? parseFloat(el.value) : parseInt(el.value, 10);
+      if(valEl) valEl.textContent = el.value + (suffix||'');
+    });
+    el.addEventListener('change', () => render(previewRes));
+  }
+
+  bindRange('cgLon','cgLonVal','lon','°'); bindRange('cgLat','cgLatVal','lat','°');
+  bindRange('cgCov','cgCovVal','cov','%'); bindRange('cgSharp','cgSharpVal','sharp','%');
+  bindRange('cgScale','cgScaleVal','scale','', true); bindRange('cgWarp','cgWarpVal','warp','%');
+  bindRange('cgBanding','cgBandingVal','banding','%'); bindRange('cgGaps','cgGapsVal','gaps','%'); 
+  bindRange('cgWispy','cgWispyVal','wispy','%'); bindRange('cgGrain','cgGrainVal','grain','%');
+  bindRange('cgPolarSwirl','cgPolarSwirlVal','polarSwirl','%'); bindRange('cgStormCount','cgStormCountVal','stormCount','');
+  bindRange('cgStormSize','cgStormSizeVal','stormSize','%'); bindRange('cgStormWhirl','cgStormWhirlVal','stormWhirl','%');
+  bindRange('cgStormEye','cgStormEyeVal','stormEye','%'); bindRange('cgStormArms','cgStormArmsVal','stormArms','');
+  bindRange('cgStormArmDef','cgStormArmDefVal','stormArmDef','%');
+  bindRange('cgShade','cgShadeVal','shade','%');
+  bindRange('cgVolShadow','cgVolShadowVal','volShadow','%');
+
+  document.getElementById('cgSeed').addEventListener('change', (e)=>{
+    S.seed = isNaN(parseInt(e.target.value, 10)) ? 1337 : parseInt(e.target.value, 10); render(previewRes);
+  });
+  document.getElementById('cgRandomSeed').addEventListener('click', ()=>{
+    S.seed = Math.floor(Math.random()*100000); document.getElementById('cgSeed').value = S.seed; render(previewRes);
+  });
+
+  let isSpinning = false, spinSpeed = 2.4, lastTime = performance.now();
+  document.getElementById('cgToggleSpin').addEventListener('click', (e) => {
+    isSpinning = !isSpinning; e.target.textContent = isSpinning ? '⏸ Pause Spin' : '▶ Play Spin';
+    if (isSpinning) { lastTime = performance.now(); requestAnimationFrame(animateLoop); }
+    else { render(previewRes); }
+  });
+  document.getElementById('cgSpinSpeed').addEventListener('input', (e) => {
+    spinSpeed = parseFloat(e.target.value); document.getElementById('cgSpeedVal').textContent = spinSpeed.toFixed(1) + 'x';
+  });
+  function animateLoop(now) {
+    if (!isSpinning) return;
+    const dt = (now - lastTime) / 1000; lastTime = now;
+    S.lon = ((S.lon + (18.0 * spinSpeed * dt) + 180) % 360 + 360) % 360 - 180;
+    const lonEl = document.getElementById('cgLon'); if (lonEl) lonEl.value = Math.round(S.lon);
+    const lonVal = document.getElementById('cgLonVal'); if (lonVal) lonVal.textContent = Math.round(S.lon) + '°';
+    
+    // Use lightweight draft resolution during spin for buttery smooth performance on mobile
+    render(Math.min(previewRes, 192)); 
+    requestAnimationFrame(animateLoop);
+  }
+
+  let dragging = false, lastX=0, lastY=0, rafPending = false, settleTimeout = null;
+  function pointerDown(x, y){ dragging = true; lastX = x; lastY = y; if (settleTimeout) clearTimeout(settleTimeout); }
+  function pointerMove(x, y, isTouch = false){
+    if(!dragging) return;
+    const dx = x - lastX, dy = y - lastY; lastX = x; lastY = y;
+    const speedMult = isTouch ? 0.8 : 0.65;
+    S.lon = ((S.lon + dx * speedMult + 180) % 360 + 360) % 360 - 180;
+    S.lat = Math.max(-89, Math.min(89, S.lat - dy * speedMult));
+    document.getElementById('cgLon').value = Math.round(S.lon); document.getElementById('cgLat').value = Math.round(S.lat);
+    document.getElementById('cgLonVal').textContent = Math.round(S.lon)+'°'; document.getElementById('cgLatVal').textContent = Math.round(S.lat)+'°';
+    if(!rafPending){ rafPending = true; requestAnimationFrame(()=>{ rafPending = false; render(Math.min(previewRes, 192)); }); }
+  }
+  function pointerUp(){
+    if (dragging) { dragging = false; if (!isSpinning) { if (settleTimeout) clearTimeout(settleTimeout); settleTimeout = setTimeout(() => render(previewRes), 60); } }
+  }
+
+  canvas.addEventListener('mousedown', e => pointerDown(e.clientX, e.clientY));
+  window.addEventListener('mousemove', e => pointerMove(e.clientX, e.clientY, false));
+  window.addEventListener('mouseup', pointerUp);
+  canvas.addEventListener('touchstart', e => { if (e.touches.length === 1) { pointerDown(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); } }, {passive: false});
+  canvas.addEventListener('touchmove', e => { if (e.touches.length === 1) { pointerMove(e.touches[0].clientX, e.touches[0].clientY, true); e.preventDefault(); } }, {passive: false});
+  canvas.addEventListener('touchend', pointerUp); canvas.addEventListener('touchcancel', pointerUp);
+
+  const overlay = document.getElementById('exportOverlay');
+  function showExport(title, sub) {
+    document.getElementById('exportStatusText').textContent = title; document.getElementById('exportSubtext').textContent = sub;
+    document.getElementById('exportProgressBar').style.width = "0%"; overlay.classList.add('active');
+  }
+  function hideExport() { overlay.classList.remove('active'); }
+  function updateProgress(percent) { document.getElementById('exportProgressBar').style.width = `${percent}%`; }
+
+  document.getElementById('cgExportPng').addEventListener('click', async () => {
+    const res = parseInt(document.getElementById('cgSphereRes').value, 10);
+    showExport("Exporting Transparent 3D Sphere", `Rendering ${res}×${res} PNG`);
+    try {
+      await new Promise(r => setTimeout(r, 50));
+      const cvs = await renderHighResAsync({ targetW: res, targetH: res, isEquirectangular: false, onProgress: updateProgress });
+      cvs.toBlob(blob => { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `clouds_sphere_${res}p_seed${S.seed}.png`; a.click(); URL.revokeObjectURL(url); hideExport(); }, 'image/png');
+    } catch(err) { console.error(err); alert("Failed to export image."); hideExport(); }
+  });
+
+  document.getElementById('cgExportEqui').addEventListener('click', async () => {
+    const parts = document.getElementById('cgEquiRes').value.split('x');
+    const tw = parseInt(parts[0], 10), th = parseInt(parts[1], 10);
+    showExport("Exporting Seamless Global Map", `Generating ${tw}×${th} equirectangular map`);
+    try {
+      await new Promise(r => setTimeout(r, 50));
+      const cvs = await renderHighResAsync({ targetW: tw, targetH: th, isEquirectangular: true, onProgress: updateProgress });
+      cvs.toBlob(blob => { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `clouds_equi_${tw}x${th}_seed${S.seed}.png`; a.click(); URL.revokeObjectURL(url); hideExport(); }, 'image/png');
+    } catch(err) { console.error(err); alert("Failed to export map."); hideExport(); }
+  });
+
+  renderPaletteControls(); rebuildPaletteLUT(); render(previewRes);
+})();
+</script>
+
+</body>
+</html>

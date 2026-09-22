@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Gas Giant Generator - Mobile Optimized Engine</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #080c14;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      min-height: 100vh;
+      touch-action: manipulation;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      max-width: 520px;
+      width: 100%;
+    }
+    @media (min-width: 860px) {
+      .container {
+        flex-direction: row;
+        align-items: flex-start;
+        max-width: 1020px;
+      }
+    }
+    .canvas-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 16px;
+      width: 100%;
+      max-width: 420px;
+    }
+    canvas#ggCanvas {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      max-width: 420px;
+      max-height: 420px;
+      border-radius: 50%;
+      background: #000;
+      cursor: grab;
+      touch-action: none;
+      box-shadow: 0 0 35px rgba(59, 130, 246, 0.25);
+    }
+    canvas#ggCanvas:active { cursor: grabbing; }
+    .hint {
+      font-size: 0.82rem;
+      color: #64748b;
+      text-align: center;
+    }
+    #ggPanel {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 18px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .ggSection {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 14px;
+    }
+    .ggSection:last-child { border-bottom: none; padding-bottom: 0; }
+    .ggSectionTitle {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #38bdf8;
+    }
+    .ggRow {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .ggRowHead {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: #94a3b8;
+    }
+    .ggRowHead .val { color: #38bdf8; font-weight: 600; }
+    input[type="range"] {
+      width: 100%;
+      accent-color: #38bdf8;
+      cursor: pointer;
+      height: 24px;
+    }
+    input[type="color"] {
+      border: none;
+      width: 36px;
+      height: 32px;
+      border-radius: 6px;
+      cursor: pointer;
+      background: transparent;
+      flex-shrink: 0;
+    }
+    input[type="text"], select {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 6px;
+      width: 100%;
+      font-size: 0.85rem;
+      outline: none;
+    }
+    select:focus, input[type="text"]:focus { border-color: #38bdf8; }
+    
+    .palette-preview-bar {
+      width: 100%;
+      height: 24px;
+      border-radius: 6px;
+      border: 1px solid #334155;
+      box-shadow: inset 0 0 4px rgba(0,0,0,0.5);
+    }
+    .ggColorGrid {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .ggColorItem {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #1e293b50;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid #33415540;
+    }
+    .ggColorItem label {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      flex: 1;
+    }
+    .remove-stop-btn {
+      background: transparent;
+      border: none;
+      color: #ef4444;
+      font-size: 1rem;
+      cursor: pointer;
+      padding: 0 6px;
+    }
+    .remove-stop-btn:hover { color: #f87171; }
+
+    .ggBtnRow {
+      display: flex;
+      gap: 8px;
+    }
+    button {
+      flex: 1;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #e2e8f0;
+      padding: 9px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    button:hover:not(:disabled) { background: #334155; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.primary {
+      background: #0284c7;
+      border-color: #0369a1;
+      color: #fff;
+    }
+    button.primary:hover:not(:disabled) { background: #0369a1; }
+    button.accent {
+      background: #0d9488;
+      border-color: #0f766e;
+      color: #fff;
+    }
+    button.accent:hover:not(:disabled) { background: #0f766e; }
+    #ggSeedRow {
+      display: flex;
+      gap: 8px;
+    }
+
+    .export-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(8, 12, 20, 0.88);
+      backdrop-filter: blur(5px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .export-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #1e293b;
+      border-top: 4px solid #38bdf8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .progress-bar-bg {
+      width: 260px;
+      height: 8px;
+      background: #1e293b;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+    .progress-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: #38bdf8;
+      transition: width 0.08s linear;
+    }
+    .export-text { font-size: 1.1rem; font-weight: 600; color: #f8fafc; }
+    .export-subtext { font-size: 0.85rem; color: #94a3b8; margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+<div class="export-overlay" id="exportOverlay">
+  <div class="spinner"></div>
+  <div class="export-text" id="exportStatusText">Exporting.... Loading....</div>
+  <div class="export-subtext" id="exportSubtext">Rendering procedural texture map</div>
+  <div class="progress-bar-bg">
+    <div class="progress-bar-fill" id="exportProgressBar"></div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="canvas-container">
+    <canvas id="ggCanvas" width="512" height="512"></canvas>
+    <div class="hint">Smooth Mobile Preview · Drag to rotate</div>
+  </div>
+
+  <div id="ggPanel">
+
+    <div class="ggSection">
+      <div class="ggSectionTitle">Orientation & Auto Spin</div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Longitude</span><span class="val" id="ggLonVal">40°</span></div>
+        <input type="range" id="ggLon" min="-180" max="180" step="1" value="40">
+      </div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Latitude</span><span class="val" id="ggLatVal">20°</span></div>
+        <input type="range" id="ggLat" min="-89" max="89" step="1" value="20">
+      </div>
+      <div class="ggRow" style="margin-top: 4px;">
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button id="ggToggleSpin" class="primary">▶ Play Spin</button>
+          <div style="flex:1;">
+            <div class="ggRowHead"><span>Speed</span><span class="val" id="ggSpeedVal">1.0x</span></div>
+            <input type="range" id="ggSpinSpeed" min="0.1" max="5.0" step="0.1" value="1.0">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ggSection">
+      <div class="ggSectionTitle">Palette Presets & Band Colors</div>
+      
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Color Palette Preset</span></div>
+        <select id="ggPresetSelect">
+          <option value="jupiter">Jupiter Gas Giant (Ochre & Rust)</option>
+          <option value="neptune">Neptune Blue (Deep Cyan & Indigo)</option>
+          <option value="saturn">Saturn Gold (Amber & Pale Cream)</option>
+          <option value="toxic">Toxic Alien (Emerald & Dark Violet)</option>
+          <option value="dwarf">Sunburst Dwarf (Crimson & Gold)</option>
+          <option value="custom">Custom Palette</option>
+        </select>
+      </div>
+
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Band Gradient Continuum</span></div>
+        <div id="ggGradientPreview" class="palette-preview-bar"></div>
+      </div>
+
+      <div class="ggColorGrid" id="ggColorPaletteContainer"></div>
+
+      <div class="ggBtnRow" style="margin-top:4px;">
+        <button id="ggAddColor">+ Add Color</button>
+        <button id="ggReverseColor">⇄ Reverse Band Order</button>
+      </div>
+
+      <div class="ggRow" style="margin-top:6px;">
+        <div class="ggRowHead"><span>Polar Cap Color</span></div>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input type="color" id="ggPolarColor" value="#141a29">
+          <span style="font-size:0.8rem; color:#64748b;">Blends at high latitudes</span>
+        </div>
+      </div>
+
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Band Color Diversity / Shift</span><span class="val" id="ggVarVal">35%</span></div>
+        <input type="range" id="ggVar" min="0" max="100" step="1" value="35">
+      </div>
+
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Global Saturation</span><span class="val" id="ggSatVal">100%</span></div>
+        <input type="range" id="ggSat" min="10" max="200" step="1" value="100">
+      </div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Global Brightness Boost</span><span class="val" id="ggBriVal">100%</span></div>
+        <input type="range" id="ggBri" min="40" max="180" step="1" value="100">
+      </div>
+    </div>
+
+    <div class="ggSection">
+      <div class="ggSectionTitle">Storm Dynamics & Jet Stream</div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Storm Count</span><span class="val" id="ggStormCountVal">1</span></div>
+        <input type="range" id="ggStormCount" min="0" max="8" step="1" value="1">
+      </div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Storm Radius</span><span class="val" id="ggStormSizeVal">33%</span></div>
+        <input type="range" id="ggStormSize" min="10" max="300" step="1" value="33">
+      </div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Jet Stream Stretch</span><span class="val" id="ggStormStretchVal">1x</span></div>
+        <input type="range" id="ggStormStretch" min="1" max="12" step="0.5" value="1">
+      </div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Vortex Whirl / Spiral Range</span><span class="val" id="ggStormWhirlVal">59%</span></div>
+        <input type="range" id="ggStormWhirl" min="0" max="350" step="1" value="59">
+      </div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Core Pinch / Eye Compression</span><span class="val" id="ggStormPinchVal">32%</span></div>
+        <input type="range" id="ggStormPinch" min="0" max="100" step="1" value="32">
+      </div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Storm Eye Color</span></div>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input type="color" id="ggStormColor" value="#05080e">
+          <span style="font-size:0.8rem; color:#64748b;">Default set near dark/black</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ggSection">
+      <div class="ggSectionTitle">Atmospheric Bands & Turbulence</div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Number of Bands</span><span class="val" id="ggBandsVal">18</span></div>
+        <input type="range" id="ggBands" min="2" max="30" step="1" value="18">
+      </div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Band Sharpness</span><span class="val" id="ggBandSharpVal">40%</span></div>
+        <input type="range" id="ggBandSharp" min="0" max="100" step="1" value="40">
+      </div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Jet Stream Shear</span><span class="val" id="ggWarpVal">25%</span></div>
+        <input type="range" id="ggWarp" min="0" max="100" step="1" value="25">
+      </div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Turbulence Strength</span><span class="val" id="ggTurbVal">70%</span></div>
+        <input type="range" id="ggTurb" min="0" max="100" step="1" value="70">
+      </div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Micro-filament Scale</span><span class="val" id="ggTurbScaleVal">10</span></div>
+        <input type="range" id="ggTurbScale" min="1" max="15" step="1" value="10">
+      </div>
+    </div>
+
+    <div class="ggSection">
+      <div class="ggSectionTitle">Global Shading</div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Polar Hood Radius</span><span class="val" id="ggPolarSizeVal">15%</span></div>
+        <input type="range" id="ggPolarSize" min="0" max="50" step="1" value="15">
+      </div>
+      <div class="ggRow">
+        <div class="ggRowHead"><span>3D Limb Shading</span><span class="val" id="ggShadeVal">50%</span></div>
+        <input type="range" id="ggShade" min="0" max="100" step="1" value="50">
+      </div>
+    </div>
+
+    <div class="ggSection">
+      <div class="ggSectionTitle">Seed & Configuration</div>
+      <div id="ggSeedRow">
+        <input type="text" id="ggSeed" value="1337">
+        <button id="ggRandomSeed">Randomize</button>
+      </div>
+      <div class="ggBtnRow" style="margin-top:6px;">
+        <button id="ggExportJson">Export Preset JSON</button>
+      </div>
+    </div>
+
+    <div class="ggSection" style="background: #141e33; margin: -4px; padding: 14px; border-radius: 8px; border: 1px solid #38bdf840;">
+      <div class="ggSectionTitle" style="color: #38bdf8;">High-Res Texture & Render Exporter</div>
+      
+      <div class="ggRow">
+        <div class="ggRowHead"><span>3D Planet Sphere Resolution</span></div>
+        <select id="ggSphereRes">
+          <option value="512">512 × 512 (Standard)</option>
+          <option value="1024">1024 × 1024 (HD)</option>
+          <option value="2048">2048 × 2048 (2K)</option>
+          <option value="4096" selected>4096 × 4096 (4K High Quality)</option>
+        </select>
+        <button id="ggExportPng" class="primary" style="margin-top: 4px;">
+          Export Planet Render PNG
+        </button>
+      </div>
+
+      <hr style="border: none; border-top: 1px solid #1e293b; margin: 4px 0;">
+
+      <div class="ggRow">
+        <div class="ggRowHead"><span>Equirectangular Map Resolution</span></div>
+        <select id="ggEquiRes">
+          <option value="1024x512">1024 × 512 (Mobile)</option>
+          <option value="2048x1024">2048 × 1024 (1K Standard)</option>
+          <option value="4096x2048" selected>4096 × 2048 (4K - High Detail)</option>
+        </select>
+        <button id="ggExportEqui" class="accent" style="margin-top: 4px;">
+          Export Full Planet Map (2:1 Equirectangular)
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('ggCanvas');
+  const ctx = canvas.getContext('2d');
+  
+  const HIGH_RES_PREVIEW = 512;
+  const LOW_RES_PREVIEW = 256; // 4x speedup during touch drag/rotate
+  
+  canvas.width = HIGH_RES_PREVIEW;
+  canvas.height = HIGH_RES_PREVIEW;
+
+  const PRESETS = {
+    jupiter: {
+      colors: ['#2b1810', '#8c4e2b', '#d99b66', '#f2e3c6', '#a65b32', '#4a2511'],
+      polarColor: '#141a29',
+      stormColor: '#05080e'
+    },
+    neptune: {
+      colors: ['#0b1d3a', '#103875', '#1d63b8', '#4292e3', '#8ac2f5', '#16488a'],
+      polarColor: '#060e1a',
+      stormColor: '#04070d'
+    },
+    saturn: {
+      colors: ['#3b2d18', '#73572e', '#b89456', '#ebd59b', '#f7edd2', '#8c6d3b'],
+      polarColor: '#1a1813',
+      stormColor: '#0a0907'
+    },
+    toxic: {
+      colors: ['#122415', '#1f5228', '#389448', '#63d175', '#a2f2b0', '#253852'],
+      polarColor: '#0a121a',
+      stormColor: '#07050d'
+    },
+    dwarf: {
+      colors: ['#380808', '#781414', '#c43318', '#f27d24', '#fce268', '#5e1010'],
+      polarColor: '#140505',
+      stormColor: '#0a0202'
+    }
+  };
+
+  const S = {
+    colors: [...PRESETS.jupiter.colors],
+    polarColor: PRESETS.jupiter.polarColor,
+    stormColor: PRESETS.jupiter.stormColor,
+    colorVariation: 35,
+    sat: 100, bri: 100,
+    bands: 18, bandSharp: 40,
+    turb: 70, turbScale: 10, warp: 25,
+    stormCount: 1, stormSize: 33, stormStretch: 1, stormWhirl: 59, stormPinch: 32,
+    polarSize: 15, shade: 50,
+    lon: 40, lat: 20,
+    seed: 1337
+  };
+
+  // PALETTE LUT OPTIMIZATION (Eliminates per-pixel HSL calculations)
+  const LUT_SIZE = 512;
+  let paletteLUT = new Array(LUT_SIZE);
+
+  function hexToRgb(hex){
+    if(!hex || hex.length < 6) return [100, 150, 220];
+    const n = parseInt(hex.replace('#',''), 16);
+    if(isNaN(n)) return [100, 150, 220];
+    return [(n>>16)&255, (n>>8)&255, n&255];
+  }
+
+  function rgbToHsl(r,g,b){
+    r/=255; g/=255; b/=255;
+    const max=Math.max(r,g,b), min=Math.min(r,g,b);
+    let h=0, s=0, l=(max+min)/2;
+    if(max !== min){
+      const d=max-min;
+      s = l>0.5 ? d/(2-max-min) : d/(max+min);
+      switch(max){
+        case r: h=(g-b)/d+(g<b?6:0); break;
+        case g: h=(b-r)/d+2; break;
+        case b: h=(r-g)/d+4; break;
+      }
+      h/=6;
+    }
+    return [h,s,l];
+  }
+
+  function hslToRgb(h,s,l){
+    let r,g,b;
+    if(s===0){r=g=b=l;}
+    else{
+      const hue2rgb=(p,q,t)=>{
+        if(t<0)t+=1; if(t>1)t-=1;
+        if(t<1/6) return p+(q-p)*6*t;
+        if(t<1/2) return q;
+        if(t<2/3) return p+(q-p)*(2/3-t)*6;
+        return p;
+      };
+      const q = l<0.5 ? l*(1+s) : l+s-l*s;
+      const p = 2*l-q;
+      r = hue2rgb(p,q,h+1/3);
+      g = hue2rgb(p,q,h);
+      b = hue2rgb(p,q,h-1/3);
+    }
+    return [Math.round(r*255), Math.round(g*255), Math.round(b*255)];
+  }
+
+  function lerp(a,b,t){
+    return a+(b-a)*Math.max(0, Math.min(1, t));
+  }
+
+  function lerpColorHSL(c1, c2, t){
+    if(!c1) return c2 || [100, 150, 220];
+    if(!c2) return c1 || [100, 150, 220];
+    t = Math.max(0, Math.min(1, t));
+
+    const hsl1 = rgbToHsl(c1[0], c1[1], c1[2]);
+    const hsl2 = rgbToHsl(c2[0], c2[1], c2[2]);
+
+    let h1 = hsl1[0], h2 = hsl2[0];
+    let dh = h2 - h1;
+
+    if (dh > 0.5) dh -= 1.0;
+    if (dh < -0.5) dh += 1.0;
+
+    let h = (h1 + dh * t) % 1.0;
+    if (h < 0) h += 1.0;
+
+    let s = lerp(hsl1[1], hsl2[1], t);
+    let l = lerp(hsl1[2], hsl2[2], t);
+
+    return hslToRgb(h, s, l);
+  }
+
+  function samplePaletteRaw(t, list) {
+    if (!list || list.length === 0) return [100, 150, 220];
+    if (list.length === 1) return list[0];
+    
+    t = Math.abs(t);
+    const cycle = Math.floor(t);
+    const rem = t - cycle;
+    t = (cycle % 2 === 0) ? rem : 1.0 - rem;
+
+    const scaled = t * (list.length - 1);
+    const idx = Math.floor(scaled);
+    const frac = scaled - idx;
+    if (idx >= list.length - 1) return list[list.length - 1];
+
+    return lerpColorHSL(list[idx], list[idx + 1], frac);
+  }
+
+  function applySatBri(rgb, satMul, briMul){
+    let [h,s,l] = rgbToHsl(rgb[0],rgb[1],rgb[2]);
+    s = Math.min(1, Math.max(0, s * satMul));
+    l = Math.min(1, Math.max(0, l * briMul));
+    return hslToRgb(h,s,l);
+  }
+
+  function rebuildPaletteLUT() {
+    const rawRgbList = (S.colors && S.colors.length > 0) ? S.colors.map(hexToRgb) : [[15,23,42], [30,58,138], [59,130,246]];
+    const satMul = (S.sat || 100) / 100;
+    const briMul = (S.bri || 100) / 100;
+
+    for (let i = 0; i < LUT_SIZE; i++) {
+      const t = i / (LUT_SIZE - 1);
+      const rawRgb = samplePaletteRaw(t, rawRgbList);
+      paletteLUT[i] = applySatBri(rawRgb, satMul, briMul);
+    }
+  }
+
+  // Fast direct array lookup replacing slow per-pixel color conversions
+  function samplePaletteFast(t) {
+    t = Math.abs(t);
+    const cycle = Math.floor(t);
+    const rem = t - cycle;
+    t = (cycle % 2 === 0) ? rem : 1.0 - rem;
+
+    const idx = (t * (LUT_SIZE - 1) + 0.5) | 0;
+    return paletteLUT[Math.max(0, Math.min(LUT_SIZE - 1, idx))];
+  }
+
+  function smootherstep(min, max, value) {
+    const x = Math.max(0, Math.min(1, (value - min) / (max - min)));
+    return x * x * x * (x * (x * 6 - 15) + 10);
+  }
+
+  function hash3(x, y, z) {
+    let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453123;
+    return n - Math.floor(n);
+  }
+
+  function valueNoise3D(x, y, z) {
+    const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+    const xf = x - xi, yf = y - yi, zf = z - zi;
+    const u = xf * xf * (3 - 2 * xf);
+    const v = yf * yf * (3 - 2 * yf);
+    const w = zf * zf * (3 - 2 * zf);
+
+    let res = 0;
+    for(let i=0; i<=1; i++) {
+      for(let j=0; j<=1; j++) {
+        for(let k=0; k<=1; k++) {
+          let weight = (i ? u : 1-u) * (j ? v : 1-v) * (k ? w : 1-w);
+          res += weight * hash3(xi + i, yi + j, zi + k);
+        }
+      }
+    }
+    return isNaN(res) ? 0.5 : res;
+  }
+
+  function fbm3D(x, y, z, octaves = 3) {
+    let val = 0, amp = 0.5, freq = 1.0;
+    for(let i = 0; i < octaves; i++) {
+      val += amp * valueNoise3D(x * freq, y * freq, z * freq);
+      freq *= 2.0; amp *= 0.5;
+    }
+    return isNaN(val) ? 0.5 : val;
+  }
+
+  function getStorms(){
+    const storms = [];
+    const count = Math.max(0, S.stormCount || 0);
+    const sizeMultiplier = Math.max(0.05, (S.stormSize || 100) / 100);
+
+    for(let i=0; i<count; i++){
+      const rs = (S.seed || 1) + i * 91.7;
+      const lat = (hash3(rs, 1.1, 2.2) - 0.5) * 1.1;
+      const lon = hash3(rs, 3.3, 4.4) * Math.PI * 2;
+      const size = (0.08 + sizeMultiplier * 0.35);
+
+      storms.push({
+        x: Math.cos(lat) * Math.cos(lon),
+        y: Math.sin(lat),
+        z: Math.cos(lat) * Math.sin(lon),
+        size
+      });
+    }
+    return storms;
+  }
+
+  function computeSurfaceColor(pX, pY, pZ, storms, polarRgb, stormRgb) {
+    const absLat = Math.abs(pY);
+
+    const polarThreshold = Math.max(0.1, 1.0 - (S.polarSize / 100) * 1.5);
+    const polarWeight = Math.min(1, Math.max(0, (absLat - polarThreshold) / (1 - polarThreshold)));
+
+    const warpStr = ((S.warp || 0) / 100) * 1.5;
+    const scale = Math.max(0.1, S.turbScale || 10);
+
+    const polarAngle = Math.atan2(pZ, pX);
+    const polarRadius = Math.hypot(pX, pZ);
+    const smoothPolarSign = Math.tanh(pY * 10.0);
+    const swirlAngle = polarAngle + (1.0 - polarRadius) * 4.0 * smoothPolarSign;
+    const swX = Math.cos(swirlAngle) * polarRadius;
+    const swZ = Math.sin(swirlAngle) * polarRadius;
+
+    const effX = lerp(pX, swX, polarWeight * 0.7);
+    const effZ = lerp(pZ, swZ, polarWeight * 0.7);
+
+    const warpX = fbm3D(effX * scale + S.seed, pY * scale, effZ * scale, 2) * warpStr;
+    const warpY = fbm3D(effX * scale, pY * scale + S.seed + 10, effZ * scale, 2) * warpStr;
+    const warpZ = fbm3D(effX * scale, pY * scale, effZ * scale + S.seed + 20, 2) * warpStr;
+
+    const baseWX = effX + warpX;
+    const baseWY = pY + warpY;
+    const baseWZ = effZ + warpZ;
+
+    let sWX = baseWX, sWY = baseWY, sWZ = baseWZ;
+    let accumulatedStormMask = 0;
+
+    for(const st of storms){
+      let stormLon = Math.atan2(st.z, st.x);
+      let pointLon = Math.atan2(effZ, effX);
+      let dLon = pointLon - stormLon;
+
+      while(dLon > Math.PI) dLon -= Math.PI * 2;
+      while(dLon < -Math.PI) dLon += Math.PI * 2;
+
+      let cosLat = Math.sqrt(Math.max(0, 1 - st.y * st.y));
+      let dX_long = dLon * cosLat;
+      let dY_lat = pY - st.y;
+
+      let stretch = Math.max(0.5, S.stormStretch || 4.5);
+      
+      let distSq = Math.pow(dX_long / stretch, 2.0) + Math.pow(dY_lat * 2.2, 2.0);
+      let dist = Math.sqrt(distSq);
+
+      const maxDist = Math.max(0.01, st.size * 2.8);
+      
+      if(dist < maxDist){
+        const norm = dist / maxDist;
+        const falloff = smootherstep(1.0, 0.0, norm);
+        if(falloff <= 0) continue;
+
+        const pinchStrength = (S.stormPinch || 0) / 100;
+        const pinchedNorm = Math.pow(norm, 1.0 + pinchStrength * 2.2);
+        const pinchFactor = lerp(1.0, pinchedNorm / Math.max(0.0001, norm), falloff);
+
+        const whirlStrength = ((S.stormWhirl || 0) / 100) * 38.0; 
+        const spinDir = st.y >= 0 ? 1 : -1;
+        const twistAngle = falloff * whirlStrength * spinDir;
+
+        let wx_d = (sWX - st.x) * pinchFactor;
+        let wy_d = (sWY - st.y) * pinchFactor;
+        let wz_d = (sWZ - st.z) * pinchFactor;
+
+        let sLen = Math.hypot(st.x, st.y, st.z) || 1;
+        let stX = st.x / sLen, stY = st.y / sLen, stZ = st.z / sLen;
+
+        const dot = wx_d*stX + wy_d*stY + wz_d*stZ;
+        const crossX = stY*wz_d - stZ*wy_d;
+        const crossY = stZ*wx_d - stX*wz_d;
+        const crossZ = stX*wy_d - stY*wx_d;
+
+        const cosT = Math.cos(twistAngle);
+        const sinT = Math.sin(twistAngle);
+
+        const rX = wx_d * cosT + crossX * sinT + stX * dot * (1 - cosT);
+        const rY = wy_d * cosT + crossY * sinT + stY * dot * (1 - cosT);
+        const rZ = wz_d * cosT + crossZ * sinT + stZ * dot * (1 - cosT);
+
+        sWX = st.x + lerp(wx_d, rX, falloff);
+        sWY = st.y + lerp(wy_d, rY, falloff);
+        sWZ = st.z + lerp(wz_d, rZ, falloff);
+
+        // Smooth sigmoidal transition prevents line cuts across storms
+        const smoothSign = Math.tanh(dY_lat / Math.max(0.001, st.size * 0.25));
+        const jetTail = Math.exp(-Math.pow(dX_long / Math.max(0.01, st.size * stretch * 0.85), 2.0));
+        const jetDisplacement = smoothSign * (1.0 - norm) * (st.size * 0.65) * jetTail;
+        
+        sWY += jetDisplacement * falloff;
+
+        accumulatedStormMask = Math.max(accumulatedStormMask, falloff);
+      }
+    }
+
+    const smoothStormBlend = smootherstep(0.0, 1.0, accumulatedStormMask);
+    const finalWY = lerp(baseWY, sWY, smoothStormBlend);
+
+    let bandsCount = Math.max(1, S.bands || 16);
+    let bandPhase = (finalWY * 0.5 + 0.5) * bandsCount;
+    let bandWave = Math.sin(bandPhase * Math.PI);
+    const sharp = (S.bandSharp || 40) / 100;
+    bandWave = Math.sign(bandWave || 1) * Math.pow(Math.abs(bandWave), lerp(1, 0.2, sharp));
+
+    const bandVarNoise = fbm3D(0, finalWY * 2.5 + S.seed, 0, 2);
+    const continuousColorShift = (bandVarNoise - 0.5) * ((S.colorVariation || 0) / 100) * 0.6;
+
+    let tPalette = (finalWY * 0.5 + 0.5) + bandWave * 0.08 * (1 - polarWeight * 0.8) + continuousColorShift;
+
+    const polarTurbulence = fbm3D(effX * scale * 4.0 + S.seed, pY * scale * 4.0, effZ * scale * 4.0, 3);
+    const turbAmt = (S.turb || 0) / 100;
+    const microTurb = fbm3D(sWX * scale * 2.5, finalWY * scale * 2.5, sWZ * scale * 2.5, 2);
+
+    tPalette += (microTurb - 0.5) * turbAmt * 0.15 * (1 - polarWeight);
+    tPalette += (polarTurbulence - 0.5) * 0.2 * polarWeight;
+
+    let rgb = samplePaletteFast(tPalette);
+
+    if(smoothStormBlend > 0){
+      const stormTurb = fbm3D(sWX * scale * 3.2 + S.seed, finalWY * scale * 3.2, sWZ * scale * 3.2, 2);
+      const stormTexturedRgb = lerpColorHSL(stormRgb, samplePaletteFast(stormTurb), 0.2);
+      rgb = lerpColorHSL(rgb, stormTexturedRgb, smoothStormBlend * 0.9);
+    }
+
+    const polarBlend = Math.pow(polarWeight, 1.5);
+    const polarTexturedRgb = lerpColorHSL(polarRgb, samplePaletteFast(polarTurbulence), 0.3);
+    rgb = lerpColorHSL(rgb, polarTexturedRgb, polarBlend);
+
+    return rgb;
+  }
+
+  function render(renderSize = HIGH_RES_PREVIEW){
+    if (canvas.width !== renderSize) {
+      canvas.width = renderSize;
+      canvas.height = renderSize;
+    }
+
+    const W = renderSize, H = renderSize;
+    const cx = W/2, cy = H/2, R = W/2 - 4;
+
+    ctx.clearRect(0,0,W,H);
+
+    const polarRgb = hexToRgb(S.polarColor);
+    const stormRgb = hexToRgb(S.stormColor);
+
+    const lonRad = (S.lon || 0) * Math.PI/180;
+    const latRad = (S.lat || 0) * Math.PI/180;
+    const storms = getStorms();
+
+    const img = ctx.createImageData(W, H);
+    const data = img.data;
+
+    const lightDir = {x:-0.5, y:-0.4, z:0.75};
+    const lightLen = Math.hypot(lightDir.x, lightDir.y, lightDir.z) || 1;
+    lightDir.x /= lightLen; lightDir.y /= lightLen; lightDir.z /= lightLen;
+
+    const cosLon = Math.cos(-lonRad), sinLon = Math.sin(-lonRad);
+    const cosLat = Math.cos(-latRad), sinLat = Math.sin(-latRad);
+    const shadeAmt = (S.shade || 50) / 100;
+
+    for(let py=0; py<H; py++){
+      for(let px=0; px<W; px++){
+        const dx = (px-cx)/R, dy=(py-cy)/R;
+        const d2 = dx*dx+dy*dy;
+        const idx = (py*W+px)*4;
+        
+        if(d2 > 1){
+          data[idx+3] = 0;
+          continue;
+        }
+        const dz = Math.sqrt(Math.max(0, 1-d2));
+
+        let nx = dx, ny = -dy, nz = dz;
+
+        let rx = nx*cosLon - nz*sinLon;
+        let rz = nx*sinLon + nz*cosLon;
+        let ry = ny;
+        
+        let ry2 = ry*cosLat - rz*sinLat;
+        let rz2 = ry*sinLat + rz*cosLat;
+
+        let rgb = computeSurfaceColor(rx, ry2, rz2, storms, polarRgb, stormRgb);
+
+        let diffuse = nx * lightDir.x + ny * lightDir.y + nz * lightDir.z;
+        diffuse = diffuse * 0.5 + 0.5;
+        const limb = Math.pow(nz, 0.5);
+        const lightMul = lerp(1, diffuse * 0.85 + 0.25 * limb, shadeAmt);
+
+        rgb = [rgb[0] * lightMul, rgb[1] * lightMul, rgb[2] * lightMul];
+
+        data[idx]     = Math.max(0, Math.min(255, rgb[0]));
+        data[idx + 1] = Math.max(0, Math.min(255, rgb[1]));
+        data[idx + 2] = Math.max(0, Math.min(255, rgb[2]));
+        data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  async function renderHighResAsync({ targetW, targetH, isEquirectangular, onProgress }) {
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = targetW;
+    offCanvas.height = targetH;
+    const offCtx = offCanvas.getContext('2d');
+    const imgData = offCtx.createImageData(targetW, targetH);
+    const data = imgData.data;
+
+    const polarRgb = hexToRgb(S.polarColor);
+    const stormRgb = hexToRgb(S.stormColor);
+    const storms = getStorms();
+
+    const lonRad = (S.lon || 0) * Math.PI/180;
+    const latRad = (S.lat || 0) * Math.PI/180;
+    const cosLon = Math.cos(-lonRad), sinLon = Math.sin(-lonRad);
+    const cosLat = Math.cos(-latRad), sinLat = Math.sin(-latRad);
+    const shadeAmt = (S.shade || 50) / 100;
+
+    const lightDir = {x:-0.5, y:-0.4, z:0.75};
+    const lightLen = Math.hypot(lightDir.x, lightDir.y, lightDir.z) || 1;
+    lightDir.x /= lightLen; lightDir.y /= lightLen; lightDir.z /= lightLen;
+
+    const cx = targetW / 2, cy = targetH / 2, R = targetW / 2 - 4;
+    const CHUNK_ROWS = Math.max(16, Math.floor(2048 / targetW * 16));
+
+    for (let py = 0; py < targetH; py += CHUNK_ROWS) {
+      const endY = Math.min(targetH, py + CHUNK_ROWS);
+
+      for (let y = py; y < endY; y++) {
+        for (let px = 0; px < targetW; px++) {
+          const idx = (y * targetW + px) * 4;
+
+          if (isEquirectangular) {
+            const u = px / targetW;
+            const v = y / targetH;
+
+            const longitude = (u - 0.5) * Math.PI * 2;
+            const latitude = (0.5 - v) * Math.PI;
+
+            const pY = Math.sin(latitude);
+            const cosLatP = Math.cos(latitude);
+            const pX = cosLatP * Math.cos(longitude);
+            const pZ = cosLatP * Math.sin(longitude);
+
+            let rgb = computeSurfaceColor(pX, pY, pZ, storms, polarRgb, stormRgb);
+
+            data[idx]     = Math.max(0, Math.min(255, rgb[0]));
+            data[idx + 1] = Math.max(0, Math.min(255, rgb[1]));
+            data[idx + 2] = Math.max(0, Math.min(255, rgb[2]));
+            data[idx + 3] = 255;
+
+          } else {
+            const dx = (px - cx) / R, dy = (y - cy) / R;
+            const d2 = dx * dx + dy * dy;
+
+            if (d2 > 1) {
+              data[idx + 3] = 0;
+              continue;
+            }
+            const dz = Math.sqrt(Math.max(0, 1 - d2));
+            let nx = dx, ny = -dy, nz = dz;
+
+            let rx = nx * cosLon - nz * sinLon;
+            let rz = nx * sinLon + nz * cosLon;
+            let ry = ny;
+
+            let ry2 = ry * cosLat - rz * sinLat;
+            let rz2 = ry * sinLat + rz * cosLat;
+
+            let rgb = computeSurfaceColor(rx, ry2, rz2, storms, polarRgb, stormRgb);
+
+            let diffuse = nx * lightDir.x + ny * lightDir.y + nz * lightDir.z;
+            diffuse = diffuse * 0.5 + 0.5;
+            const limb = Math.pow(nz, 0.5);
+            const lightMul = lerp(1, diffuse * 0.85 + 0.25 * limb, shadeAmt);
+
+            rgb = [rgb[0] * lightMul, rgb[1] * lightMul, rgb[2] * lightMul];
+
+            data[idx]     = Math.max(0, Math.min(255, rgb[0]));
+            data[idx + 1] = Math.max(0, Math.min(255, rgb[1]));
+            data[idx + 2] = Math.max(0, Math.min(255, rgb[2]));
+            data[idx + 3] = 255;
+          }
+        }
+      }
+
+      if (onProgress) {
+        onProgress(Math.round((endY / targetH) * 100));
+      }
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    offCtx.putImageData(imgData, 0, 0);
+    return offCanvas;
+  }
+
+  function updateGradientBar() {
+    const bar = document.getElementById('ggGradientPreview');
+    if (!bar) return;
+    if (S.colors.length === 0) {
+      bar.style.background = '#000';
+      return;
+    }
+    bar.style.background = `linear-gradient(to right, ${S.colors.join(', ')})`;
+  }
+
+  function renderPaletteControls(){
+    const container = document.getElementById('ggColorPaletteContainer');
+    container.innerHTML = '';
+    
+    S.colors.forEach((col, idx) => {
+      const item = document.createElement('div');
+      item.className = 'ggColorItem';
+      item.innerHTML = `
+        <input type="color" value="${col}" data-index="${idx}">
+        <label>Band Stop ${idx + 1} <span style="font-size:0.75rem; color:#64748b;">(${col})</span></label>
+        <button class="remove-stop-btn" title="Remove Color Stop" data-index="${idx}">✕</button>
+      `;
+      
+      const input = item.querySelector('input[type="color"]');
+      input.addEventListener('input', (e) => {
+        S.colors[idx] = e.target.value;
+        item.querySelector('label span').textContent = `(${e.target.value})`;
+        document.getElementById('ggPresetSelect').value = 'custom';
+        updateGradientBar();
+      });
+      input.addEventListener('change', () => {
+        rebuildPaletteLUT();
+        render(HIGH_RES_PREVIEW);
+      });
+
+      const removeBtn = item.querySelector('.remove-stop-btn');
+      removeBtn.addEventListener('click', () => {
+        if (S.colors.length > 2) {
+          S.colors.splice(idx, 1);
+          document.getElementById('ggPresetSelect').value = 'custom';
+          renderPaletteControls();
+          rebuildPaletteLUT();
+          render(HIGH_RES_PREVIEW);
+        }
+      });
+
+      container.appendChild(item);
+    });
+
+    updateGradientBar();
+  }
+
+  document.getElementById('ggPresetSelect').addEventListener('change', (e) => {
+    const presetKey = e.target.value;
+    if (PRESETS[presetKey]) {
+      S.colors = [...PRESETS[presetKey].colors];
+      S.polarColor = PRESETS[presetKey].polarColor;
+      S.stormColor = PRESETS[presetKey].stormColor;
+
+      document.getElementById('ggPolarColor').value = S.polarColor;
+      document.getElementById('ggStormColor').value = S.stormColor;
+
+      renderPaletteControls();
+      rebuildPaletteLUT();
+      render(HIGH_RES_PREVIEW);
+    }
+  });
+
+  document.getElementById('ggAddColor').addEventListener('click', () => {
+    if (S.colors.length < 10) {
+      const lastColor = S.colors[S.colors.length - 1] || '#3b82f6';
+      S.colors.push(lastColor);
+      document.getElementById('ggPresetSelect').value = 'custom';
+      renderPaletteControls();
+      rebuildPaletteLUT();
+      render(HIGH_RES_PREVIEW);
+    }
+  });
+
+  document.getElementById('ggReverseColor').addEventListener('click', () => {
+    S.colors.reverse();
+    document.getElementById('ggPresetSelect').value = 'custom';
+    renderPaletteControls();
+    rebuildPaletteLUT();
+    render(HIGH_RES_PREVIEW);
+  });
+
+  function bindRange(id, valId, key, suffix, isFloat, rebuildLUT = false){
+    const el = document.getElementById(id);
+    const valEl = document.getElementById(valId);
+    if(!el) return;
+    el.addEventListener('input', ()=>{
+      S[key] = isFloat ? parseFloat(el.value) : parseInt(el.value, 10);
+      if(valEl) valEl.textContent = el.value + (suffix||'');
+    });
+    el.addEventListener('change', () => {
+      if(rebuildLUT) rebuildPaletteLUT();
+      render(HIGH_RES_PREVIEW);
+    });
+  }
+
+  bindRange('ggLon','ggLonVal','lon','°');
+  bindRange('ggLat','ggLatVal','lat','°');
+  bindRange('ggVar','ggVarVal','colorVariation','%', false, true);
+  bindRange('ggSat','ggSatVal','sat','%', false, true);
+  bindRange('ggBri','ggBriVal','bri','%', false, true);
+  bindRange('ggBands','ggBandsVal','bands','');
+  bindRange('ggBandSharp','ggBandSharpVal','bandSharp','%');
+  bindRange('ggTurb','ggTurbVal','turb','%');
+  bindRange('ggTurbScale','ggTurbScaleVal','turbScale','');
+  bindRange('ggWarp','ggWarpVal','warp','%');
+  bindRange('ggStormCount','ggStormCountVal','stormCount','');
+  bindRange('ggStormSize','ggStormSizeVal','stormSize','%');
+  bindRange('ggStormStretch','ggStormStretchVal','stormStretch','x', true);
+  bindRange('ggStormWhirl','ggStormWhirlVal','stormWhirl','%', true);
+  bindRange('ggStormPinch','ggStormPinchVal','stormPinch','%');
+  bindRange('ggPolarSize','ggPolarSizeVal','polarSize','%');
+  bindRange('ggShade','ggShadeVal','shade','%');
+
+  const polarEl = document.getElementById('ggPolarColor');
+  polarEl.addEventListener('input', (e) => { S.polarColor = e.target.value; });
+  polarEl.addEventListener('change', () => render(HIGH_RES_PREVIEW));
+
+  const stormColorEl = document.getElementById('ggStormColor');
+  stormColorEl.addEventListener('input', (e) => { S.stormColor = e.target.value; });
+  stormColorEl.addEventListener('change', () => render(HIGH_RES_PREVIEW));
+
+  document.getElementById('ggSeed').addEventListener('change', (e)=>{
+    const v = parseInt(e.target.value, 10);
+    S.seed = isNaN(v) ? 1337 : v;
+    render(HIGH_RES_PREVIEW);
+  });
+  document.getElementById('ggRandomSeed').addEventListener('click', ()=>{
+    const v = Math.floor(Math.random()*100000);
+    document.getElementById('ggSeed').value = v;
+    S.seed = v;
+    render(HIGH_RES_PREVIEW);
+  });
+
+  // AUTO SPIN LOOP
+  let isSpinning = false;
+  let spinSpeed = 1.0;
+  let lastTime = performance.now();
+
+  const toggleSpinBtn = document.getElementById('ggToggleSpin');
+  const spinSpeedEl = document.getElementById('ggSpinSpeed');
+
+  toggleSpinBtn.addEventListener('click', () => {
+    isSpinning = !isSpinning;
+    toggleSpinBtn.textContent = isSpinning ? '⏸ Pause Spin' : '▶ Play Spin';
+    if (isSpinning) {
+      lastTime = performance.now();
+      requestAnimationFrame(animateLoop);
+    } else {
+      render(HIGH_RES_PREVIEW);
+    }
+  });
+
+  spinSpeedEl.addEventListener('input', (e) => {
+    spinSpeed = parseFloat(e.target.value);
+    document.getElementById('ggSpeedVal').textContent = spinSpeed.toFixed(1) + 'x';
+  });
+
+  function animateLoop(now) {
+    if (!isSpinning) return;
+    
+    const dt = (now - lastTime) / 1000;
+    lastTime = now;
+
+    S.lon = ((S.lon + (18.0 * spinSpeed * dt) + 180) % 360 + 360) % 360 - 180;
+    
+    const lonEl = document.getElementById('ggLon');
+    const lonVal = document.getElementById('ggLonVal');
+    if (lonEl) lonEl.value = Math.round(S.lon);
+    if (lonVal) lonVal.textContent = Math.round(S.lon) + '°';
+
+    // Downsamples during continuous auto-rotation for smooth performance
+    render(LOW_RES_PREVIEW);
+    requestAnimationFrame(animateLoop);
+  }
+
+  // MOBILE HIGH-PERFORMANCE TOUCH DRAG HANDLERS
+  let dragging = false, lastX=0, lastY=0, rafPending = false, settleTimeout = null;
+
+  function pointerDown(x, y){
+    dragging = true;
+    lastX = x;
+    lastY = y;
+    if (settleTimeout) clearTimeout(settleTimeout);
+  }
+  
+  function pointerMove(x, y, isTouch = false){
+    if(!dragging) return;
+    const dx = x - lastX;
+    const dy = y - lastY;
+    lastX = x; lastY = y;
+
+    const speedMult = isTouch ? 0.8 : 0.65;
+
+    S.lon = ((S.lon + dx * speedMult + 180) % 360 + 360) % 360 - 180;
+    S.lat = Math.max(-89, Math.min(89, S.lat - dy * speedMult));
+    
+    const lonEl = document.getElementById('ggLon');
+    const latEl = document.getElementById('ggLat');
+    if(lonEl) lonEl.value = Math.round(S.lon);
+    if(latEl) latEl.value = Math.round(S.lat);
+    
+    const lonVal = document.getElementById('ggLonVal');
+    const latVal = document.getElementById('ggLatVal');
+    if(lonVal) lonVal.textContent = Math.round(S.lon)+'°';
+    if(latVal) latVal.textContent = Math.round(S.lat)+'°';
+    
+    if(!rafPending){
+      rafPending = true;
+      requestAnimationFrame(()=>{
+        rafPending = false;
+        // Low-resolution preview render during active drag guarantees 60 FPS
+        render(LOW_RES_PREVIEW);
+      });
+    }
+  }
+
+  function pointerUp(){
+    if (dragging) {
+      dragging = false;
+      if (!isSpinning) {
+        if (settleTimeout) clearTimeout(settleTimeout);
+        // Restores crisp high-res 512x512 preview when dragging completes
+        settleTimeout = setTimeout(() => { render(HIGH_RES_PREVIEW); }, 60);
+      }
+    }
+  }
+
+  canvas.addEventListener('mousedown', e => pointerDown(e.clientX, e.clientY));
+  window.addEventListener('mousemove', e => pointerMove(e.clientX, e.clientY, false));
+  window.addEventListener('mouseup', pointerUp);
+
+  canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      pointerDown(t.clientX, t.clientY);
+      e.preventDefault();
+    }
+  }, {passive: false});
+
+  canvas.addEventListener('touchmove', e => {
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      pointerMove(t.clientX, t.clientY, true);
+      e.preventDefault();
+    }
+  }, {passive: false});
+
+  canvas.addEventListener('touchend', pointerUp);
+  canvas.addEventListener('touchcancel', pointerUp);
+
+  document.getElementById('ggExportJson').addEventListener('click', ()=>{
+    const blob = new Blob([JSON.stringify(S, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'gasgiant_preset_' + S.seed + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  const overlay = document.getElementById('exportOverlay');
+  const statusText = document.getElementById('exportStatusText');
+  const subtext = document.getElementById('exportSubtext');
+  const progressBar = document.getElementById('exportProgressBar');
+
+  function showExportLoading(title, subtitle) {
+    statusText.textContent = title || "Exporting.... Loading....";
+    subtext.textContent = subtitle || "Rendering procedural texture map";
+    progressBar.style.width = "0%";
+    overlay.classList.add('active');
+  }
+
+  function updateExportProgress(percent) {
+    statusText.textContent = `Exporting.... Loading.... ${percent}%`;
+    progressBar.style.width = `${percent}%`;
+  }
+
+  function hideExportLoading() {
+    overlay.classList.remove('active');
+  }
+
+  document.getElementById('ggExportPng').addEventListener('click', async () => {
+    const res = parseInt(document.getElementById('ggSphereRes').value, 10) || 4096;
+    showExportLoading("Exporting 3D Planet PNG.... Loading....", `Rendering ${res}×${res} sphere image`);
+
+    try {
+      await new Promise(r => setTimeout(r, 50));
+      
+      const exportedCanvas = await renderHighResAsync({
+        targetW: res,
+        targetH: res,
+        isEquirectangular: false,
+        onProgress: updateExportProgress
+      });
+
+      exportedCanvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `gasgiant_sphere_${res}p_seed${S.seed}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+        hideExportLoading();
+      }, 'image/png');
+    } catch(err) {
+      console.error(err);
+      alert("Failed to export image.");
+      hideExportLoading();
+    }
+  });
+
+  document.getElementById('ggExportEqui').addEventListener('click', async () => {
+    const val = document.getElementById('ggEquiRes').value;
+    const parts = val.split('x');
+    const targetW = parseInt(parts[0], 10);
+    const targetH = parseInt(parts[1], 10);
+
+    showExportLoading("Exporting Equirectangular Map.... Loading....", `Generating ${targetW}×${targetH} 2:1 global texture map`);
+
+    try {
+      await new Promise(r => setTimeout(r, 50));
+
+      const exportedCanvas = await renderHighResAsync({
+        targetW: targetW,
+        targetH: targetH,
+        isEquirectangular: true,
+        onProgress: updateExportProgress
+      });
+
+      exportedCanvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `gasgiant_equirectangular_${targetW}x${targetH}_seed${S.seed}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+        hideExportLoading();
+      }, 'image/png');
+    } catch(err) {
+      console.error(err);
+      alert("Failed to export equirectangular map.");
+      hideExportLoading();
+    }
+  });
+
+  // INITIALIZATION
+  renderPaletteControls();
+  rebuildPaletteLUT();
+  render(HIGH_RES_PREVIEW);
+})();
+</script>
+
+</body>
+</html>

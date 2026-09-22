@@ -472,13 +472,17 @@
       <span class="mico"><svg class="icon"><use href="#icon-waves"></use></svg></span>CREATE OCEAN TEXTURE
       <span class="coming-soon-badge">COMING SOON™</span>
     </button>
-    <button class="menu-btn menu-btn-soon" disabled title="Coming soon">
+    <button class="menu-btn" onclick="ET.open('tools/cloud-texture-generator.html','CLOUD TEXTURE GENERATOR')">
       <span class="mico"><svg class="icon"><use href="#icon-cloud"></use></svg></span>CREATE CLOUD TEXTURE
-      <span class="coming-soon-badge">COMING SOON™</span>
+      <span class="arr">›</span>
     </button>
-    <button class="menu-btn menu-btn-soon" disabled title="Coming soon">
+    <button class="menu-btn" onclick="ET.open('tools/ring-texture-generator.html','RING TEXTURE GENERATOR')">
       <span class="mico"><svg class="icon"><use href="#icon-sparkle"></use></svg></span>CREATE RING TEXTURE
-      <span class="coming-soon-badge">COMING SOON™</span>
+      <span class="arr">›</span>
+    </button>
+    <button class="menu-btn" onclick="ET.open('tools/gas-giant-generator.html','GAS GIANT TEXTURE GENERATOR')">
+      <span class="mico"><svg class="icon"><use href="#icon-circle"></use></svg></span>CREATE GAS GIANT TEXTURE
+      <span class="arr">›</span>
     </button>
     <button class="menu-btn" onclick="PT.open()">
       <span class="mico"><svg class="icon"><use href="#icon-mountain-snow"></use></svg></span>CREATE PLANET TEXTURE
@@ -487,6 +491,11 @@
     <button class="menu-btn" onclick="openHeightmapTools()">
       <span class="mico"><svg class="icon"><use href="#icon-map"></use></svg></span>TEXTURE CONVERTERS
       <span class="menu-btn-sub">3 separate tools in one window: bump map &rarr; heightmap &middot; texture map &rarr; SFS texture &middot; watermask generator</span>
+      <span class="arr">›</span>
+    </button>
+    <button class="menu-btn" onclick="ET.open('tools/polar-transformer.html','POLAR TRANSFORMER')">
+      <span class="mico"><svg class="icon"><use href="#icon-disc"></use></svg></span>POLAR TRANSFORMER
+      <span class="menu-btn-sub">Rectangular ⇄ polar image conversion — prep art for ring/pole textures</span>
       <span class="arr">›</span>
     </button>
   </nav>
@@ -817,7 +826,7 @@
           <button class="fs-btn fs-btn-dl" onclick="trackFeatured('co','import');importFeatured('featured/CO.zip','CO.zip')">⬇ IMPORT</button>
           <button class="fs-btn fs-btn-open" onclick="trackFeatured('co','open');loadZipFromUrl('featured/CO.zip','CO.zip')">▶ OPEN IN EDITOR</button>
         </div>
-        <div class="fs-card-stats" id="fsstats-co">
+        <div class="fs-card-stats" id="fsstats-pg">
           <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-co-import">…</span> imports</span>
           <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-co-open">…</span> opens</span>
           <span class="fs-stat fs-stat-size"><svg class="icon"><use href="#icon-package"></use></svg> <span class="fs-stat-num fs-stat-loading" id="fssz-co">…</span> MB</span>
@@ -2427,6 +2436,7 @@
 <script src="js/tex-creator.js?v=5.13"></script>
 <script src="js/planet-tex-creator.js?v=1.0"></script>
 <script src="js/daycycle-tex-creator.js?v=1.0"></script>
+<script src="js/external-tools.js?v=1.0"></script>
 <script src="js/sfx.js?v=5.13"></script>
 <script src="js/utils.js?v=5.17"></script>
 <script src="js/images.js?v=5.13"></script>
@@ -7024,7 +7034,7 @@ document.addEventListener('DOMContentLoaded', () => {
 (function(){
   // State
   let wmkBaseImage = null, wmkGenerated = null, wmkContrastBase = null;
-  let wmkEditLayer = null, wmkSeaField = null, wmkSeaMask = null, wmkCoastDist = null;
+  let wmkEditLayer = null, wmkSeaField = null, wmkSeaMask = null, wmkCoastDist = null, wmkLandDist = null;
   let wmkLiqSamples = [], wmkLandSamples = [], wmkMode = 'liq';
   let wmkDrawing = false, wmkPenMode = false, wmkEraseMode = false, wmkPenColor = 0;
   let wmkPending = null;
@@ -7237,10 +7247,7 @@ document.addEventListener('DOMContentLoaded', () => {
     wh.style.color = c===255 ? 'rgba(255,255,255,.85)' : 'rgba(120,140,180,.6)';
   };
 
-  function wmkComputeCoastDist() {
-    const cv = wmkGetCanvas(), w=cv.width, h=cv.height;
-    wmkCoastDist = new Float32Array(w*h);
-    for(let i=0;i<w*h;i++) wmkCoastDist[i] = wmkSeaMask[i] ? Infinity : 0;
+  function wmkChamferDist(isSeed, w, h) {
     // 8-connected chamfer distance transform: orthogonal neighbours weight 1,
     // diagonal neighbours weight sqrt(2). A 4-connected (orthogonal-only)
     // transform's distance contours are diamond-shaped, which is why the
@@ -7248,23 +7255,41 @@ document.addEventListener('DOMContentLoaded', () => {
     // smoothly outward — adding weighted diagonals gives a much closer
     // approximation of true Euclidean distance (octagonal, near-circular
     // contours) at the same O(w*h) cost, just 4 neighbours per pass instead of 2.
+    const dist = new Float32Array(w*h);
+    for(let i=0;i<w*h;i++) dist[i] = isSeed(i) ? 0 : Infinity;
     const SQRT2 = Math.SQRT2;
     for(let y=0;y<h;y++) for(let x=0;x<w;x++){
       const i=y*w+x;
-      const left  = x>0        ? wmkCoastDist[i-1]   + 1     : Infinity;
-      const up    = y>0        ? wmkCoastDist[i-w]   + 1     : Infinity;
-      const ul    = (x>0&&y>0) ? wmkCoastDist[i-w-1] + SQRT2 : Infinity;
-      const ur    = (x<w-1&&y>0)?wmkCoastDist[i-w+1] + SQRT2 : Infinity;
-      wmkCoastDist[i]=Math.min(wmkCoastDist[i],left,up,ul,ur);
+      const left  = x>0        ? dist[i-1]   + 1     : Infinity;
+      const up    = y>0        ? dist[i-w]   + 1     : Infinity;
+      const ul    = (x>0&&y>0) ? dist[i-w-1] + SQRT2 : Infinity;
+      const ur    = (x<w-1&&y>0)?dist[i-w+1] + SQRT2 : Infinity;
+      dist[i]=Math.min(dist[i],left,up,ul,ur);
     }
     for(let y=h-1;y>=0;y--) for(let x=w-1;x>=0;x--){
       const i=y*w+x;
-      const right = x<w-1        ? wmkCoastDist[i+1]   + 1     : Infinity;
-      const down  = y<h-1        ? wmkCoastDist[i+w]   + 1     : Infinity;
-      const dr    = (x<w-1&&y<h-1)?wmkCoastDist[i+w+1] + SQRT2 : Infinity;
-      const dl    = (x>0&&y<h-1)  ?wmkCoastDist[i+w-1] + SQRT2 : Infinity;
-      wmkCoastDist[i]=Math.min(wmkCoastDist[i],right,down,dr,dl);
+      const right = x<w-1        ? dist[i+1]   + 1     : Infinity;
+      const down  = y<h-1        ? dist[i+w]   + 1     : Infinity;
+      const dr    = (x<w-1&&y<h-1)?dist[i+w+1] + SQRT2 : Infinity;
+      const dl    = (x>0&&y<h-1)  ?dist[i+w-1] + SQRT2 : Infinity;
+      dist[i]=Math.min(dist[i],right,down,dr,dl);
     }
+    return dist;
+  }
+
+  function wmkComputeCoastDist() {
+    const cv = wmkGetCanvas(), w=cv.width, h=cv.height;
+    // Two distance fields, one per side of the coastline:
+    //  - wmkCoastDist: for each WATER pixel, distance to the nearest land
+    //  - wmkLandDist:  for each LAND pixel, distance to the nearest water
+    // Both are needed so the shore can be softened symmetrically on both
+    // sides of the border (see wmkApplyDepth) instead of only on the water
+    // side, which was leaving land pixels a hard flat white all the way up
+    // to the coastline and producing the "stretched shore" mismatch reported
+    // against vanilla SFS textures (#planet-editing, land texture + water
+    // mask both soften toward the same #7F7F7F boundary shade in-game).
+    wmkCoastDist = wmkChamferDist(i => !wmkSeaMask[i], w, h);
+    wmkLandDist  = wmkChamferDist(i => !!wmkSeaMask[i], w, h);
   }
 
   window.wmkGenerate = function() {
@@ -7311,12 +7336,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const cw=+$('wmk-coast').value, sp=+$('wmk-spread').value;
     const shallowV=+$('wmk-shallow').value, deepV=+$('wmk-deep').value;
     const texAmt=+$('wmk-texture').value/100;
+    // #7F7F7F (127) — per Ludwig's spec, this is the exact shade the game
+    // reads as "water meets land". Both sides of the coastline must land on
+    // this value right at the border and soften away from it symmetrically —
+    // that's what vanilla SFS land textures + water masks do (they cancel
+    // out cleanly when overlaid), and what this tool was previously missing:
+    // land pixels were always a hard flat 255 with no falloff at all, and
+    // water pixels jumped straight to the shallow-water slider value instead
+    // of passing through 127 at the boundary.
+    const COAST_MID = 127;
     for(let i=0,p=0;i<wmkGenerated.data.length;i+=4,p++){
-      if(!wmkSeaMask[p]){wmkGenerated.data[i]=wmkGenerated.data[i+1]=wmkGenerated.data[i+2]=255;}
+      if(!wmkSeaMask[p]){
+        // LAND: fade from the boundary shade (127) up to full white the
+        // further inland a pixel sits, mirroring the water-side falloff.
+        let t=Math.min(1,wmkLandDist[p]/cw);
+        t=Math.pow(t,sp); t=t*t*(3-2*t);
+        const v = COAST_MID + (255-COAST_MID)*t;
+        wmkGenerated.data[i]=wmkGenerated.data[i+1]=wmkGenerated.data[i+2]=v;
+      }
       else{
         let t=Math.min(1,wmkCoastDist[p]/cw);
         t=Math.pow(t,sp); t=t*t*(3-2*t);
-        const flatV=shallowV*(1-t)+deepV*t;
+        // Two-stage ramp anchored at the coastline: 127 → shallow → deep,
+        // so the pixel immediately at the shore is always exactly 127,
+        // and the shallow/deep sliders still shape everything past that.
+        const flatV = t<=0.5
+          ? COAST_MID + (shallowV-COAST_MID) * (t/0.5)
+          : shallowV  + (deepV-shallowV)     * ((t-0.5)/0.5);
         // Blend the flat coastal-falloff value with the source pixel's own
         // luminance so far-from-shore water keeps ocean-floor texture detail
         // instead of collapsing to a single flat deep-water color. The blend
@@ -7450,7 +7496,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const SB_KEY = 'sb_publishable_7UarYndVEPrKEg3qFrfevQ_jbMh3dbI';
   const HEADERS = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
 
-  const KEYS = ['sfs-default', 'bgh', 'htss', 'ys', 'ch', 'rs', 'pg','co'];
+  const KEYS = ['sfs-default', 'bgh', 'htss', 'ys', 'ch', 'rs', 'pg'];
   const ACTS = ['import', 'open'];
 
   const ZIP_URLS = {
@@ -7461,7 +7507,6 @@ document.addEventListener('DOMContentLoaded', () => {
     'ch':          'featured/CH.zip',
     'rs':          'featured/RS.zip',
     'pg':          'featured/PG.zip',
-    'co':          'featured/CO.zip',
   };
 
   // ── Increment via RPC and update display ──

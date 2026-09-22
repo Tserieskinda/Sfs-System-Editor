@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>SFS Ring Texture Generator</title>
+<style>
+  :root{
+    --bg:#12141a;
+    --panel:#1a1d25;
+    --panel-2:#20242e;
+    --line:#2c303b;
+    --text:#e7e9ee;
+    --text-dim:#9aa0ad;
+    --accent:#d9a441;
+    --accent-dim:#8a6a2c;
+    --danger:#c0594a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px;
+    line-height:1.4;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .checker{
+    background-image:
+      linear-gradient(45deg,#333 25%,transparent 25%),
+      linear-gradient(-45deg,#333 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#333 75%),
+      linear-gradient(-45deg,transparent 75%,#333 75%);
+    background-size:16px 16px;
+    background-position:0 0,0 8px,8px -8px,-8px 0px;
+    background-color:#222;
+  }
+
+  header{
+    padding:14px 16px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  header h1{
+    font-size:16px;
+    font-weight:600;
+    margin:0;
+    color:var(--text);
+  }
+  header .sub{
+    font-size:12px;
+    color:var(--text-dim);
+    margin-top:2px;
+  }
+  .actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  button{
+    font:inherit;
+    color:var(--text);
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 14px;
+    min-height:44px;
+    cursor:pointer;
+  }
+  button:active{background:var(--line);}
+  button.primary{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:#221a0c;
+    font-weight:600;
+  }
+  button.primary:active{background:var(--accent-dim);}
+  button.small{
+    padding:6px 10px;
+    min-height:36px;
+    font-size:13px;
+  }
+  button.danger{color:var(--danger);border-color:var(--danger);background:transparent;}
+  button:disabled{opacity:0.4;cursor:not-allowed;}
+
+  .layout{
+    display:flex;
+    flex-direction:column;
+    max-width:1200px;
+    margin:0 auto;
+  }
+  @media (min-width:900px){
+    .layout{
+      flex-direction:row;
+      align-items:flex-start;
+    }
+    .controls{
+      width:400px;
+      flex-shrink:0;
+      max-height:calc(100vh - 70px);
+      overflow-y:auto;
+      position:sticky;
+      top:0;
+    }
+    .views{flex:1;}
+  }
+
+  .controls{padding:12px 16px 40px;}
+  .views{padding:12px 16px 40px;}
+
+  .preset-row{
+    display:flex;
+    gap:8px;
+    overflow-x:auto;
+    padding-bottom:10px;
+    margin-bottom:6px;
+    border-bottom:1px solid var(--line);
+  }
+  .preset-row button{white-space:nowrap;}
+
+  details{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    margin-bottom:10px;
+    overflow:hidden;
+  }
+  details summary{
+    padding:12px 14px;
+    font-weight:600;
+    font-size:14px;
+    cursor:pointer;
+    list-style:none;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  details summary::-webkit-details-marker{display:none;}
+  details summary::after{
+    content:'+';
+    color:var(--text-dim);
+    font-size:18px;
+  }
+  details[open] summary::after{content:'\2212';}
+  .group-body{padding:2px 14px 14px;}
+
+  .row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 0;
+  }
+  .row label{
+    flex:1.3;
+    font-size:13px;
+    color:var(--text-dim);
+  }
+  .row input[type=range]{
+    flex:2;
+    width:100%;
+    height:32px;
+    accent-color:var(--accent);
+    min-width:0;
+  }
+  .row .unit{
+    width:14px;
+    font-size:12px;
+    color:var(--text-dim);
+    flex-shrink:0;
+  }
+  input.numbox{
+    width:56px;
+    flex-shrink:0;
+    font:inherit;
+    font-variant-numeric:tabular-nums;
+    background:var(--panel-2);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:6px 4px;
+    text-align:center;
+    min-height:36px;
+  }
+  select{
+    font:inherit;
+    background:var(--panel-2);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:8px 10px;
+    min-height:40px;
+  }
+  .select-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:8px 0;
+  }
+  .select-row label{flex:1;font-size:13px;color:var(--text-dim);}
+
+  .seed-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:8px 0;
+  }
+  .seed-row .val{flex:1;font-size:13px;color:var(--text-dim);}
+
+  .band-card{
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:10px 12px;
+    margin-bottom:12px;
+    background:var(--panel-2);
+  }
+  .band-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:4px;
+    font-size:13px;
+    font-weight:600;
+  }
+  .band-card .row label{flex:1;}
+  input.hexbox{
+    width:82px;
+    font:inherit;
+    background:var(--panel);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:6px 8px;
+    min-height:36px;
+    text-align:center;
+    text-transform:lowercase;
+  }
+  input[type=color]{
+    width:40px;
+    height:36px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:0;
+    background:none;
+    flex-shrink:0;
+  }
+  #addBandBtn{width:100%;margin-top:2px;}
+
+  .view-block{margin-bottom:22px;}
+  .view-block h2{
+    font-size:13px;
+    text-transform:none;
+    color:var(--text-dim);
+    font-weight:600;
+    margin:0 0 8px;
+  }
+  #previewWrap{
+    display:flex;
+    justify-content:center;
+    background:radial-gradient(circle at 50% 40%,#1b2230,#0a0c10 75%);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px;
+  }
+  #previewCanvas{
+    width:100%;
+    max-width:360px;
+    aspect-ratio:1/1;
+    display:block;
+  }
+  #textureScroll{
+    overflow-x:auto;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px;
+  }
+  #textureCanvas{
+    display:block;
+    height:64px;
+    width:100%;
+    border-radius:2px;
+  }
+  .texture-meta{
+    font-size:12px;
+    color:var(--text-dim);
+    margin-top:8px;
+  }
+  .hint{
+    font-size:12px;
+    color:var(--text-dim);
+    margin:6px 0 0;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>SFS Ring Texture Generator</h1>
+    <div class="sub">Radial ring strip · left = inner edge, right = outer edge</div>
+  </div>
+  <div class="actions">
+    <button id="randomizeBtn">Randomize</button>
+    <button id="downloadBtn" class="primary">Download PNG</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <div class="controls">
+    <div class="preset-row" id="presetRow"></div>
+    <div id="shapeGroupHost"></div>
+
+    <details open>
+      <summary>Ring Bands</summary>
+      <div class="group-body">
+        <div id="bandsHost"></div>
+        <button id="addBandBtn" class="small">Add band</button>
+        <p class="hint">Up to 4 hand-placed bands. Position and Size are percentages of the space between the inner and outer edge above. Bands later in the list are drawn on top when they overlap.</p>
+      </div>
+    </details>
+
+    <div id="colorGroupHost"></div>
+
+    <details open>
+      <summary>Output</summary>
+      <div class="group-body">
+        <div class="select-row">
+          <label for="resolutionSel">Resolution (width)</label>
+          <select id="resolutionSel"></select>
+        </div>
+        <div class="select-row">
+          <label for="thicknessSel">Texture height</label>
+          <select id="thicknessSel"></select>
+        </div>
+        <div class="seed-row">
+          <span class="val">Grain seed: <span id="seedVal">0</span></span>
+          <button class="small" id="seedRandBtn">New seed</button>
+        </div>
+        <p class="hint">Height is repeated identically on every row — SFS stretches this strip around the planet, so only the width (radius) carries detail. The preview below always fits the panel, so raising resolution just sharpens the exported file — it won't change how big the pattern looks here. Use height 1 for the final export.</p>
+      </div>
+    </details>
+  </div>
+
+  <div class="views">
+    <div class="view-block">
+      <h2>Top-down preview</h2>
+      <div id="previewWrap">
+        <canvas id="previewCanvas" width="640" height="640"></canvas>
+      </div>
+    </div>
+    <div class="view-block">
+      <h2>Texture (exported file)</h2>
+      <div id="textureScroll" class="checker">
+        <canvas id="textureCanvas"></canvas>
+      </div>
+      <div class="texture-meta" id="textureMeta"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- small math helpers ---------- */
+  function clamp01(v){ return v<0?0:(v>1?1:v); }
+  function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+  function smoothstep(edge0,edge1,x){
+    if(edge1<=edge0) return x<edge0?0:1;
+    var t = clamp01((x-edge0)/(edge1-edge0));
+    return t*t*(3-2*t);
+  }
+
+  function mulberry32(seed){
+    var a = seed >>> 0;
+    return function(){
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function hash1D(x,seed){
+    var h = (x*374761393 + seed*668265263) | 0;
+    h = (h ^ (h >>> 13)) * 1274126177;
+    h = h ^ (h >>> 16);
+    return ((h >>> 0) % 100000) / 100000;
+  }
+
+  function hexToRgb(hex){
+    var h = hex.replace('#','');
+    if(h.length===3) h = h.split('').map(function(c){return c+c;}).join('');
+    var num = parseInt(h,16);
+    return [((num>>16)&255)/255, ((num>>8)&255)/255, (num&255)/255];
+  }
+  function rgbToHex(r,g,b){
+    function c(v){ var s=Math.round(clamp01(v)*255).toString(16); return s.length===1?'0'+s:s; }
+    return '#'+c(r)+c(g)+c(b);
+  }
+  function rgbToHsl(r,g,b){
+    var max=Math.max(r,g,b), min=Math.min(r,g,b);
+    var h,s,l=(max+min)/2;
+    if(max===min){ h=0; s=0; }
+    else{
+      var d=max-min;
+      s = l>0.5 ? d/(2-max-min) : d/(max+min);
+      switch(max){
+        case r: h=(g-b)/d+(g<b?6:0); break;
+        case g: h=(b-r)/d+2; break;
+        default: h=(r-g)/d+4;
+      }
+      h*=60;
+    }
+    return [h,s,l];
+  }
+  function hslToRgb(h,s,l){
+    h = ((h%360)+360)%360;
+    if(s===0){ return [l,l,l]; }
+    var q = l<0.5 ? l*(1+s) : l+s-l*s;
+    var p = 2*l-q;
+    function hue2rgb(p,q,t){
+      if(t<0) t+=1;
+      if(t>1) t-=1;
+      if(t<1/6) return p+(q-p)*6*t;
+      if(t<1/2) return q;
+      if(t<2/3) return p+(q-p)*(2/3-t)*6;
+      return p;
+    }
+    var hk = h/360;
+    return [
+      hue2rgb(p,q,hk+1/3),
+      hue2rgb(p,q,hk),
+      hue2rgb(p,q,hk-1/3)
+    ];
+  }
+
+  /* ---------- state ---------- */
+  var CONTROL_GROUPS = [
+    { id:'shape', title:'Ring Shape', controls:[
+      { key:'spreadStart', label:'Inner edge', min:0, max:95, step:1, def:5, unit:'%' },
+      { key:'spreadEnd',   label:'Outer edge', min:5, max:100, step:1, def:95, unit:'%' },
+      { key:'innerFade',   label:'Inner fade', min:0, max:100, step:1, def:25, unit:'%' },
+      { key:'outerFade',   label:'Outer fade', min:0, max:100, step:1, def:25, unit:'%' }
+    ]},
+    { id:'color', title:'Color Grading', controls:[
+      { key:'hue',        label:'Hue shift',      min:-180, max:180, step:1, def:0,   unit:'°' },
+      { key:'saturation', label:'Saturation',     min:0, max:200, step:1, def:100, unit:'%' },
+      { key:'contrast',   label:'Contrast',       min:0, max:200, step:1, def:100, unit:'%' },
+      { key:'brightness', label:'Brightness',     min:0, max:200, step:1, def:100, unit:'%' },
+      { key:'grain',      label:'Grain',          min:0, max:100, step:1, def:18,  unit:'%' },
+      { key:'opacity',    label:'Master opacity', min:0, max:100, step:1, def:100, unit:'%' }
+    ]}
+  ];
+
+  var RES_OPTIONS = [128,256,512,1024,2048,4096,8192];
+  var THICK_OPTIONS = [1,2,4,8,16,32,64,128];
+  var MAX_BANDS = 4, MIN_BANDS = 1;
+
+  var PRESETS = [
+    { name:'Pale Halo',
+      bands:[ {start:8,width:80,feather:55,color:'#dfe6ec'} ],
+      shape:{ spreadStart:6, spreadEnd:94, innerFade:35, outerFade:45 },
+      color:{ hue:0, saturation:70, contrast:100, brightness:105, grain:12, opacity:100 } },
+    { name:'Twin Gold Rings',
+      bands:[ {start:6,width:28,feather:30,color:'#e8c988'}, {start:48,width:34,feather:35,color:'#9c7a3f'} ],
+      shape:{ spreadStart:5, spreadEnd:92, innerFade:20, outerFade:35 },
+      color:{ hue:0, saturation:110, contrast:110, brightness:100, grain:22, opacity:100 } },
+    { name:'Icy Twin Bands',
+      bands:[ {start:5,width:22,feather:60,color:'#eef3f7'}, {start:40,width:45,feather:55,color:'#b9cbd6'} ],
+      shape:{ spreadStart:5, spreadEnd:95, innerFade:25, outerFade:40 },
+      color:{ hue:0, saturation:60, contrast:95, brightness:105, grain:8, opacity:100 } },
+    { name:'Vivid Single Band',
+      bands:[ {start:15,width:65,feather:40,color:'#7dd3fc'} ],
+      shape:{ spreadStart:10, spreadEnd:90, innerFade:20, outerFade:20 },
+      color:{ hue:0, saturation:140, contrast:120, brightness:105, grain:10, opacity:100 } },
+    { name:'Dusty Debris',
+      bands:[ {start:5,width:40,feather:15,color:'#8a7a63'}, {start:55,width:35,feather:20,color:'#3c352c'} ],
+      shape:{ spreadStart:4, spreadEnd:96, innerFade:15, outerFade:15 },
+      color:{ hue:0, saturation:90, contrast:105, brightness:95, grain:55, opacity:100 } }
+  ];
+
+  var state = {
+    resolution:1024, thickness:32, seed:(Date.now()%1000000)|0,
+    bands:[
+      { start:8, width:35, feather:35, color:'#d8c9a3' },
+      { start:55, width:35, feather:35, color:'#8f7a55' }
+    ]
+  };
+  CONTROL_GROUPS.forEach(function(g){
+    g.controls.forEach(function(c){ state[c.key] = c.def; });
+  });
+
+  /* ---------- ring generation ---------- */
+  function buildRingFloatData(s){
+    var W = s.resolution;
+    var spreadStart = s.spreadStart/100;
+    var spreadEnd = s.spreadEnd/100;
+    if(spreadEnd <= spreadStart) spreadEnd = spreadStart + 0.001;
+    var rangeWidth = spreadEnd - spreadStart;
+    var innerFadeFrac = s.innerFade/100;
+    var outerFadeFrac = s.outerFade/100;
+    var grainFrac = s.grain/100;
+
+    var bandsRgb = s.bands.map(function(b){ return hexToRgb(b.color); });
+
+    var data = new Float32Array(W*4);
+
+    for(var x=0;x<W;x++){
+      var t = W>1 ? x/(W-1) : 0;
+      var r=0,g=0,b=0,a=0;
+      if(t>=spreadStart && t<=spreadEnd){
+        var uPct = ((t-spreadStart)/rangeWidth)*100;
+
+        for(var bi=0; bi<s.bands.length; bi++){
+          var band = s.bands[bi];
+          var segStart = band.start, segEnd = band.start+band.width;
+          if(segEnd<=segStart) continue;
+          var segW = segEnd-segStart;
+          var featherAmt = Math.max(1e-4, segW*(band.feather/100)*0.5);
+          var distIn = uPct-segStart, distOut = segEnd-uPct;
+          var bandAlpha = Math.min(smoothstep(0,featherAmt,distIn), smoothstep(0,featherAmt,distOut));
+          if(bandAlpha<=0) continue;
+
+          var bc = bandsRgb[bi];
+          var outA = bandAlpha + a*(1-bandAlpha);
+          if(outA>0){
+            r = (bc[0]*bandAlpha + r*a*(1-bandAlpha))/outA;
+            g = (bc[1]*bandAlpha + g*a*(1-bandAlpha))/outA;
+            b = (bc[2]*bandAlpha + b*a*(1-bandAlpha))/outA;
+          }
+          a = outA;
+        }
+
+        if(a>0){
+          var n = (hash1D(x, s.seed)*2-1);
+          r = clamp01(r + n*grainFrac*0.5);
+          g = clamp01(g + n*grainFrac*0.5);
+          b = clamp01(b + n*grainFrac*0.5);
+          a *= (1 - grainFrac*0.3*Math.abs(n));
+          var fadeIn = smoothstep(0, Math.max(1e-4, innerFadeFrac*rangeWidth), t-spreadStart);
+          var fadeOut = smoothstep(0, Math.max(1e-4, outerFadeFrac*rangeWidth), spreadEnd-t);
+          a *= fadeIn*fadeOut;
+        }
+      }
+      data[x*4]=r; data[x*4+1]=g; data[x*4+2]=b; data[x*4+3]=clamp01(a);
+    }
+    return data;
+  }
+
+  function applyGlobalAdjustments(data,s){
+    var satMul = s.saturation/100;
+    var conMul = s.contrast/100;
+    var briMul = s.brightness/100;
+    var opMul = s.opacity/100;
+    var hue = s.hue;
+    for(var i=0;i<data.length;i+=4){
+      var a = data[i+3];
+      if(a<=0){ data[i+3]=0; continue; }
+      var hsl = rgbToHsl(data[i],data[i+1],data[i+2]);
+      var h = hsl[0]+hue;
+      var sat = clamp01(hsl[1]*satMul);
+      var l = clamp01(hsl[2]*briMul);
+      var rgb = hslToRgb(h,sat,l);
+      var r = clamp01((rgb[0]-0.5)*conMul+0.5);
+      var g = clamp01((rgb[1]-0.5)*conMul+0.5);
+      var b = clamp01((rgb[2]-0.5)*conMul+0.5);
+      data[i]=r; data[i+1]=g; data[i+2]=b;
+      data[i+3]=clamp01(a*opMul);
+    }
+  }
+
+  function floatToImageData(data,W){
+    var arr = new Uint8ClampedArray(W*4);
+    for(var i=0;i<data.length;i++){ arr[i] = Math.round(data[i]*255); }
+    return new ImageData(arr,W,1);
+  }
+
+  /* ---------- rendering ---------- */
+  var textureCanvas = document.getElementById('textureCanvas');
+  var previewCanvas = document.getElementById('previewCanvas');
+  var textureMeta = document.getElementById('textureMeta');
+
+  function regenerate(){
+    var W = state.resolution;
+    var data = buildRingFloatData(state);
+    applyGlobalAdjustments(data,state);
+
+    var srcCanvas = document.createElement('canvas');
+    srcCanvas.width = W; srcCanvas.height = 1;
+    var srcCtx = srcCanvas.getContext('2d');
+    srcCtx.putImageData(floatToImageData(data,W),0,0);
+
+    textureCanvas.width = W;
+    textureCanvas.height = state.thickness;
+    var tctx = textureCanvas.getContext('2d');
+    tctx.imageSmoothingEnabled = false;
+    tctx.clearRect(0,0,W,state.thickness);
+    tctx.drawImage(srcCanvas,0,0,W,1,0,0,W,state.thickness);
+    updateTextureDisplay(W);
+    textureMeta.textContent = W+' x '+state.thickness+' px';
+
+    renderPreview(data,W);
+  }
+
+  var textureScroll = document.getElementById('textureScroll');
+  function updateTextureDisplay(W){
+    // Keep the preview at a constant on-screen size: raising resolution should
+    // add detail to the pattern, not stretch it off-screen. Below the
+    // container's width we show it pixel-for-pixel (crisp, scrollable if it
+    // ever slightly overflows); above it we scale down to fit, which reads as
+    // a smoother, more detailed render rather than "more empty space".
+    var containerWidth = Math.max(100, textureScroll.clientWidth - 20);
+    if(W <= containerWidth){
+      textureCanvas.style.width = W + 'px';
+      textureCanvas.style.imageRendering = 'pixelated';
+    } else {
+      textureCanvas.style.width = '100%';
+      textureCanvas.style.imageRendering = 'auto';
+    }
+  }
+
+  function renderPreview(data,W){
+    var ctx = previewCanvas.getContext('2d');
+    var cw = previewCanvas.width, ch = previewCanvas.height;
+    ctx.clearRect(0,0,cw,ch);
+    var cx = cw/2, cy = ch/2;
+    var maxR = Math.min(cw,ch)/2 - 6;
+    var planetR = maxR*0.32;
+    var ringOuterR = maxR;
+    var ringInnerR = planetR*1.02;
+
+    var maxStops = 200;
+    var stepCount = Math.min(maxStops, W);
+    var grad = ctx.createRadialGradient(cx,cy,ringInnerR,cx,cy,ringOuterR);
+    for(var i=0;i<=stepCount;i++){
+      var frac = i/stepCount;
+      var x = Math.min(W-1, Math.round(frac*(W-1)));
+      var r = data[x*4], g = data[x*4+1], b = data[x*4+2], a = data[x*4+3];
+      grad.addColorStop(frac, 'rgba('+Math.round(r*255)+','+Math.round(g*255)+','+Math.round(b*255)+','+a.toFixed(3)+')');
+    }
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx,cy,ringOuterR,0,Math.PI*2);
+    ctx.fill();
+
+    var planetGrad = ctx.createRadialGradient(cx-planetR*0.35,cy-planetR*0.35,planetR*0.1,cx,cy,planetR);
+    planetGrad.addColorStop(0,'#5a6472');
+    planetGrad.addColorStop(1,'#20242c');
+    ctx.fillStyle = planetGrad;
+    ctx.beginPath();
+    ctx.arc(cx,cy,planetR,0,Math.PI*2);
+    ctx.fill();
+  }
+
+  function downloadTexture(){
+    var link = document.createElement('a');
+    link.download = 'sfs_ring_texture.png';
+    link.href = textureCanvas.toDataURL('image/png');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  /* ---------- shared slider+numberbox row builder ---------- */
+  function buildSliderRow(container, opts){
+    var row = document.createElement('div');
+    row.className = 'row';
+
+    var label = document.createElement('label');
+    label.textContent = opts.label;
+    label.setAttribute('for', opts.id);
+
+    var input = document.createElement('input');
+    input.type = 'range';
+    input.id = opts.id;
+    input.min = opts.min; input.max = opts.max; input.step = opts.step;
+    input.value = opts.value;
+
+    var numBox = document.createElement('input');
+    numBox.type = 'number';
+    numBox.className = 'numbox';
+    numBox.min = opts.min; numBox.max = opts.max; numBox.step = opts.step;
+    numBox.value = opts.value;
+
+    var unit = document.createElement('span');
+    unit.className = 'unit';
+    unit.textContent = opts.unit || '';
+
+    function commit(v, fromNum){
+      v = Number(v);
+      if(Number.isNaN(v)) v = opts.value;
+      // Typing a value outside the slider's current range extends the range
+      // to fit it, rather than silently clamping back — the whole point of
+      // the number box is to let you go past what the slider was set up for.
+      if(v > opts.max){ opts.max = v; input.max = v; numBox.max = v; }
+      if(v < opts.min){ opts.min = v; input.min = v; numBox.min = v; }
+      input.value = v;
+      numBox.value = v;
+      opts.value = v;
+      opts.onChange(v);
+    }
+
+    input.addEventListener('input', function(){ commit(input.value); });
+    numBox.addEventListener('change', function(){ commit(numBox.value, true); });
+    numBox.addEventListener('keydown', function(e){
+      if(e.key==='Enter'){ commit(numBox.value, true); numBox.blur(); }
+    });
+
+    row.appendChild(label);
+    row.appendChild(input);
+    row.appendChild(numBox);
+    row.appendChild(unit);
+    container.appendChild(row);
+
+    return {
+      set:function(v){
+        if(v > opts.max){ opts.max = v; input.max = v; numBox.max = v; }
+        if(v < opts.min){ opts.min = v; input.min = v; numBox.min = v; }
+        input.value=v; numBox.value=v; opts.value=v;
+      }
+    };
+  }
+
+  /* ---------- generic control groups (Ring Shape, Color Grading) ---------- */
+  var shapeGroupHost = document.getElementById('shapeGroupHost');
+  var colorGroupHost = document.getElementById('colorGroupHost');
+
+  function buildGroupsUI(){
+    CONTROL_GROUPS.forEach(function(group){
+      var det = document.createElement('details');
+      det.open = true;
+      var sum = document.createElement('summary');
+      sum.textContent = group.title;
+      det.appendChild(sum);
+      var body = document.createElement('div');
+      body.className = 'group-body';
+
+      group.controls.forEach(function(c){
+        c._ctl = buildSliderRow(body, {
+          id:'ctl_'+c.key, label:c.label, min:c.min, max:c.max, step:c.step,
+          value:state[c.key], unit:c.unit,
+          onChange:function(v){ state[c.key]=v; regenerate(); }
+        });
+      });
+
+      det.appendChild(body);
+      if(group.id==='shape') shapeGroupHost.appendChild(det);
+      else colorGroupHost.appendChild(det);
+    });
+  }
+
+  function syncGroupsUI(){
+    CONTROL_GROUPS.forEach(function(group){
+      group.controls.forEach(function(c){ c._ctl.set(state[c.key]); });
+    });
+  }
+
+  /* ---------- ring band cards ---------- */
+  var bandsHost = document.getElementById('bandsHost');
+  var addBandBtn = document.getElementById('addBandBtn');
+
+  function randomBandColor(rng){
+    var h = rng()*360, s = 0.3+rng()*0.4, l = 0.35+rng()*0.35;
+    var rgb = hslToRgb(h,s,l);
+    return rgbToHex(rgb[0],rgb[1],rgb[2]);
+  }
+
+  function defaultNewBand(){
+    var rng = mulberry32(Date.now()%2147483647);
+    var lastEnd = state.bands.length ?
+      (state.bands[state.bands.length-1].start + state.bands[state.bands.length-1].width) : 0;
+    var start = clamp(lastEnd+8, 0, 90);
+    return { start:start, width:25, feather:35, color:randomBandColor(rng) };
+  }
+
+  function buildBandsUI(){
+    bandsHost.innerHTML = '';
+    state.bands.forEach(function(band, idx){
+      var card = document.createElement('div');
+      card.className = 'band-card';
+
+      var head = document.createElement('div');
+      head.className = 'band-head';
+      var title = document.createElement('span');
+      title.textContent = 'Band '+(idx+1);
+      head.appendChild(title);
+      if(state.bands.length>MIN_BANDS){
+        var rm = document.createElement('button');
+        rm.className = 'small danger';
+        rm.textContent = 'Remove';
+        rm.addEventListener('click', function(){
+          state.bands.splice(idx,1);
+          buildBandsUI();
+          regenerate();
+        });
+        head.appendChild(rm);
+      }
+      card.appendChild(head);
+
+      buildSliderRow(card, { id:'band'+idx+'_start', label:'Position', min:0, max:100, step:1,
+        value:band.start, unit:'%', onChange:function(v){ band.start=v; regenerate(); } });
+      buildSliderRow(card, { id:'band'+idx+'_width', label:'Size', min:1, max:100, step:1,
+        value:band.width, unit:'%', onChange:function(v){ band.width=v; regenerate(); } });
+      buildSliderRow(card, { id:'band'+idx+'_feather', label:'Edge feather', min:0, max:100, step:1,
+        value:band.feather, unit:'%', onChange:function(v){ band.feather=v; regenerate(); } });
+
+      var colorRow = document.createElement('div');
+      colorRow.className = 'row';
+      var colorLabel = document.createElement('label');
+      colorLabel.textContent = 'Color';
+      var colorInput = document.createElement('input');
+      colorInput.type = 'color';
+      colorInput.value = band.color;
+      var hexInput = document.createElement('input');
+      hexInput.type = 'text';
+      hexInput.className = 'hexbox';
+      hexInput.value = band.color;
+
+      colorInput.addEventListener('input', function(){
+        band.color = colorInput.value;
+        hexInput.value = colorInput.value;
+        regenerate();
+      });
+      hexInput.addEventListener('change', function(){
+        var v = hexInput.value.trim();
+        if(/^#?[0-9a-fA-F]{6}$/.test(v)){
+          if(v[0]!=='#') v = '#'+v;
+          band.color = v; colorInput.value = v;
+          regenerate();
+        } else {
+          hexInput.value = band.color;
+        }
+      });
+
+      colorRow.appendChild(colorLabel);
+      colorRow.appendChild(colorInput);
+      colorRow.appendChild(hexInput);
+      card.appendChild(colorRow);
+
+      bandsHost.appendChild(card);
+    });
+    addBandBtn.disabled = state.bands.length>=MAX_BANDS;
+  }
+
+  addBandBtn.addEventListener('click', function(){
+    if(state.bands.length>=MAX_BANDS) return;
+    state.bands.push(defaultNewBand());
+    buildBandsUI();
+    regenerate();
+  });
+
+  /* ---------- output selects ---------- */
+  var resolutionSel = document.getElementById('resolutionSel');
+  var thicknessSel = document.getElementById('thicknessSel');
+  RES_OPTIONS.forEach(function(v){
+    var opt = document.createElement('option');
+    opt.value = v; opt.textContent = v+' px';
+    if(v===state.resolution) opt.selected = true;
+    resolutionSel.appendChild(opt);
+  });
+  THICK_OPTIONS.forEach(function(v){
+    var opt = document.createElement('option');
+    opt.value = v; opt.textContent = v+' px';
+    if(v===state.thickness) opt.selected = true;
+    thicknessSel.appendChild(opt);
+  });
+  resolutionSel.addEventListener('change', function(){
+    state.resolution = Number(resolutionSel.value);
+    regenerate();
+  });
+  thicknessSel.addEventListener('change', function(){
+    state.thickness = Number(thicknessSel.value);
+    regenerate();
+  });
+
+  var seedVal = document.getElementById('seedVal');
+  function newSeed(){
+    state.seed = Math.floor(Math.random()*1000000);
+    seedVal.textContent = state.seed;
+    regenerate();
+  }
+  document.getElementById('seedRandBtn').addEventListener('click', newSeed);
+
+  document.getElementById('randomizeBtn').addEventListener('click', function(){
+    CONTROL_GROUPS.forEach(function(group){
+      if(group.id==='shape') return;
+      group.controls.forEach(function(c){
+        var span = c.max-c.min;
+        var v = c.min + Math.random()*span;
+        state[c.key] = Math.round(v/c.step)*c.step;
+      });
+    });
+
+    var rng = mulberry32(Date.now()%2147483647);
+    var count = 1 + Math.floor(rng()*2); // 1-2 bands: more looks unnatural
+    var bands = [];
+    var cursor = Math.round(rng()*15);
+    for(var i=0;i<count;i++){
+      var width = Math.round(20+rng()*50);
+      var feather = Math.round(20+rng()*50);
+      bands.push({ start:clamp(cursor,0,95), width:width, feather:feather, color:randomBandColor(rng) });
+      cursor += width + Math.round(10+rng()*20);
+    }
+    state.bands = bands;
+
+    syncGroupsUI();
+    buildBandsUI();
+    newSeed();
+  });
+
+  document.getElementById('downloadBtn').addEventListener('click', downloadTexture);
+
+  /* ---------- presets ---------- */
+  var presetRow = document.getElementById('presetRow');
+  PRESETS.forEach(function(preset){
+    var btn = document.createElement('button');
+    btn.className = 'small';
+    btn.textContent = preset.name;
+    btn.addEventListener('click', function(){
+      Object.keys(preset.shape).forEach(function(k){ state[k] = preset.shape[k]; });
+      Object.keys(preset.color).forEach(function(k){ state[k] = preset.color[k]; });
+      state.bands = preset.bands.map(function(b){ return { start:b.start, width:b.width, feather:b.feather, color:b.color }; });
+      syncGroupsUI();
+      buildBandsUI();
+      regenerate();
+    });
+    presetRow.appendChild(btn);
+  });
+
+  /* ---------- init ---------- */
+  buildGroupsUI();
+  buildBandsUI();
+  seedVal.textContent = state.seed;
+  regenerate();
+
+})();
+</script>
+</body>
+</html>
