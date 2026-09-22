@@ -434,7 +434,7 @@
       <span class="arr">›</span>
     </button>
     <button class="menu-btn menu-btn-create-tex" onclick="goCreateTextures()">
-      <span class="mico"><svg class="icon"><use href="#icon-palette"></use></svg></span>CREATE TEXTURES
+      <span class="mico"><svg class="icon"><use href="#icon-palette"></use></svg></span>CREATE TEXTURES<span class="menu-new-badge" id="menu-tex-new-badge" title="New tools added">!</span>
       <span class="arr">›</span>
     </button>
     <button class="menu-btn" onclick="goFeatured()">
@@ -826,7 +826,7 @@
           <button class="fs-btn fs-btn-dl" onclick="trackFeatured('co','import');importFeatured('featured/CO.zip','CO.zip')">⬇ IMPORT</button>
           <button class="fs-btn fs-btn-open" onclick="trackFeatured('co','open');loadZipFromUrl('featured/CO.zip','CO.zip')">▶ OPEN IN EDITOR</button>
         </div>
-        <div class="fs-card-stats" id="fsstats-pg">
+        <div class="fs-card-stats" id="fsstats-co">
           <span class="fs-stat">⬇ <span class="fs-stat-num fs-stat-loading" id="fsn-co-import">…</span> imports</span>
           <span class="fs-stat">▶ <span class="fs-stat-num fs-stat-loading" id="fsn-co-open">…</span> opens</span>
           <span class="fs-stat fs-stat-size"><svg class="icon"><use href="#icon-package"></use></svg> <span class="fs-stat-num fs-stat-loading" id="fssz-co">…</span> MB</span>
@@ -7496,7 +7496,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const SB_KEY = 'sb_publishable_7UarYndVEPrKEg3qFrfevQ_jbMh3dbI';
   const HEADERS = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
 
-  const KEYS = ['sfs-default', 'bgh', 'htss', 'ys', 'ch', 'rs', 'pg'];
+  const KEYS = ['sfs-default', 'bgh', 'htss', 'ys', 'ch', 'rs', 'pg', 'co'];
   const ACTS = ['import', 'open'];
 
   const ZIP_URLS = {
@@ -7507,6 +7507,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'ch':          'featured/CH.zip',
     'rs':          'featured/RS.zip',
     'pg':          'featured/PG.zip',
+    'co':          'featured/CO.zip',
   };
 
   // ── Increment via RPC and update display ──

@@ -1474,9 +1474,23 @@ const TC = (() => {
 })();
 
 // ── Main menu "Create Textures" navigation ────────────────────────
+// A one-time red "!" badge (see index.html) flags the new Cloud/Ring/
+// Gas Giant/Polar Transformer/Batch Variator tools added to this menu.
+// It clears itself, permanently, the first time the menu is opened.
 function goCreateTextures(){
   document.getElementById('s-start-main-nav').style.display  = 'none';
   document.getElementById('s-start-create-nav').style.display = '';
+  const badge = document.getElementById('menu-tex-new-badge');
+  if (badge) badge.remove();
+  localStorage.setItem('sfs_texmenu_new_seen', '1');
+}
+
+// Hide the badge on load too, in case it was already seen in a past session.
+if (localStorage.getItem('sfs_texmenu_new_seen') === '1') {
+  document.addEventListener('DOMContentLoaded', () => {
+    const badge = document.getElementById('menu-tex-new-badge');
+    if (badge) badge.remove();
+  });
 }
 
 function goCreateTexturesBack(){

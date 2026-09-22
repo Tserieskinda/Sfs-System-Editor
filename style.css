@@ -94,6 +94,20 @@
   vertical-align: middle;
 }
 
+.menu-new-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; margin-left: 8px;
+  border-radius: 50%; background: #ff3b3b; color: #fff;
+  font-size: .62rem; font-weight: 800; line-height: 1;
+  vertical-align: middle; flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(255,59,59,.22);
+  animation: menuNewBadgePulse 1.8s ease-in-out infinite;
+}
+@keyframes menuNewBadgePulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(255,59,59,.22); }
+  50%      { box-shadow: 0 0 0 5px rgba(255,59,59,0); }
+}
+
 body {
   font-family: system-ui, -apple-system, sans-serif;
   background: var(--void);
@@ -2878,7 +2892,12 @@ body.pseudo-fullscreen {
   #s-start {
     overflow-y: auto;
     align-items: center;
-    justify-content: flex-start;
+    /* "safe center" keeps the menu vertically centred like desktop, but
+       falls back to top-alignment if the menu is ever taller than the
+       viewport — so it can't push content above the scrollable area.
+       (Plain `center` here was pinning the menu near the top of the
+       screen on most phones instead of centering it.) */
+    justify-content: safe center;
     padding: 32px 16px 32px;
   }
 }
