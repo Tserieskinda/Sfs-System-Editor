@@ -6150,9 +6150,20 @@ document.addEventListener('keydown', function(e){
             </label>
             <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
               letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:6px">
-              <input type="checkbox" id="wmk-terrain-circle" onchange="wmkRenderFinal()" style="accent-color:rgba(100,160,255,.8);width:14px;height:14px">
-              TERRAIN CIRCLE
+              <input type="checkbox" id="wmk-circle-clip" checked onchange="wmkOnClipToggle()" style="accent-color:rgba(100,160,255,.8);width:14px;height:14px">
+              CLIP TO CIRCLE
             </label>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.44rem;color:rgba(120,140,180,.45);
+              letter-spacing:.03em;margin:-2px 0 2px 22px">Only the circle inscribed in this square is ever visible on the
+              sphere — the corners outside it get forced to black.</div>
+            <label style="font-family:'JetBrains Mono',monospace;font-size:.45rem;color:rgba(120,140,180,.6);
+              letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:6px">
+              <input type="checkbox" id="wmk-circle-as-land" checked onchange="wmkQueueApply()" style="accent-color:rgba(100,160,255,.8);width:14px;height:14px">
+              OUTSIDE CIRCLE ACTS AS LAND
+            </label>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.44rem;color:rgba(120,140,180,.45);
+              letter-spacing:.03em;margin:-2px 0 2px 22px">Lets the shore falloff spread inward from the circle's edge too,
+              not just from actual land — stops open ocean near the corners from reading as flat, unbroken deep water.</div>
           </div>
         </div>
 
@@ -7426,6 +7437,27 @@ document.addEventListener('DOMContentLoaded', () => {
     return dist;
   }
 
+  // Precomputed per-canvas-size: true for every pixel outside the circle
+  // inscribed in the square canvas (the part of the texture that never
+  // actually appears on the sphere). Cached because it only depends on
+  // canvas dimensions, not on the sea/land classification.
+  let wmkOutsideCircle = null, wmkOutsideCircleW = 0, wmkOutsideCircleH = 0;
+  function wmkGetOutsideCircle(w, h) {
+    if (wmkOutsideCircle && wmkOutsideCircleW === w && wmkOutsideCircleH === h) return wmkOutsideCircle;
+    const mask = new Uint8Array(w * h);
+    const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2;
+    const r2 = r * r;
+    for (let y = 0; y < h; y++) {
+      const dy = y + 0.5 - cy;
+      for (let x = 0; x < w; x++) {
+        const dx = x + 0.5 - cx;
+        mask[y * w + x] = (dx * dx + dy * dy > r2) ? 1 : 0;
+      }
+    }
+    wmkOutsideCircle = mask; wmkOutsideCircleW = w; wmkOutsideCircleH = h;
+    return mask;
+  }
+
   function wmkComputeCoastDist() {
     const cv = wmkGetCanvas(), w=cv.width, h=cv.height;
     // Two distance fields, one per side of the coastline:
@@ -7437,8 +7469,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // to the coastline and producing the "stretched shore" mismatch reported
     // against vanilla SFS textures (#planet-editing, land texture + water
     // mask both soften toward the same #7F7F7F boundary shade in-game).
-    wmkCoastDist = wmkChamferDist(i => !wmkSeaMask[i], w, h);
-    wmkLandDist  = wmkChamferDist(i => !!wmkSeaMask[i], w, h);
+    //
+    // When "outside circle acts as land" is on, the corner region outside
+    // the inscribed circle is folded into the land side of both distance
+    // fields as if it were solid land — this lets the shore falloff spread
+    // inward from the circle's edge as well as from real land, so open
+    // ocean sitting close to a corner doesn't get treated as though it were
+    // far from any coast and read as flat, unbroken deep water.
+    const treatOutsideAsLand = $('wmk-circle-as-land').checked;
+    const outside = treatOutsideAsLand ? wmkGetOutsideCircle(w, h) : null;
+    const isLand = outside
+      ? (i => !wmkSeaMask[i] || outside[i])
+      : (i => !wmkSeaMask[i]);
+    const isSea = outside
+      ? (i => !!wmkSeaMask[i] && !outside[i])
+      : (i => !!wmkSeaMask[i]);
+    wmkCoastDist = wmkChamferDist(isLand, w, h);
+    wmkLandDist  = wmkChamferDist(isSea, w, h);
   }
 
   window.wmkGenerate = function() {
@@ -7555,18 +7602,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const cv = wmkGetCanvas(), ctx=wmkGetCtx(), w=cv.width, h=cv.height;
     const preview=ctx.createImageData(w,h);
     const t=wmkGenerated.data, ed=wmkEditLayer?wmkEditLayer.data:null, out=preview.data;
-    for(let i=0;i<t.length;i+=4){
+    const clip = $('wmk-circle-clip').checked ? wmkGetOutsideCircle(w,h) : null;
+    for(let i=0,p=0;i<t.length;i+=4,p++){
       let v=t[i];
       if(ed&&ed[i+3]===255) v=ed[i];
+      if(clip && clip[p]) v=0; // outside the inscribed circle → forced black
       out[i]=out[i+1]=out[i+2]=v; out[i+3]=255;
     }
     ctx.putImageData(preview,0,0);
-    if($('wmk-terrain-circle').checked){
-      const cx=w/2,cy=h/2,r=Math.min(w,h)/2-1;
-      ctx.save();ctx.strokeStyle='rgba(0,0,0,.9)';ctx.lineWidth=2;
-      ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();ctx.restore();
-    }
   };
+
+  // The clip checkbox only changes the final render (no need to rerun the
+  // distance transform), but the "outside acts as land" checkbox changes
+  // the distance fields themselves, so it re-queues a full wmkApplyDepth
+  // via wmkQueueApply (wired directly on that checkbox's onchange instead).
+  window.wmkOnClipToggle = function() { wmkRenderFinal(); };
 
   // Canvas sampling click
   document.addEventListener('DOMContentLoaded', () => {
@@ -7619,20 +7669,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.wmkSave = function() {
     if (!wmkGenerated) { alert('Generate a watermask first.'); return; }
+    // wmkRenderFinal() has already painted the live canvas with the circle
+    // clip (outside → black) applied when that checkbox is on, so the
+    // exported PNG just needs a straight copy of the current canvas.
     const cv=wmkGetCanvas(), off=document.createElement('canvas');
     off.width=cv.width; off.height=cv.height;
-    const oc=off.getContext('2d');
-    oc.drawImage(cv,0,0);
-    if($('wmk-terrain-circle').checked){
-      const cx=off.width/2,cy=off.height/2,r=Math.min(off.width,off.height)/2-1;
-      const img=oc.getImageData(0,0,off.width,off.height);
-      const d=img.data,w=off.width,h=off.height;
-      for(let y=0;y<h;y++) for(let x=0;x<w;x++){
-        const dx=x-cx,dy=y-cy;
-        if(Math.sqrt(dx*dx+dy*dy)>r){const i=(y*w+x)*4;d[i]=d[i+1]=d[i+2]=255;}
-      }
-      oc.putImageData(img,0,0);
-    }
+    off.getContext('2d').drawImage(cv,0,0);
     off.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='sea-map.png';a.click();});
   };
 })();
