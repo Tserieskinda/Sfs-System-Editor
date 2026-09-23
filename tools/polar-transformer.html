@@ -211,25 +211,13 @@
         <div class="section-label">Output Adjustments</div>
 
         <div class="slider-row">
-            <label>H Shift: <span id="shiftLab">0</span>px</label>
-            <input type="range" id="hShift" min="-500" max="500" value="0">
+            <label>Seam Rotation: <span id="shiftLab">0</span>°</label>
+            <input type="range" id="hShift" min="-180" max="180" value="0" step="1">
         </div>
         <div class="checkbox-row">
             <label><input type="checkbox" id="flipH"> Flip Horizontal</label>
             <label><input type="checkbox" id="flipV" checked> Flip Vertical</label>
         </div>
-
-        <hr>
-        <div class="section-label">Game Texture Orientation</div>
-        <div class="checkbox-row">
-            <label><input type="checkbox" id="swapAxes" checked> Swap for Atmosphere/Cloud UV</label>
-        </div>
-        <p style="font-size:0.72rem; color:#718096; margin:0; line-height:1.4;">
-            SFS wraps atmosphere/cloud textures the opposite way round from a standard
-            unroll (angle runs down the image, not across it). Leave this on when the
-            output is going into an atmosphere or front-cloud texture, or the ring will
-            come out running top-to-bottom instead of wrapping around the planet.
-        </p>
 
         <hr>
         <div class="btn-grid">
@@ -340,8 +328,6 @@
             const maxSide = Math.max(img.width, img.height);
             document.getElementById('innerRadius').max = Math.round(maxSide / 2);
             document.getElementById('outerRadius').max = Math.round(maxSide);
-            document.getElementById('hShift').max =  img.width;
-            document.getElementById('hShift').min = -img.width;
             
             hasWarpResult = false;
             currentMode = null;
@@ -417,15 +403,16 @@
         
         const srcW = img.width, srcH = img.height;
         const scale  = parseFloat(document.getElementById('outputScale').value);
-        // Swap-axes (for SFS atmosphere/cloud UVs) puts angle on the vertical
-        // axis and radius on the horizontal axis, so the output canvas itself
-        // needs its dimensions swapped from the plain unroll case.
-        const doSwap = mode === 'unroll' && document.getElementById('swapAxes').checked;
-        const outW   = Math.round((doSwap ? srcH : srcW) * scale);
-        const outH   = Math.round((doSwap ? srcW : srcH) * scale);
+        const outW   = Math.round(srcW * scale);
+        const outH   = Math.round(srcH * scale);
         const rIn    = parseFloat(document.getElementById('innerRadius').value) * scale;
         const rOut   = parseFloat(document.getElementById('outerRadius').value) * scale;
-        const hShift = parseFloat(document.getElementById('hShift').value) * scale;
+        // Seam rotation is stored in degrees (image-size independent) and
+        // converted to a fraction of the full 360° wrap here, at the point
+        // of use, so it applies the same regardless of the source image's
+        // resolution — unlike a fixed pixel offset, which meant different
+        // amounts of rotation on differently-sized images.
+        const shiftFrac = parseFloat(document.getElementById('hShift').value) / 360;
         const doFlipH = document.getElementById('flipH').checked;
         const doFlipV = document.getElementById('flipV').checked;
 
@@ -455,21 +442,11 @@
                         let srcX, srcY;
                         
                         if (mode === 'unroll') {
-                            let angleFrac, radiusFrac;
-                            if (doSwap) {
-                                // Angle runs down the image (Y), radius runs across (X) —
-                                // matches how SFS wraps atmosphere/cloud textures.
-                                angleFrac  = pxY / outH;
-                                radiusFrac = pxX / outW;
-                            } else {
-                                // Standard unroll: angle across (X), radius down (Y).
-                                angleFrac  = pxX / outW;
-                                radiusFrac = pxY / outH;
-                            }
-                            const shiftFrac = hShift / (doSwap ? outH : outW);
                             // Offset by -PI/2 to start from the top
-                            const theta = (angleFrac + shiftFrac) * Math.PI * 2 - Math.PI / 2;
-                            const r = rIn + radiusFrac * (rOut - rIn);
+                            const theta = ((pxX / outW) + shiftFrac) * Math.PI * 2 - Math.PI / 2;
+                            
+                            // Vertically inverted mapping: sy=0 matches the inner radius
+                            const r = rIn + (pxY / outH) * (rOut - rIn);
                             
                             srcX = (cx + r * Math.cos(theta)) / scale;
                             srcY = (cy + r * Math.sin(theta)) / scale;
@@ -479,7 +456,7 @@
                             // Compensate the Unroll offset with +PI/2
                             const theta = Math.atan2(dY, dX) + Math.PI / 2;
                             
-                            const rawX = (theta / (Math.PI * 2)) * outW + hShift;
+                            const rawX = (theta / (Math.PI * 2) + shiftFrac) * outW;
                             srcX = (((rawX % outW) + outW) % outW) / scale;
                             
                             // Inverse mapping for proper re-rolling
@@ -604,7 +581,7 @@
         });
     });
 
-    ['flipH', 'flipV', 'swapAxes'].forEach(id => {
+    ['flipH', 'flipV'].forEach(id => {
         document.getElementById(id).addEventListener('change', () => {
             if (currentMode) runTransform(currentMode);
         });
