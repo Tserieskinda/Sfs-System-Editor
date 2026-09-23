@@ -102,6 +102,28 @@
       cursor: pointer;
       height: 24px;
     }
+    .ggSliderLine {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ggSliderLine input[type="range"] { flex: 1; }
+    .ggNumBox {
+      width: 60px;
+      flex-shrink: 0;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #fff;
+      padding: 5px 6px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      text-align: center;
+      outline: none;
+      -moz-appearance: textfield;
+    }
+    .ggNumBox::-webkit-outer-spin-button,
+    .ggNumBox::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .ggNumBox:focus { border-color: #38bdf8; }
     input[type="color"] {
       border: none;
       width: 36px;
@@ -1064,17 +1086,61 @@
     render(HIGH_RES_PREVIEW);
   });
 
+  // Wraps a range input with a synced number box the user can type an exact
+  // value into. Typing past the slider's current min/max extends it, same
+  // rationale as the ring generator's number boxes: the box exists so you
+  // can go past what the slider was originally set up for.
+  function attachNumberBox(el){
+    if(el.parentElement && el.parentElement.classList.contains('ggSliderLine')) {
+      return el.parentElement.querySelector('.ggNumBox');
+    }
+    const line = document.createElement('div');
+    line.className = 'ggSliderLine';
+    el.parentNode.insertBefore(line, el);
+    line.appendChild(el);
+    const numBox = document.createElement('input');
+    numBox.type = 'number';
+    numBox.className = 'ggNumBox';
+    numBox.min = el.min; numBox.max = el.max; numBox.step = el.step;
+    numBox.value = el.value;
+    line.appendChild(numBox);
+    return numBox;
+  }
+
   function bindRange(id, valId, key, suffix, isFloat, rebuildLUT = false){
     const el = document.getElementById(id);
     const valEl = document.getElementById(valId);
     if(!el) return;
+    const numBox = attachNumberBox(el);
+
+    function apply(v, fromNum){
+      if(Number.isNaN(v)) return;
+      if(v > parseFloat(el.max)){ el.max = v; numBox.max = v; }
+      if(v < parseFloat(el.min)){ el.min = v; numBox.min = v; }
+      el.value = v;
+      numBox.value = v;
+      S[key] = isFloat ? v : Math.round(v);
+      if(valEl) valEl.textContent = el.value + (suffix||'');
+      if(rebuildLUT) rebuildPaletteLUT();
+      render(HIGH_RES_PREVIEW);
+    }
+
     el.addEventListener('input', ()=>{
-      S[key] = isFloat ? parseFloat(el.value) : parseInt(el.value, 10);
+      const v = isFloat ? parseFloat(el.value) : parseInt(el.value, 10);
+      S[key] = v;
+      numBox.value = el.value;
       if(valEl) valEl.textContent = el.value + (suffix||'');
     });
     el.addEventListener('change', () => {
       if(rebuildLUT) rebuildPaletteLUT();
       render(HIGH_RES_PREVIEW);
+    });
+    numBox.addEventListener('change', () => {
+      const v = isFloat ? parseFloat(numBox.value) : parseInt(numBox.value, 10);
+      apply(v, true);
+    });
+    numBox.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter') numBox.blur();
     });
   }
 
@@ -1123,6 +1189,7 @@
 
   const toggleSpinBtn = document.getElementById('ggToggleSpin');
   const spinSpeedEl = document.getElementById('ggSpinSpeed');
+  const spinSpeedNumBox = attachNumberBox(spinSpeedEl);
 
   toggleSpinBtn.addEventListener('click', () => {
     isSpinning = !isSpinning;
@@ -1135,9 +1202,23 @@
     }
   });
 
-  spinSpeedEl.addEventListener('input', (e) => {
-    spinSpeed = parseFloat(e.target.value);
+  function applySpinSpeed(v){
+    if(Number.isNaN(v)) return;
+    if(v > parseFloat(spinSpeedEl.max)){ spinSpeedEl.max = v; spinSpeedNumBox.max = v; }
+    if(v < parseFloat(spinSpeedEl.min)){ spinSpeedEl.min = v; spinSpeedNumBox.min = v; }
+    spinSpeed = v;
+    spinSpeedEl.value = v;
+    spinSpeedNumBox.value = v;
     document.getElementById('ggSpeedVal').textContent = spinSpeed.toFixed(1) + 'x';
+  }
+  spinSpeedEl.addEventListener('input', (e) => {
+    applySpinSpeed(parseFloat(e.target.value));
+  });
+  spinSpeedNumBox.addEventListener('change', () => {
+    applySpinSpeed(parseFloat(spinSpeedNumBox.value));
+  });
+  spinSpeedNumBox.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') spinSpeedNumBox.blur();
   });
 
   function animateLoop(now) {
@@ -1150,8 +1231,10 @@
     
     const lonEl = document.getElementById('ggLon');
     const lonVal = document.getElementById('ggLonVal');
+    const lonNumBox = lonEl && lonEl.parentElement.querySelector('.ggNumBox');
     if (lonEl) lonEl.value = Math.round(S.lon);
     if (lonVal) lonVal.textContent = Math.round(S.lon) + '°';
+    if (lonNumBox) lonNumBox.value = Math.round(S.lon);
 
     // Downsamples during continuous auto-rotation for smooth performance
     render(LOW_RES_PREVIEW);
@@ -1188,6 +1271,11 @@
     const latVal = document.getElementById('ggLatVal');
     if(lonVal) lonVal.textContent = Math.round(S.lon)+'°';
     if(latVal) latVal.textContent = Math.round(S.lat)+'°';
+
+    const lonNumBox = lonEl && lonEl.parentElement.querySelector('.ggNumBox');
+    const latNumBox = latEl && latEl.parentElement.querySelector('.ggNumBox');
+    if(lonNumBox) lonNumBox.value = Math.round(S.lon);
+    if(latNumBox) latNumBox.value = Math.round(S.lat);
     
     if(!rafPending){
       rafPending = true;

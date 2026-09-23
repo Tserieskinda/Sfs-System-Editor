@@ -105,6 +105,14 @@
       top:0;
     }
     .views{flex:1;}
+    .view-block.preview-block{
+      position:sticky;
+      top:0;
+      z-index:2;
+      background:var(--bg);
+      padding-top:12px;
+      margin-bottom:12px;
+    }
   }
 
   .controls{padding:12px 16px 40px;}
@@ -344,7 +352,7 @@
   </div>
 
   <div class="views">
-    <div class="view-block">
+    <div class="view-block preview-block">
       <h2>Top-down preview</h2>
       <div id="previewWrap">
         <canvas id="previewCanvas" width="640" height="640"></canvas>
@@ -485,8 +493,8 @@
   var state = {
     resolution:1024, thickness:32, seed:(Date.now()%1000000)|0,
     bands:[
-      { start:8, width:35, feather:35, color:'#d8c9a3' },
-      { start:55, width:35, feather:35, color:'#8f7a55' }
+      { start:8, width:35, feather:35, color:'#d8c9a3', lineDensity:0, opacity:100 },
+      { start:55, width:35, feather:35, color:'#8f7a55', lineDensity:0, opacity:100 }
     ]
   };
   CONTROL_GROUPS.forEach(function(g){
@@ -522,6 +530,25 @@
           var featherAmt = Math.max(1e-4, segW*(band.feather/100)*0.5);
           var distIn = uPct-segStart, distOut = segEnd-uPct;
           var bandAlpha = Math.min(smoothstep(0,featherAmt,distIn), smoothstep(0,featherAmt,distOut));
+          if(bandAlpha<=0) continue;
+
+          // Fine ringlets: a stack of thin concentric lines within the band,
+          // like the fine structure visible in Saturn's rings from a distance.
+          // lineDensity is the approximate number of ringlets across the band's span.
+          if(band.lineDensity>0 && segW>0){
+            var uInBand = (uPct-segStart)/segW; // 0..1 across this band
+            var linePhase = uInBand*band.lineDensity;
+            var lineCell = Math.floor(linePhase);
+            var lineFrac = linePhase - lineCell;
+            // Each cell gets a random thin dark (or occasionally bright) gap line;
+            // width and depth vary per-line so the ringlets don't look uniform.
+            var lineWidth = 0.06 + hash1D(lineCell, s.seed + bi*97 + 1)*0.22;
+            var lineDepth = 0.2 + hash1D(lineCell, s.seed + bi*97 + 2)*0.6;
+            var distToCenter = Math.abs(lineFrac-0.5)*2; // 0 at line center, 1 at cell edge
+            var gapShape = 1 - smoothstep(0, lineWidth, distToCenter); // 1 at center of the thin line
+            bandAlpha *= (1 - lineDepth*gapShape);
+          }
+          bandAlpha *= (band.opacity!=null ? band.opacity/100 : 1);
           if(bandAlpha<=0) continue;
 
           var bc = bandsRgb[bi];
@@ -773,7 +800,7 @@
     var lastEnd = state.bands.length ?
       (state.bands[state.bands.length-1].start + state.bands[state.bands.length-1].width) : 0;
     var start = clamp(lastEnd+8, 0, 90);
-    return { start:start, width:25, feather:35, color:randomBandColor(rng) };
+    return { start:start, width:25, feather:35, color:randomBandColor(rng), lineDensity:0, opacity:100 };
   }
 
   function buildBandsUI(){
@@ -806,6 +833,10 @@
         value:band.width, unit:'%', onChange:function(v){ band.width=v; regenerate(); } });
       buildSliderRow(card, { id:'band'+idx+'_feather', label:'Edge feather', min:0, max:100, step:1,
         value:band.feather, unit:'%', onChange:function(v){ band.feather=v; regenerate(); } });
+      buildSliderRow(card, { id:'band'+idx+'_lines', label:'Fine lines', min:0, max:200, step:1,
+        value:band.lineDensity, unit:'', onChange:function(v){ band.lineDensity=v; regenerate(); } });
+      buildSliderRow(card, { id:'band'+idx+'_opacity', label:'Opacity', min:0, max:100, step:1,
+        value:band.opacity, unit:'%', onChange:function(v){ band.opacity=v; regenerate(); } });
 
       var colorRow = document.createElement('div');
       colorRow.className = 'row';
