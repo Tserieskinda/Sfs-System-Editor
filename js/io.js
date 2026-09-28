@@ -1140,8 +1140,19 @@ async function _replayFromCache(record, { showUI = false, progressLabel = '' } =
   for(let i = 0; i < textures.length; i++){
     const t = textures[i];
     if(!assets.textures.find(a => a.name === t.name)){
-      cacheTexture(t.name.replace(/\.[^.]+$/,''), t.url); // enqueue decode
-      assets.textures.push(t);                             // register immediately
+      const texName = t.name.replace(/\.[^.]+$/,'');
+      // Same lazy/eager split as the first-download path in
+      // _loadSFSAssetBuffer above — this is the path returning visitors
+      // actually hit every time, so it's the one that matters most for the
+      // "long load" complaint. Cached custom/imported textures (vanilla
+      // flag false or absent, e.g. from an older cache entry predating
+      // this flag) still decode eagerly, unchanged.
+      if(t.vanilla && typeof registerLazyTexture === 'function'){
+        registerLazyTexture(texName, t.url, t.size || 0);
+      } else {
+        cacheTexture(texName, t.url); // enqueue decode
+      }
+      assets.textures.push(t);        // register immediately
       toAdd.push(t);
       totalTextures++;
     }
@@ -1153,8 +1164,10 @@ async function _replayFromCache(record, { showUI = false, progressLabel = '' } =
   }
   if(showUI && total > 0) setBar1(100, 'CACHE REPLAY');
 
-  // Wait for the decode queue to fully drain before touching the DOM.
-  // Poll with short yields — avoids holding a microtask chain open.
+  // Wait for the (now much smaller — vanilla textures were registered
+  // lazily above, not enqueued) decode queue to fully drain before
+  // touching the DOM.  Poll with short yields — avoids holding a
+  // microtask chain open.
   while(_decodeRunning || _decodeQueue.length > 0){
     await new Promise(r => setTimeout(r, 32));
     if(showUI) setBar1(100, 'CACHE REPLAY');
@@ -1407,6 +1420,15 @@ function _finaliseAutoload(statusEl, btn, cancelBtn, totalTextures, totalPresets
     }
   }
   if(btn && totalTextures > 0) btn.style.display = 'none';
+
+  // The app is now usable (critical/referenced textures were promoted
+  // eagerly by _promoteReferencedTextures in viewport.js, every frame).
+  // Whatever's left in the vanilla lazy registry — textures no currently-
+  // loaded system uses — gets decoded in the background at browser-idle
+  // priority, largest first, so picker/search thumbnails fill in over the
+  // next several seconds without ever competing with interaction. See
+  // startLazyTextureSweep in assets.js.
+  if(typeof startLazyTextureSweep === 'function') startLazyTextureSweep();
 }
 
 // ── Background revalidation ────────────────────────────────────────────────────
@@ -1587,10 +1609,21 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
       const b64 = bytesToBase64(data);
       const url = `data:${mime};base64,${b64}`;
       const texName = filename.replace(/\.[^.]+$/, '');
-      cacheTexture(texName, url);
+      const isVanillaTex = _presetCategory(pathLower) === 'vanilla';
+      // Vanilla-library textures are registered for LAZY decode (only
+      // actually decoded once a loaded system references them, or by the
+      // idle background sweep) instead of decoded eagerly here — this is
+      // the fix for the long startup load, and applies ONLY to this bulk
+      // vanilla path. A user's own system/custom textures never go through
+      // this function at all (that's importSystemZip's separate, still-
+      // fully-eager path in this same file), so they're unaffected.
+      if(isVanillaTex && typeof registerLazyTexture === 'function'){
+        registerLazyTexture(texName, url, data.length);
+      } else {
+        cacheTexture(texName, url);
+      }
 
       if(!assets.textures.find(a=>a.name===filename)){
-        const isVanillaTex = _presetCategory(pathLower) === 'vanilla';
         const entry = { name:filename, url, size:data.length, vanilla:isVanillaTex };
         assets.textures.push(entry);
         _thumbsDeferred.push(entry); // render thumb after queue drains

@@ -982,7 +982,42 @@ function _isPlainIconBody(b){
            (d.LANDMARKS && d.LANDMARKS.length));
 }
 
+// ── Promote lazily-registered vanilla textures that the CURRENT system
+// actually references, ahead of the background sweep in assets.js. Cheap
+// enough to run every draw unconditionally: a handful of fixed field paths
+// per body (typically a few dozen bodies), each just an object-property
+// read plus a single-key lookup in _lazyTexRegistry (no-op once decoded,
+// since ensureTextureDecoded's first check is textureCache[name]) — no
+// separate invalidation/caching layer needed. This is what satisfies
+// "solar system loading should load normally": the moment bodies with
+// texture references exist, those specific textures jump the lazy queue
+// on the very next frame, same as if they'd been decoded eagerly, while
+// everything else in the vanilla library stays deferred to the idle sweep.
+function _promoteReferencedTextures(){
+  if(typeof ensureTextureDecoded !== 'function') return;
+  for(const name in bodies){
+    const d = bodies[name]?.data;
+    if(!d) continue;
+    const av = d.ATMOSPHERE_VISUALS_DATA;
+    if(av){
+      if(av.GRADIENT?.texture) ensureTextureDecoded(av.GRADIENT.texture);
+      if(av.CLOUDS?.texture)   ensureTextureDecoded(av.CLOUDS.texture);
+    }
+    if(d.FRONT_CLOUDS_DATA?.cloudsTexture) ensureTextureDecoded(d.FRONT_CLOUDS_DATA.cloudsTexture);
+    const ttd = d.TERRAIN_DATA?.TERRAIN_TEXTURE_DATA;
+    if(ttd){
+      if(ttd.planetTexture)     ensureTextureDecoded(ttd.planetTexture);
+      if(ttd.surfaceTexture_A)  ensureTextureDecoded(ttd.surfaceTexture_A);
+      if(ttd.surfaceTexture_B)  ensureTextureDecoded(ttd.surfaceTexture_B);
+      if(ttd.terrainTexture_C)  ensureTextureDecoded(ttd.terrainTexture_C);
+    }
+    if(d.RINGS_DATA?.ringsTexture)      ensureTextureDecoded(d.RINGS_DATA.ringsTexture);
+    if(d.WATER_DATA?.oceanMaskTexture)  ensureTextureDecoded(d.WATER_DATA.oceanMaskTexture);
+  }
+}
+
 function _drawViewportNow(){
+  _promoteReferencedTextures();
   // ── Adaptive detail: measure real frame-to-frame time and back off the
   // shared detail baseline when frames are coming in slow, recover when
   // they're fast again. Only samples while draws are actually happening

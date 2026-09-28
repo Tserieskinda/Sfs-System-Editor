@@ -79,6 +79,102 @@ async function _processDecodeQueue(){
   if(typeof refreshTexPickerLists === 'function') refreshTexPickerLists();
 }
 
+// ════════════════════════════════ LAZY VANILLA-TEXTURE DECODE ════════════════════════════════
+// Registered here instead of going through cacheTexture() immediately: the
+// vanilla preset zips (Vanilla Tex1/2/3.zip, Terrain 1/2/3.zip) contain far
+// more textures than any one loaded system actually references. Decoding
+// every one of them (Image() + two getImageData strip samples each, per
+// cacheTexture above) on every startup — even served from the IndexedDB
+// cache, which only skips the network fetch/unzip, not this decode step —
+// was the actual source of the long load. A user's OWN system/save (loaded
+// via importSystemZip in io.js) is NOT affected by any of this — that path
+// calls cacheTexture() directly, eagerly, exactly as before; only the bulk
+// vanilla library is deferred here.
+//
+// name -> { name, url, size }. A texture leaves this map the moment it's
+// promoted (either because the loaded system references it, or the
+// background sweep below reaches it) — textureCache[name] and this map are
+// mutually exclusive at all times, so "is name decoded yet" is always just
+// `name in textureCache`.
+const _lazyTexRegistry = {};
+
+// Register a texture for later decode instead of decoding it now. Still
+// pushed into assets.textures immediately (by the caller, same as before)
+// so pickers/search/thumbnails know it exists — only the expensive
+// Image()+pixel-sample step is deferred.
+function registerLazyTexture(name, url, size){
+  if(textureCache[name]) return; // already decoded, nothing to defer
+  _lazyTexRegistry[name] = { name, url, size: size || 0 };
+}
+
+// Promote one texture out of the lazy registry into the real decode queue
+// immediately — used both for "system needs this now" and for the
+// background sweep pulling the next (largest) entry.
+function _promoteLazyTexture(name){
+  const entry = _lazyTexRegistry[name];
+  if(!entry) return false;
+  delete _lazyTexRegistry[name];
+  cacheTexture(entry.name, entry.url);
+  return true;
+}
+
+// Public: call before/when a texture is actually needed (a loaded system
+// references it). No-op if already decoded or already mid-decode; promotes
+// immediately (jumps ahead of the background sweep) otherwise. Safe to call
+// every frame from drawViewport — the textureCache/registry check is a
+// single object-property lookup, and every render call site already
+// tolerates textureCache[name] being briefly undefined while this decodes
+// (see the `.complete && naturalWidth > 0` guards already throughout
+// viewport.js), so there is no flash-of-missing-texture regression versus
+// today's already-async decode queue — this only changes WHEN the queue
+// entry gets added, not how rendering copes with "not yet ready".
+function ensureTextureDecoded(name){
+  if(!name || name === 'None') return;
+  if(textureCache[name]) return; // decoded
+  if(_lazyTexRegistry[name]) _promoteLazyTexture(name);
+}
+
+// ── Background sweep: decode whatever's left in the lazy registry, largest
+// first (per explicit request — bigger textures are the slower/laggier
+// decodes, so getting them out of the way early means the tail of the sweep
+// is all small/cheap ones, rather than the reverse). Paced with
+// requestIdleCallback so it only runs when the browser has spare time
+// between frames/input — never competes with panning, typing, or an
+// in-progress render for the main thread. Falls back to a spaced
+// setTimeout on browsers without requestIdleCallback (Safari).
+let _lazySweepActive = false;
+function startLazyTextureSweep(){
+  if(_lazySweepActive) return;
+  _lazySweepActive = true;
+  const step = (deadline) => {
+    // Drain what idle time allows this pass, largest remaining entry first.
+    while(true){
+      const names = Object.keys(_lazyTexRegistry);
+      if(names.length === 0){ _lazySweepActive = false; return; }
+      const hasDeadline = deadline && typeof deadline.timeRemaining === 'function';
+      if(hasDeadline && deadline.timeRemaining() <= 0 && !deadline.didTimeout) break;
+      let biggest = names[0];
+      for(let i = 1; i < names.length; i++){
+        if(_lazyTexRegistry[names[i]].size > _lazyTexRegistry[biggest].size) biggest = names[i];
+      }
+      _promoteLazyTexture(biggest);
+      // Without requestIdleCallback (Safari) there's no deadline at all —
+      // bail after one texture per timer tick so we still yield to the UI.
+      if(!hasDeadline) break;
+    }
+    _scheduleLazySweepStep();
+  };
+  function _scheduleLazySweepStep(){
+    if(Object.keys(_lazyTexRegistry).length === 0){ _lazySweepActive = false; return; }
+    if(typeof requestIdleCallback === 'function'){
+      requestIdleCallback(step, { timeout: 2000 });
+    } else {
+      setTimeout(() => step(null), _lowMemDevice ? 48 : 16);
+    }
+  }
+  _scheduleLazySweepStep();
+}
+
 // ════════════════════════════════ ASSETS SYSTEM ════════════════════════════════
 const assets = {
   textures: [],   // all uploaded image textures (flat list, no categories)
