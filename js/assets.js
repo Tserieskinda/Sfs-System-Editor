@@ -255,6 +255,30 @@ function renderAssetThumb(entry){
   grid.appendChild(div);
 }
 
+// Render many thumbnails WITHOUT blocking the loading screen from dismissing
+// or the main thread from responding to input — each renderAssetThumb call
+// is a DOM element creation + insertion (a style/layout cost), and doing
+// hundreds of them in one synchronous loop (the previous behaviour of the
+// two startup call sites in io.js) was real, measurable startup time on top
+// of the texture-decode cost the lazy registry above already fixed. This
+// batches them across animation frames instead — small enough per frame
+// (CHUNK) to stay under a frame budget on a weak phone, but the #agrid-
+// textures panel (visible by default) still fills in within a couple of
+// seconds rather than all-at-once after everything else is ready.
+function renderAssetThumbsChunked(entries, chunk){
+  chunk = chunk || 24;
+  let i = 0;
+  return new Promise(resolve => {
+    function step(){
+      const end = Math.min(i + chunk, entries.length);
+      for(; i < end; i++) renderAssetThumb(entries[i]);
+      if(i < entries.length) requestAnimationFrame(step);
+      else resolve();
+    }
+    requestAnimationFrame(step);
+  });
+}
+
 function renderAssetRow(entry, type){
   const list = document.getElementById('alist-'+type);
   if(!list) return;

@@ -1173,9 +1173,15 @@ async function _replayFromCache(record, { showUI = false, progressLabel = '' } =
     if(showUI) setBar1(100, 'CACHE REPLAY');
   }
 
-  // Now it's safe to build DOM thumbnails (decode queue is idle, memory pressure gone)
+  // Now it's safe to build DOM thumbnails (decode queue is idle, memory pressure gone).
+  // Chunked across frames rather than one synchronous loop over (often
+  // hundreds of) textures — see renderAssetThumbsChunked in assets.js.
+  // Intentionally NOT awaited: the loading screen/_finaliseAutoload should
+  // not wait on thumbnail DOM work, only on decode of what's actually
+  // needed right now (already handled above).
   _bulkLoadActive = false;
-  for(const t of toAdd) renderAssetThumb(t);
+  if(typeof renderAssetThumbsChunked === 'function') renderAssetThumbsChunked(toAdd);
+  else for(const t of toAdd) renderAssetThumb(t);
 
   // Presets (vanilla / custom)
   const dp = record.presets || {};
@@ -1642,7 +1648,9 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
     await new Promise(r => setTimeout(r, 32));
   }
   _bulkLoadActive = false;
-  for(const entry of _thumbsDeferred) renderAssetThumb(entry);
+  // Chunked/non-blocking — see the matching change in _replayFromCache above.
+  if(typeof renderAssetThumbsChunked === 'function') renderAssetThumbsChunked(_thumbsDeferred);
+  else for(const entry of _thumbsDeferred) renderAssetThumb(entry);
 
   if(totalTextures > 0){ refreshTexPickerLists(); updateAssetEmptyState(); drawViewport(); }
   return { totalTextures, totalPresets, errors, legacyFiles };
