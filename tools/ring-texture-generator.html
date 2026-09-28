@@ -118,6 +118,28 @@
   .controls{padding:12px 16px 40px;}
   .views{padding:12px 16px 40px;}
 
+  /* Mobile: keep the live preview visible while editing sliders below it.
+     .layout is a column flex below the 900px breakpoint, so DOM order was
+     controls-then-views — the preview scrolled off-screen the moment you
+     touched a slider. `order` moves the whole .views block (preview +
+     exported-texture strip) above .controls without changing the HTML, and
+     only .preview-block itself is pinned sticky-to-top so the texture-strip
+     block underneath still scrolls normally instead of also being pinned. */
+  @media (max-width:899px){
+    .layout{display:flex;flex-direction:column;}
+    .views{order:-1;}
+    .view-block.preview-block{
+      position:sticky;
+      top:0;
+      z-index:2;
+      background:var(--bg);
+      padding-top:10px;
+      padding-bottom:8px;
+      margin-bottom:4px;
+    }
+    #previewCanvas{max-width:220px;}
+  }
+
   .preset-row{
     display:flex;
     gap:8px;
@@ -309,6 +331,7 @@
     <div class="sub">Radial ring strip · left = inner edge, right = outer edge</div>
   </div>
   <div class="actions">
+    <button id="undoBtn" disabled>Undo</button>
     <button id="randomizeBtn">Randomize</button>
     <button id="downloadBtn" class="primary">Download PNG</button>
   </div>
@@ -500,6 +523,59 @@
   CONTROL_GROUPS.forEach(function(g){
     g.controls.forEach(function(c){ state[c.key] = c.def; });
   });
+
+  /* ---------- undo history ---------- */
+  // One snapshot per meaningful edit, not per slider-drag tick: for a range
+  // input we snapshot once at the START of a drag gesture (pointerdown),
+  // not on every 'input' event while dragging, so an entire drag collapses
+  // into a single undo step. Discrete actions (add/remove band, randomize,
+  // preset, resolution/thickness, new seed) snapshot immediately before
+  // they mutate state. All snapshots are deep clones — state.bands holds
+  // objects, so a shallow copy would let later edits mutate an already-
+  // pushed history entry.
+  var UNDO_LIMIT = 50;
+  var undoStack = [];
+  var undoBtn = null; // assigned once the button exists in the DOM (below)
+  var _pendingSnapshot = false; // guards one snapshot per drag gesture
+
+  function cloneState(s){
+    return {
+      resolution:s.resolution, thickness:s.thickness, seed:s.seed,
+      bands:s.bands.map(function(b){ return {
+        start:b.start, width:b.width, feather:b.feather, color:b.color,
+        lineDensity:b.lineDensity, opacity:b.opacity
+      };}),
+      spreadStart:s.spreadStart, spreadEnd:s.spreadEnd,
+      innerFade:s.innerFade, outerFade:s.outerFade,
+      hue:s.hue, saturation:s.saturation, contrast:s.contrast,
+      brightness:s.brightness, grain:s.grain, opacity:s.opacity
+    };
+  }
+
+  function pushUndoSnapshot(){
+    undoStack.push(cloneState(state));
+    if(undoStack.length > UNDO_LIMIT) undoStack.shift();
+    if(undoBtn) undoBtn.disabled = false;
+  }
+
+  // Call at the start of a drag/gesture — only actually snapshots once per
+  // gesture even if called again before beginGesture's matching end fires.
+  function beginGesture(){
+    if(_pendingSnapshot) return;
+    _pendingSnapshot = true;
+    pushUndoSnapshot();
+  }
+  function endGesture(){ _pendingSnapshot = false; }
+
+  function undo(){
+    if(undoStack.length===0) return;
+    var prev = undoStack.pop();
+    Object.keys(prev).forEach(function(k){ state[k] = prev[k]; });
+    syncGroupsUI();
+    buildBandsUI();
+    regenerate();
+    if(undoBtn) undoBtn.disabled = undoStack.length===0;
+  }
 
   /* ---------- ring generation ---------- */
   function buildRingFloatData(s){
@@ -730,7 +806,20 @@
       opts.onChange(v);
     }
 
+    // Snapshot once at the start of a drag (pointerdown fires before the
+    // first 'input' event) so the whole drag gesture — not each tick —
+    // becomes a single undo step. 'change' only fires once at drag-end on
+    // some browsers, so pointerup/touchend explicitly close the gesture
+    // rather than relying on it.
+    input.addEventListener('pointerdown', beginGesture);
+    input.addEventListener('touchstart', beginGesture, {passive:true});
+    input.addEventListener('pointerup', endGesture);
+    input.addEventListener('touchend', endGesture);
     input.addEventListener('input', function(){ commit(input.value); });
+    // Number box: snapshot on focus (before any edit), same one-snapshot-
+    // per-edit-session guard as the slider.
+    numBox.addEventListener('focus', beginGesture);
+    numBox.addEventListener('blur', endGesture);
     numBox.addEventListener('change', function(){ commit(numBox.value, true); });
     numBox.addEventListener('keydown', function(e){
       if(e.key==='Enter'){ commit(numBox.value, true); numBox.blur(); }
@@ -819,6 +908,7 @@
         rm.className = 'small danger';
         rm.textContent = 'Remove';
         rm.addEventListener('click', function(){
+          pushUndoSnapshot();
           state.bands.splice(idx,1);
           buildBandsUI();
           regenerate();
@@ -850,11 +940,15 @@
       hexInput.className = 'hexbox';
       hexInput.value = band.color;
 
+      colorInput.addEventListener('pointerdown', beginGesture);
       colorInput.addEventListener('input', function(){
         band.color = colorInput.value;
         hexInput.value = colorInput.value;
         regenerate();
       });
+      colorInput.addEventListener('change', endGesture);
+      hexInput.addEventListener('focus', beginGesture);
+      hexInput.addEventListener('blur', endGesture);
       hexInput.addEventListener('change', function(){
         var v = hexInput.value.trim();
         if(/^#?[0-9a-fA-F]{6}$/.test(v)){
@@ -878,6 +972,7 @@
 
   addBandBtn.addEventListener('click', function(){
     if(state.bands.length>=MAX_BANDS) return;
+    pushUndoSnapshot();
     state.bands.push(defaultNewBand());
     buildBandsUI();
     regenerate();
@@ -899,10 +994,12 @@
     thicknessSel.appendChild(opt);
   });
   resolutionSel.addEventListener('change', function(){
+    pushUndoSnapshot();
     state.resolution = Number(resolutionSel.value);
     regenerate();
   });
   thicknessSel.addEventListener('change', function(){
+    pushUndoSnapshot();
     state.thickness = Number(thicknessSel.value);
     regenerate();
   });
@@ -913,9 +1010,13 @@
     seedVal.textContent = state.seed;
     regenerate();
   }
-  document.getElementById('seedRandBtn').addEventListener('click', newSeed);
+  document.getElementById('seedRandBtn').addEventListener('click', function(){
+    pushUndoSnapshot();
+    newSeed();
+  });
 
   document.getElementById('randomizeBtn').addEventListener('click', function(){
+    pushUndoSnapshot();
     CONTROL_GROUPS.forEach(function(group){
       if(group.id==='shape') return;
       group.controls.forEach(function(c){
@@ -951,6 +1052,7 @@
     btn.className = 'small';
     btn.textContent = preset.name;
     btn.addEventListener('click', function(){
+      pushUndoSnapshot();
       Object.keys(preset.shape).forEach(function(k){ state[k] = preset.shape[k]; });
       Object.keys(preset.color).forEach(function(k){ state[k] = preset.color[k]; });
       state.bands = preset.bands.map(function(b){ return { start:b.start, width:b.width, feather:b.feather, color:b.color }; });
@@ -959,6 +1061,17 @@
       regenerate();
     });
     presetRow.appendChild(btn);
+  });
+
+  /* ---------- undo wiring ---------- */
+  undoBtn = document.getElementById('undoBtn');
+  undoBtn.addEventListener('click', undo);
+  document.addEventListener('keydown', function(e){
+    var mod = e.ctrlKey || e.metaKey;
+    if(mod && !e.shiftKey && e.key.toLowerCase()==='z'){
+      e.preventDefault();
+      undo();
+    }
   });
 
   /* ---------- init ---------- */
