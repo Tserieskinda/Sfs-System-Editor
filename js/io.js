@@ -1112,11 +1112,28 @@ function _yieldFrame(){ return new Promise(r => requestAnimationFrame(r)); }
 // Replay a cached asset payload directly into the live stores (no network, no
 // decompression).  Shows a loading screen with progress.
 // Returns { totalTextures, totalPresets }.
-async function _replayFromCache(record, { showUI = false, progressLabel = '' } = {}){
+async function _replayFromCache(record, { showUI = false, progressLabel = '', zipName = '' } = {}){
   let totalTextures = 0, totalPresets = 0;
 
   const textures = record.textures || [];
   const total    = textures.length;
+
+  // Fallback vanilla classification for cache entries written BEFORE the
+  // per-texture `vanilla` flag existed — a cached texture's own record only
+  // ever stored {name, url, size}, so `t.vanilla` is `undefined` for every
+  // entry any returning visitor already has cached today. Without this,
+  // every one of those textures silently falls through to the eager
+  // cacheTexture() path below (t.vanilla is falsy), meaning the lazy-decode
+  // fix does nothing at all for anyone with a pre-existing cache — exactly
+  // what the loading-screen freeze on "Vanilla Tex3.zip" turned out to be:
+  // not actually stuck, just doing the full eager decode with no progress
+  // number shown (see the setBar2 call below). The zip filename itself
+  // ("Vanilla Tex1/2/3.zip", "Terrain 1/2/3.zip") is a reliable, always-
+  // known-at-replay-time signal for "this whole zip's contents are vanilla
+  // library", independent of the per-texture flag — REMOTE_ASSETS_URLS
+  // above is the source of truth for these names.
+  const zipNameLower = (zipName || '').toLowerCase();
+  const zipIsVanilla = zipNameLower.includes('vanilla') || zipNameLower.includes('terrain');
 
   if(showUI && total > 0){
     showLoading();
@@ -1144,10 +1161,12 @@ async function _replayFromCache(record, { showUI = false, progressLabel = '' } =
       // Same lazy/eager split as the first-download path in
       // _loadSFSAssetBuffer above — this is the path returning visitors
       // actually hit every time, so it's the one that matters most for the
-      // "long load" complaint. Cached custom/imported textures (vanilla
-      // flag false or absent, e.g. from an older cache entry predating
-      // this flag) still decode eagerly, unchanged.
-      if(t.vanilla && typeof registerLazyTexture === 'function'){
+      // "long load" complaint. `t.vanilla` covers entries cached AFTER this
+      // flag was introduced; `zipIsVanilla` (see above) covers everyone's
+      // existing pre-existing cache, where the flag is simply absent.
+      // Genuinely custom/imported textures (a zip whose name says neither
+      // "vanilla" nor "terrain") still decode eagerly, unchanged.
+      if((t.vanilla || zipIsVanilla) && typeof registerLazyTexture === 'function'){
         registerLazyTexture(texName, t.url, t.size || 0);
       } else {
         cacheTexture(texName, t.url); // enqueue decode
@@ -1168,10 +1187,28 @@ async function _replayFromCache(record, { showUI = false, progressLabel = '' } =
   // lazily above, not enqueued) decode queue to fully drain before
   // touching the DOM.  Poll with short yields — avoids holding a
   // microtask chain open.
+  //
+  // Progress reporting: this bar previously stayed at setBar2(null, ...)
+  // (indeterminate) for the ENTIRE wait with no further updates — for a
+  // large eager-decode batch (e.g. a genuinely non-vanilla zip, or before
+  // the zipIsVanilla fallback above existed) that looked identical to a
+  // frozen page for however long the decode actually took. queueStart is
+  // the queue depth at the moment we start waiting; every poll tick reports
+  // how much of THAT starting batch has drained, so the bar visibly moves
+  // even though _decodeQueue can have more items pushed into it afterward
+  // by a later zip in the outer loop (which will report its own progress
+  // once its turn comes).
+  const _queueStartLen = _decodeQueue.length;
   while(_decodeRunning || _decodeQueue.length > 0){
+    if(showUI){
+      setBar1(100, 'CACHE REPLAY');
+      const done = Math.max(0, _queueStartLen - _decodeQueue.length);
+      const pct  = _queueStartLen > 0 ? Math.min(100, done / _queueStartLen * 100) : 100;
+      setBar2(pct, 'LOADING TEXTURES');
+    }
     await new Promise(r => setTimeout(r, 32));
-    if(showUI) setBar1(100, 'CACHE REPLAY');
   }
+  if(showUI) setBar2(100, 'LOADING TEXTURES');
 
   // Now it's safe to build DOM thumbnails (decode queue is idle, memory pressure gone).
   // Chunked across frames rather than one synchronous loop over (often
@@ -1280,7 +1317,7 @@ async function autoLoadRemoteAssets(){
     if(isCacheHit){
       anyCacheHit = true;
       const label = `(${i+1}/${REMOTE_ASSETS_URLS.length}) ${fname}`;
-      const r = await _replayFromCache(cached, { showUI: true, progressLabel: label });
+      const r = await _replayFromCache(cached, { showUI: true, progressLabel: label, zipName: fname });
       totalTextures += r.totalTextures;
       totalPresets  += r.totalPresets;
       console.log(`[SFS|IDB] Cache hit: "${fname}" (${r.totalTextures} tex, ${r.totalPresets} presets)`);
