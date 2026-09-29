@@ -1092,7 +1092,6 @@ const REMOTE_ASSETS_URLS = [
   { url: 'assets/Terrain 1.zip',             name: 'Terrain 1.zip' },
   { url: 'assets/Terrain 2.zip',             name: 'Terrain 2.zip' },
   { url: 'assets/Terrain 3.zip',        name: 'Terrain 3.zip' },
-  { url: 'assets/Custom Planet Data.zip',        name: 'Custom Planet Data.zip' },
   { url: 'assets/Vanilla Planet Data.zip',        name: 'Vanilla Planet Data.zip' },
   { url: 'assets/Custom Tex2.zip',        name: 'Custom Tex2.zip' },
   { url: 'assets/Custom Tex1.zip',        name: 'Custom Tex1.zip' },
@@ -1112,7 +1111,7 @@ function _yieldFrame(){ return new Promise(r => requestAnimationFrame(r)); }
 // Replay a cached asset payload directly into the live stores (no network, no
 // decompression).  Shows a loading screen with progress.
 // Returns { totalTextures, totalPresets }.
-async function _replayFromCache(record, { showUI = false, progressLabel = '', zipName = '' } = {}){
+async function _replayFromCache(record, { showUI = false, progressLabel = '', zipName = '', lazyAll = false } = {}){
   let totalTextures = 0, totalPresets = 0;
 
   const textures = record.textures || [];
@@ -1133,7 +1132,17 @@ async function _replayFromCache(record, { showUI = false, progressLabel = '', zi
   // library", independent of the per-texture flag — REMOTE_ASSETS_URLS
   // above is the source of truth for these names.
   const zipNameLower = (zipName || '').toLowerCase();
-  const zipIsVanilla = zipNameLower.includes('vanilla') || zipNameLower.includes('terrain');
+  // lazyAll: everything served by autoLoadRemoteAssets is library content
+  // (Vanilla/Terrain/Custom Tex zips), so it all goes through the lazy
+  // registry — not just zips whose name says vanilla/terrain. A user's own
+  // system zip never comes through here, so it still decodes eagerly.
+  const zipIsVanilla = lazyAll || zipNameLower.includes('vanilla') || zipNameLower.includes('terrain');
+
+  // Only show the loading screen if there's real blocking work: i.e. a
+  // meaningful number of textures that will be decoded eagerly. A pure
+  // lazy replay is just registering names — nothing worth an overlay.
+  const _eagerCount = zipIsVanilla ? 0 : textures.filter(t => !t.vanilla).length;
+  if(_eagerCount <= 24) showUI = false;
 
   if(showUI && total > 0){
     showLoading();
@@ -1154,9 +1163,11 @@ async function _replayFromCache(record, { showUI = false, progressLabel = '', zi
 
   // Collect entries that need adding (deduplicate against already-loaded)
   const toAdd = [];
+  const _existingNames = new Set(assets.textures.map(a => a.name));
   for(let i = 0; i < textures.length; i++){
     const t = textures[i];
-    if(!assets.textures.find(a => a.name === t.name)){
+    if(!_existingNames.has(t.name)){
+      _existingNames.add(t.name);
       const texName = t.name.replace(/\.[^.]+$/,'');
       // Same lazy/eager split as the first-download path in
       // _loadSFSAssetBuffer above — this is the path returning visitors
@@ -1179,6 +1190,8 @@ async function _replayFromCache(record, { showUI = false, progressLabel = '', zi
     if(showUI && (i + 1) % 16 === 0){
       setBar1((i + 1) / total * 100, 'CACHE REPLAY');
       await _yieldFrame();
+    } else if(!showUI && (i + 1) % 500 === 0){
+      await new Promise(r => setTimeout(r, 0)); // keep input responsive, no per-frame cost
     }
   }
   if(showUI && total > 0) setBar1(100, 'CACHE REPLAY');
@@ -1297,12 +1310,13 @@ async function autoLoadRemoteAssets(){
   // ── PASS 1: serve everything already in IDB — no network ──────────────────
   // We show the loading screen even for cache hits so the user sees progress
   // instead of a frozen / unresponsive page while textures are being decoded.
-  const cacheRecords = [];
+  // Read every record in parallel — sequential awaits were serialising the
+  // (large) structured-clone cost of each zip's data-URL payload.
+  const cacheRecords = await Promise.all(REMOTE_ASSETS_URLS.map(u => idbCacheRead(u.url)));
   let   anyCacheHit  = false;
   for(let i = 0; i < REMOTE_ASSETS_URLS.length; i++){
     const { url, name: fname } = REMOTE_ASSETS_URLS[i];
-    const cached = await idbCacheRead(url);
-    cacheRecords.push(cached);
+    const cached = cacheRecords[i];
     // A valid cache record just needs to exist — it may have textures, presets,
     // heightmaps, or any combination. Don't gate on textures.length > 0.
     const isCacheHit = cached && (
@@ -1317,7 +1331,7 @@ async function autoLoadRemoteAssets(){
     if(isCacheHit){
       anyCacheHit = true;
       const label = `(${i+1}/${REMOTE_ASSETS_URLS.length}) ${fname}`;
-      const r = await _replayFromCache(cached, { showUI: true, progressLabel: label, zipName: fname });
+      const r = await _replayFromCache(cached, { showUI: true, progressLabel: label, zipName: fname, lazyAll: true });
       totalTextures += r.totalTextures;
       totalPresets  += r.totalPresets;
       console.log(`[SFS|IDB] Cache hit: "${fname}" (${r.totalTextures} tex, ${r.totalPresets} presets)`);
