@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>SFS System Editor</title>
-<link rel="stylesheet" href="style.css?v=5.14">
+<link rel="stylesheet" href="style.css?v=5.15">
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
@@ -2445,6 +2445,17 @@
   </div>
 </div>
 
+<!-- Non-blocking asset download progress (bottom, above the status bar) -->
+<div id="bg-asset-chip" role="status" aria-live="polite">
+  <div class="bgc-row">
+    <span class="bgc-title" id="bgc-title">Loading assets</span>
+    <span class="bgc-sub" id="bgc-sub"></span>
+    <span class="bgc-pct" id="bgc-pct">0%</span>
+    <button class="bgc-x" onclick="cancelRemoteAssets()" title="Stop downloading assets" aria-label="Stop downloading assets">&#10005;</button>
+  </div>
+  <div class="bgc-track"><div class="bgc-fill" id="bgc-fill"></div></div>
+</div>
+
 <!-- PeerJS: WebRTC wrapper used for serverless multiplayer signaling (see js/collab.js) -->
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="js/background.js?v=5.13"></script>
@@ -2453,8 +2464,8 @@
 <!-- io.js must precede presets.js — it declares dynamicPresets which
      buildAllPresets() references at parse/call time. -->
 <script src="js/idb-cache.js?v=5.13"></script>
-<script src="js/assets.js?v=5.13"></script>
-<script src="js/io.js?v=5.14"></script>
+<script src="js/assets.js?v=5.14"></script>
+<script src="js/io.js?v=5.15"></script>
 <script src="js/presets.js?v=5.13"></script>
 <script src="js/state.js?v=5.13"></script>
 <script src="js/collab.js?v=1.0"></script>

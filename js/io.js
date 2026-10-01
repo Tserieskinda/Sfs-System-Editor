@@ -773,7 +773,7 @@ async function loadZipFile(file){
     // loadZipFile can contain dozens of Texture Data images; without this flag
     // every cacheTexture() fires drawViewport+refreshTexPickerLists immediately
     // after each decode — cascading reflows that exhaust memory on low-end devices.
-    _bulkLoadActive = true;
+    _bulkBegin();
 
     let planetCount = 0;
     const legacyFiles = []; // pre-1.5 format files found — skipped, reported at the end
@@ -877,7 +877,7 @@ async function loadZipFile(file){
     while(_decodeRunning || _decodeQueue.length > 0){
       await new Promise(r => setTimeout(r, 32));
     }
-    _bulkLoadActive = false;
+    _bulkEnd();
 
     // Now safe to render texture thumbs in batches of 8 (decode pressure gone).
     for(let _ti = 0; _ti < _deferredThumbs.length; _ti++){
@@ -1159,7 +1159,7 @@ async function _replayFromCache(record, { showUI = false, progressLabel = '', zi
   // decoded image causes cascading reflows that exhaust memory.  We collect
   // all cacheTexture() calls first (just enqueuing them), then let the queue
   // drain with only a single final notify at the end.
-  _bulkLoadActive = true;
+  _bulkBegin();
 
   // Collect entries that need adding (deduplicate against already-loaded)
   const toAdd = [];
@@ -1229,7 +1229,7 @@ async function _replayFromCache(record, { showUI = false, progressLabel = '', zi
   // Intentionally NOT awaited: the loading screen/_finaliseAutoload should
   // not wait on thumbnail DOM work, only on decode of what's actually
   // needed right now (already handled above).
-  _bulkLoadActive = false;
+  _bulkEnd();
   if(typeof renderAssetThumbsChunked === 'function') renderAssetThumbsChunked(toAdd);
   else for(const t of toAdd) renderAssetThumb(t);
 
@@ -1293,6 +1293,20 @@ function _snapshotNewAssets(texBefore, presetsBefore, hmBefore){
 //
 // Result: returning users see assets instantly; fresh assets arrive next visit.
 
+// A cache record is usable if it holds anything at all (textures, presets,
+// heightmaps or named sources) — don't gate on textures alone.
+function _isUsableCacheRecord(c){
+  return !!(c && (
+    (c.textures    && c.textures.length    > 0) ||
+    (c.heightmaps  && c.heightmaps.length  > 0) ||
+    (c.namedSources && Object.keys(c.namedSources).length > 0) ||
+    (c.presets && (
+      Object.keys(c.presets.vanilla || {}).length > 0 ||
+      Object.keys(c.presets.custom  || {}).length > 0
+    ))
+  ));
+}
+
 async function autoLoadRemoteAssets(){
   if(!REMOTE_ASSETS_URLS || !REMOTE_ASSETS_URLS.length) return;
   const statusEl  = document.getElementById('default-tex-status');
@@ -1319,15 +1333,7 @@ async function autoLoadRemoteAssets(){
     const cached = cacheRecords[i];
     // A valid cache record just needs to exist — it may have textures, presets,
     // heightmaps, or any combination. Don't gate on textures.length > 0.
-    const isCacheHit = cached && (
-      (cached.textures    && cached.textures.length    > 0) ||
-      (cached.heightmaps  && cached.heightmaps.length  > 0) ||
-      (cached.namedSources && Object.keys(cached.namedSources).length > 0) ||
-      (cached.presets && (
-        Object.keys(cached.presets.vanilla || {}).length > 0 ||
-        Object.keys(cached.presets.custom  || {}).length > 0
-      ))
-    );
+    const isCacheHit = _isUsableCacheRecord(cached);
     if(isCacheHit){
       anyCacheHit = true;
       const label = `(${i+1}/${REMOTE_ASSETS_URLS.length}) ${fname}`;
@@ -1354,108 +1360,203 @@ async function autoLoadRemoteAssets(){
   }
 
   // ── PASS 2: download any URLs with no cache entry (first-time / cleared) ──
-  showLoading();
-  showLoadingBars();
-  setLoadingTitle('LOADING ASSETS');
-  if(cancelBtn) cancelBtn.style.display = '';
+  // Two phases:
+  //   A) the Planet Data zips — presets that systems and the generator need.
+  //      Blocking, behind the loading screen (as before).
+  //   B) everything else (texture/terrain libraries) — NON-blocking. The
+  //      overlay is dismissed after A and these stream in behind a slim
+  //      progress bar at the bottom. See _bgLoadRemoteAssets.
+  const _isPlanetDataZip = n => /planet data/i.test(n);
+  const missingIdx = [];
+  for(let i = 0; i < REMOTE_ASSETS_URLS.length; i++){
+    if(!_isUsableCacheRecord(cacheRecords[i])) missingIdx.push(i);
+  }
+  const phaseA = missingIdx.filter(i =>  _isPlanetDataZip(REMOTE_ASSETS_URLS[i].name));
+  const phaseB = missingIdx.filter(i => !_isPlanetDataZip(REMOTE_ASSETS_URLS[i].name));
   let cancelled = false;
 
-  for(let i = 0; i < REMOTE_ASSETS_URLS.length; i++){
-    if(signal.aborted){ cancelled = true; break; }
-    const cr = cacheRecords[i];
-    const alreadyServed = cr && (
-      (cr.textures    && cr.textures.length    > 0) ||
-      (cr.heightmaps  && cr.heightmaps.length  > 0) ||
-      (cr.namedSources && Object.keys(cr.namedSources).length > 0) ||
-      (cr.presets && (
-        Object.keys(cr.presets.vanilla || {}).length > 0 ||
-        Object.keys(cr.presets.custom  || {}).length > 0
-      ))
-    );
-    if(alreadyServed) continue; // already served from cache in Pass 1
+  if(phaseA.length){
+    showLoading();
+    showLoadingBars();
+    setLoadingTitle('LOADING ASSETS');
+    if(cancelBtn) cancelBtn.style.display = '';
 
-    const { url, name: fname } = REMOTE_ASSETS_URLS[i];
-    setLoadingMsg(`(${i+1}/${REMOTE_ASSETS_URLS.length}) ${fname}`);
-    setBar1(0, 'DOWNLOADING');
-    setBar2(null, 'LOADING TEXTURES');
-
-    try{
-      const resp = await fetch(url, { signal });
-      if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const freshEtag = resp.headers.get('ETag') || resp.headers.get('Last-Modified') || null;
-      const freshSize = parseInt(resp.headers.get('Content-Length')||'0', 10);
-
-      const contentLength = resp.headers.get('Content-Length');
-      let buffer;
-      if(contentLength){
-        const total  = parseInt(contentLength, 10);
-        const reader = resp.body.getReader();
-        const chunks = []; let received = 0;
-        while(true){
-          if(signal.aborted){ reader.cancel(); cancelled = true; break; }
-          const { done, value } = await reader.read();
-          if(done) break;
-          chunks.push(value); received += value.length;
-          setBar1(received / total * 100);
-        }
-        if(cancelled) break;
-        const full = new Uint8Array(received);
-        let off = 0;
-        for(const c of chunks){ full.set(c, off); off += c.length; }
-        buffer = full.buffer;
-      } else {
-        setBar1(50, 'DOWNLOADING\u2026');
-        buffer = await resp.arrayBuffer();
-        setBar1(100);
+    for(const i of phaseA){
+      if(signal.aborted){ cancelled = true; break; }
+      const { url, name: fname } = REMOTE_ASSETS_URLS[i];
+      setLoadingMsg(`(${i+1}/${REMOTE_ASSETS_URLS.length}) ${fname}`);
+      setBar1(0, 'DOWNLOADING');
+      setBar2(null, 'LOADING TEXTURES');
+      try{
+        const f = await _fetchAssetZip(url, signal, pct => setBar1(pct));
+        setBar1(100, 'DECOMPRESSING');
+        const res = await _ingestAssetZip(i, f, cacheRecords,
+          pct => setBar1(pct, 'DECOMPRESSING'), pct => setBar2(pct));
+        totalTextures += res.totalTextures;
+        totalPresets  += res.totalPresets;
+        errors        += res.errors;
+      } catch(err){
+        if(err && err.name === 'AbortError'){ cancelled = true; break; }
+        console.warn(`[SFS] Failed to load ${fname}:`, err);
+        errors++;
       }
-
-      const texBefore     = assets.textures.length;
-      const hmBefore      = assets.heightmaps.length;
-      const presetsBefore = {
-        vanilla: Object.keys(dynamicPresets.vanilla).length,
-        custom:  Object.keys(dynamicPresets.custom).length,
-      };
-
-      setBar1(100, 'DECOMPRESSING');
-      const res = await _loadSFSAssetBuffer(
-        buffer, fname,
-        pct => setBar1(pct, 'DECOMPRESSING'),
-        pct => setBar2(pct)
-      );
-      totalTextures += res.totalTextures;
-      totalPresets  += res.totalPresets;
-      errors        += res.errors;
-
-      const payload = _snapshotNewAssets(texBefore, presetsBefore, hmBefore);
-      const hasContent = payload.textures.length > 0 || payload.heightmaps.length > 0 ||
-        Object.keys(payload.presets.vanilla).length > 0 ||
-        Object.keys(payload.presets.custom).length  > 0 ||
-        Object.keys(payload.namedSources).length    > 0;
-      if(hasContent){
-        idbCacheWrite(url, freshEtag, freshSize, payload).then(ok => {
-          if(ok) console.log(`[SFS|IDB] Cached "${fname}" (${payload.textures.length} tex, etag=${freshEtag})`);
-        });
-      }
-
-    } catch(err){
-      if(err.name === 'AbortError'){ cancelled = true; break; }
-      console.warn(`[SFS] Failed to load ${fname}:`, err);
-      errors++;
     }
+
+    if(cancelBtn) cancelBtn.style.display = 'none';
+    hideLoading();
+    hideLoadingBars();
+    setLoadingTitle('LOADING SYSTEM');
   }
 
-  _remoteAbortCtrl = null;
-  if(cancelBtn) cancelBtn.style.display = 'none';
-  hideLoading();
-  hideLoadingBars();
-  setLoadingTitle('LOADING SYSTEM');
-
   if(cancelled){
+    _remoteAbortCtrl = null;
     if(statusEl){ statusEl.textContent = '\u26a0 Download cancelled \u2014 upload zips manually'; statusEl.style.color = 'var(--amber)'; }
     return;
   }
 
-  _finaliseAutoload(statusEl, btn, cancelBtn, totalTextures, totalPresets, errors);
+  // Nothing left to fetch — done (and autoLoadRemoteAssets' promise resolves).
+  if(!phaseB.length){
+    _remoteAbortCtrl = null;
+    _finaliseAutoload(statusEl, btn, cancelBtn, totalTextures, totalPresets, errors);
+    _revalidateCacheInBackground(REMOTE_ASSETS_URLS, cacheRecords).catch(() => {});
+    return;
+  }
+
+  // Phase B runs detached: this function returns now, so _autoLoadPromise
+  // resolves and the editor is fully usable (system load, import, generate).
+  if(statusEl){ statusEl.textContent = '\u23f3 Loading remaining assets in background\u2026'; statusEl.style.color = 'var(--sky2)'; }
+  _bgLoadRemoteAssets(phaseB, {
+    signal, cacheRecords, statusEl, btn, cancelBtn,
+    totals: { tex: totalTextures, presets: totalPresets, errors }
+  }).catch(err => console.warn('[SFS] background asset load failed:', err));
+}
+
+// Stream one remote zip into memory, reporting 0-100 progress.
+async function _fetchAssetZip(url, signal, onPct){
+  const resp = await fetch(url, { signal });
+  if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const etag = resp.headers.get('ETag') || resp.headers.get('Last-Modified') || null;
+  const clen = resp.headers.get('Content-Length');
+  const size = parseInt(clen || '0', 10);
+  let buffer;
+  if(clen && resp.body){
+    const reader = resp.body.getReader();
+    const chunks = []; let received = 0;
+    while(true){
+      const { done, value } = await reader.read(); // rejects with AbortError if cancelled
+      if(done) break;
+      chunks.push(value); received += value.length;
+      if(onPct) onPct(Math.min(100, received / size * 100));
+    }
+    const full = new Uint8Array(received);
+    let off = 0;
+    for(const c of chunks){ full.set(c, off); off += c.length; }
+    buffer = full.buffer;
+  } else {
+    if(onPct) onPct(50);
+    buffer = await resp.arrayBuffer();
+    if(onPct) onPct(100);
+  }
+  return { buffer, etag, size };
+}
+
+// Process a fetched zip (serialised via the asset lock inside
+// _loadSFSAssetBuffer) and persist what *it* contained to the IDB cache.
+async function _ingestAssetZip(i, fetched, cacheRecords, onDecomp, onTex){
+  const { url, name: fname } = REMOTE_ASSETS_URLS[i];
+  const res = await _loadSFSAssetBuffer(fetched.buffer, fname, onDecomp || (()=>{}), onTex || (()=>{}), undefined, { lazyAll: true });
+  const payload = res.contents;
+  if(_isUsableCacheRecord(payload)){
+    idbCacheWrite(url, fetched.etag, fetched.size, payload).then(ok => {
+      if(ok) console.log(`[SFS|IDB] Cached "${fname}" (${payload.textures.length} tex, etag=${fetched.etag})`);
+    });
+  }
+  // Mark as fresh so the background revalidation doesn't re-download what we
+  // just downloaded.
+  cacheRecords[i] = { etag: fetched.etag, fresh: true };
+  return res;
+}
+
+// ── Bottom progress chip (non-blocking asset download) ───────────────────────
+function _bgChipEl(){ return document.getElementById('bg-asset-chip'); }
+function _bgChipShow(){
+  const el = _bgChipEl(); if(!el) return;
+  el.classList.remove('done', 'warn'); el.classList.add('show');
+}
+function _bgChipUpdate(pct, title, sub){
+  const fill = document.getElementById('bgc-fill');
+  const pctEl = document.getElementById('bgc-pct');
+  const t = document.getElementById('bgc-title');
+  const sb = document.getElementById('bgc-sub');
+  if(fill) fill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+  if(pctEl) pctEl.textContent = Math.round(pct) + '%';
+  if(t && title != null) t.textContent = title;
+  if(sb && sub != null) sb.textContent = sub;
+}
+function _bgChipFinish(msg, kind){
+  const el = _bgChipEl(); if(!el) return;
+  const t = document.getElementById('bgc-title'); if(t) t.textContent = msg;
+  const sb = document.getElementById('bgc-sub'); if(sb) sb.textContent = '';
+  el.classList.add(kind === 'warn' ? 'warn' : 'done');
+  setTimeout(() => el.classList.remove('show'), kind === 'warn' ? 4000 : 1800);
+}
+
+// Phase B: download the remaining zips (up to 3 at once) while the editor is
+// already usable. Only the parse/register step is serialised (asset lock) and
+// it uses lazyAll + "never override an existing name", so a user loading a
+// system / importing assets while this runs is unaffected: it can't
+// overwrite their textures, can't leak their data into the cache, and doesn't
+// touch the loading overlay.
+async function _bgLoadRemoteAssets(idxList, ctx){
+  const { signal, cacheRecords, statusEl, btn, cancelBtn, totals } = ctx;
+  const total = idxList.length;
+  const frac = {}; idxList.forEach(i => { frac[i] = 0; });
+  const active = new Set();
+  let finished = 0, cancelled = false;
+
+  const refresh = () => {
+    const sum = idxList.reduce((a, i) => a + frac[i], 0);
+    const names = [...active].map(i => REMOTE_ASSETS_URLS[i].name);
+    const sub = names.length ? names[0] + (names.length > 1 ? ` +${names.length - 1}` : '') : '';
+    _bgChipUpdate(sum / total * 100, `Loading assets ${finished}/${total}`, sub);
+  };
+  _bgChipShow();
+  refresh();
+
+  const queue = idxList.slice();
+  const worker = async () => {
+    while(queue.length && !signal.aborted){
+      const i = queue.shift();
+      const { url, name: fname } = REMOTE_ASSETS_URLS[i];
+      active.add(i); refresh();
+      try{
+        // Download = first 80% of this zip's share, processing = the rest.
+        const f = await _fetchAssetZip(url, signal, pct => { frac[i] = pct / 100 * 0.8; refresh(); });
+        frac[i] = 0.8; refresh();
+        const res = await _ingestAssetZip(i, f, cacheRecords);
+        totals.tex     += res.totalTextures;
+        totals.presets += res.totalPresets;
+        totals.errors  += res.errors;
+      } catch(err){
+        if(err && err.name === 'AbortError'){ cancelled = true; }
+        else { console.warn(`[SFS] Failed to load ${fname}:`, err); totals.errors++; }
+      }
+      frac[i] = 1; active.delete(i); finished++; refresh();
+      // New lazy entries may have arrived: make sure the idle sweep is running.
+      if(typeof startLazyTextureSweep === 'function') startLazyTextureSweep();
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, queue.length) }, worker));
+  if(signal.aborted) cancelled = true;
+
+  _remoteAbortCtrl = null;
+  if(cancelled){
+    _bgChipFinish('Asset download stopped', 'warn');
+    if(statusEl){ statusEl.textContent = `\u26a0 Asset download stopped \u2014 ${finished} of ${total} extra zips loaded`; statusEl.style.color = 'var(--amber)'; }
+    return;
+  }
+  _bgChipFinish('\u2713 Assets loaded');
+  _finaliseAutoload(statusEl, btn, cancelBtn, totals.tex, totals.presets, totals.errors);
   _revalidateCacheInBackground(REMOTE_ASSETS_URLS, cacheRecords).catch(() => {});
 }
 
@@ -1512,14 +1613,8 @@ async function _revalidateCacheInBackground(urls, cacheRecords){
       const freshSize = parseInt(resp.headers.get('Content-Length')||'0', 10);
       const buffer    = await resp.arrayBuffer();
 
-      const texBefore     = assets.textures.length;
-      const hmBefore      = assets.heightmaps.length;
-      const presetsBefore = {
-        vanilla: Object.keys(dynamicPresets.vanilla).length,
-        custom:  Object.keys(dynamicPresets.custom).length,
-      };
-      await _loadSFSAssetBuffer(buffer, fname, ()=>{}, ()=>{});
-      const payload = _snapshotNewAssets(texBefore, presetsBefore, hmBefore);
+      const res = await _loadSFSAssetBuffer(buffer, fname, ()=>{}, ()=>{}, undefined, { lazyAll: true });
+      const payload = res.contents;
       await idbCacheWrite(url, freshEtag, freshSize, payload);
       console.log(`[SFS|IDB] BG revalidate: "${fname}" cache updated`);
     } catch(e){
@@ -1570,7 +1665,30 @@ function _parsePresetTxt(raw, filename){
 // Accepts one or more zips containing any combination of:\n//   */Planet Data/*.txt       → preset files (vanilla or custom)\n//   */Texture Data/*.(img)    → textures\n//   */Heightmap Data/*.txt    → heightmaps (JSON points)\n//   */Heightmap Data/*.(img)  → heightmaps (PNG/JPG alpha-encoded)\n//   (legacy) flat image files  → textures (backwards compat with old texture-only zips)
 
 // Core single-zip processor — used by both manual upload and remote auto-load.
-async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgress, namedCategory){
+// Asset-zip processing is serialised: a background download, a manual asset
+// upload, a featured import and the cache revalidation can never interleave
+// inside the processor (they all mutate assets.*, dynamicPresets and the
+// lazy registry across awaits). Downloads are NOT under the lock — only the
+// parse/register step — so waiting is short.
+let _assetLockTail = Promise.resolve();
+function _withAssetLock(fn){
+  const run = _assetLockTail.then(() => fn());
+  _assetLockTail = run.catch(() => {});
+  return run;
+}
+function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgress, namedCategory, opts){
+  return _withAssetLock(() => _loadSFSAssetBufferImpl(buffer, zipName, onDecompProgress, onTexProgress, namedCategory, opts));
+}
+
+// opts.lazyAll — library content: every texture is registered for lazy decode,
+// and a name that already exists in assets.textures (the user's own, or an
+// earlier load) is never overridden.
+// Returns `contents`: everything this zip contains, independent of what was
+// already loaded — that (not a before/after diff of the live stores, which
+// would also capture whatever the user added meanwhile) is what gets cached.
+async function _loadSFSAssetBufferImpl(buffer, zipName, onDecompProgress, onTexProgress, namedCategory, opts){
+  const lazyAll = !!(opts && opts.lazyAll);
+  const contents = { textures: [], heightmaps: [], presets: { vanilla:{}, custom:{} }, namedSources: {} };
   const rawEntries = parseZip(buffer);
   const entries = await decompressEntries(rawEntries, onDecompProgress);
   let totalTextures = 0, totalPresets = 0, errors = 0;
@@ -1584,7 +1702,7 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
  ].includes(_zipNameLower);
 
   // Bulk mode: suppress per-texture redraws inside the decode queue.
-  _bulkLoadActive = true;
+  _bulkBegin();
   const _thumbsDeferred = []; // renderAssetThumb calls deferred until queue drains
 
   // If this is a named import (e.g. BGH, HTSS), reset the bucket up-front so
@@ -1614,6 +1732,7 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
       if(ext === 'txt'){
         const content = new TextDecoder().decode(data);
         const entry = { name: filename, content, size: data.length };
+        contents.heightmaps.push(entry);
         if(!assets.heightmaps.find(a => a.name === filename)){
           assets.heightmaps.push(entry);
           renderAssetRow(entry, 'heightmaps');
@@ -1624,6 +1743,7 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
         const b64 = bytesToBase64(data);
         const url = `data:${mime};base64,${b64}`;
         const entry = { name: filename, url, size: data.length };
+        contents.heightmaps.push(entry);
         if(!assets.heightmaps.find(a => a.name === filename)){
           assets.heightmaps.push(entry);
           renderAssetRow(entry, 'heightmaps');
@@ -1651,6 +1771,7 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
         } else {
           const cat = _presetCategory(pathLower) || 'custom';
           dynamicPresets[cat][pname] = parsed;
+          contents.presets[cat][pname] = parsed;
         }
         totalPresets++;
       } else { errors++; }
@@ -1674,14 +1795,19 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
       // vanilla path. A user's own system/custom textures never go through
       // this function at all (that's importSystemZip's separate, still-
       // fully-eager path in this same file), so they're unaffected.
-      if(isVanillaTex && typeof registerLazyTexture === 'function'){
+      const entry = { name:filename, url, size:data.length, vanilla:isVanillaTex };
+      contents.textures.push(entry);
+      const alreadyHave = assets.textures.some(a => a.name === filename);
+      if(lazyAll && alreadyHave){
+        // Name already owned by something loaded earlier (e.g. the user's own
+        // texture while this downloads in the background) — leave it alone.
+      } else if((isVanillaTex || lazyAll) && typeof registerLazyTexture === 'function'){
         registerLazyTexture(texName, url, data.length);
       } else {
         cacheTexture(texName, url);
       }
 
-      if(!assets.textures.find(a=>a.name===filename)){
-        const entry = { name:filename, url, size:data.length, vanilla:isVanillaTex };
+      if(!alreadyHave){
         assets.textures.push(entry);
         _thumbsDeferred.push(entry); // render thumb after queue drains
         totalTextures++;
@@ -1698,13 +1824,14 @@ async function _loadSFSAssetBuffer(buffer, zipName, onDecompProgress, onTexProgr
   while(_decodeRunning || _decodeQueue.length > 0){
     await new Promise(r => setTimeout(r, 32));
   }
-  _bulkLoadActive = false;
+  _bulkEnd();
   // Chunked/non-blocking — see the matching change in _replayFromCache above.
   if(typeof renderAssetThumbsChunked === 'function') renderAssetThumbsChunked(_thumbsDeferred);
   else for(const entry of _thumbsDeferred) renderAssetThumb(entry);
 
   if(totalTextures > 0){ refreshTexPickerLists(); updateAssetEmptyState(); drawViewport(); }
-  return { totalTextures, totalPresets, errors, legacyFiles };
+  if(namedCategory && dynamicPresetSources[namedCategory]) contents.namedSources[namedCategory] = dynamicPresetSources[namedCategory];
+  return { totalTextures, totalPresets, errors, legacyFiles, contents };
 }
 
 async function loadSFSAssetZips(files){
