@@ -1097,6 +1097,62 @@ const REMOTE_ASSETS_URLS = [
   { url: 'assets/Custom Tex1.zip',        name: 'Custom Tex1.zip' },
 ];
 
+// ── Asset-load preferences (Settings → ASSETS tab + first-visit popup) ───────
+// Both default ON (original behaviour). Stored in localStorage and applied once
+// at startup by autoLoadRemoteAssets(), so changes take effect on next page load.
+// Group is derived from the zip name: "Custom *" = custom, everything else
+// (Vanilla Tex*, Vanilla Planet Data, Terrain*) = vanilla.
+const ASSET_LOAD_PREF_KEY = 'sfs-asset-load-prefs';
+function getAssetLoadPrefs(){
+  const p = { custom:true, vanilla:true };
+  try{
+    const raw = localStorage.getItem(ASSET_LOAD_PREF_KEY);
+    if(raw){
+      const o = JSON.parse(raw);
+      if(typeof o.custom  === 'boolean') p.custom  = o.custom;
+      if(typeof o.vanilla === 'boolean') p.vanilla = o.vanilla;
+    }
+  }catch(e){}
+  return p;
+}
+function setAssetLoadPrefs(p){
+  try{ localStorage.setItem(ASSET_LOAD_PREF_KEY, JSON.stringify({ custom:!!p.custom, vanilla:!!p.vanilla })); }catch(e){}
+}
+function hasAssetLoadPrefs(){
+  try{ return localStorage.getItem(ASSET_LOAD_PREF_KEY) !== null; }catch(e){ return true; } // no storage → don't nag, load all
+}
+function _remoteAssetGroup(entry){ return /^custom/i.test(entry.name) ? 'custom' : 'vanilla'; }
+// Filters REMOTE_ASSETS_URLS IN PLACE so every index/length/revalidate use
+// further down (phase A/B loaders, cache replay) stays consistent.
+function _applyAssetLoadPrefs(){
+  const p = getAssetLoadPrefs();
+  const kept = REMOTE_ASSETS_URLS.filter(e => p[_remoteAssetGroup(e)]);
+  REMOTE_ASSETS_URLS.splice(0, REMOTE_ASSETS_URLS.length, ...kept);
+}
+// First visit only: wait for the user to pick which packs to load.
+// Returning users (anything already in the IDB asset cache) are treated as
+// "load everything" and are not prompted.
+async function _askAssetLoadChoiceIfFirstVisit(){
+  if(hasAssetLoadPrefs()) return;
+  try{
+    const st = await idbCacheStats();
+    if(st && st.entries && st.entries.length > 0) return;
+  }catch(e){}
+  const m = document.getElementById('modal-asset-firstrun');
+  if(!m) return;
+  await new Promise(resolve => {
+    m.style.display = 'flex';
+    window.confirmAssetFirstRun = function(){
+      setAssetLoadPrefs({
+        custom:  document.getElementById('fr-load-custom')?.checked,
+        vanilla: document.getElementById('fr-load-vanilla')?.checked
+      });
+      m.style.display = 'none';
+      resolve();
+    };
+  });
+}
+
 // Auto-fetch remote asset zip on startup (online users only).
 // Falls back gracefully if offline or URL is null.
 let _remoteAbortCtrl = null;
@@ -1308,7 +1364,13 @@ function _isUsableCacheRecord(c){
 }
 
 async function autoLoadRemoteAssets(){
-  if(!REMOTE_ASSETS_URLS || !REMOTE_ASSETS_URLS.length) return;
+  await _askAssetLoadChoiceIfFirstVisit();
+  _applyAssetLoadPrefs();
+  if(!REMOTE_ASSETS_URLS || !REMOTE_ASSETS_URLS.length){
+    const st = document.getElementById('default-tex-status');
+    if(st){ st.textContent = 'Asset auto-load disabled in Settings'; st.style.color = 'var(--ink4)'; }
+    return;
+  }
   const statusEl  = document.getElementById('default-tex-status');
   const btn       = document.getElementById('btn-load-assets');
   const cancelBtn = document.getElementById('btn-cancel-remote');
