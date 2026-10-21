@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>SFS System Editor</title>
-<link rel="stylesheet" href="style.css?v=5.14">
+<link rel="stylesheet" href="style.css?v=5.15">
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
@@ -2023,7 +2023,6 @@
     <div style="display:flex;gap:0;margin:10px 0 18px;border-bottom:1px solid var(--ac18)">
       <button id="apptab-theme" onclick="switchAppTab('theme')" style="flex:1;padding:7px 0;background:var(--ac13);border:1px solid var(--ac28);border-bottom:none;color:var(--sky2);font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.08em;cursor:pointer;border-radius:4px 4px 0 0;margin-right:2px">THEME</button>
       <button id="apptab-sound" onclick="switchAppTab('sound')" style="flex:1;padding:7px 0;background:transparent;border:1px solid transparent;border-bottom:none;color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.08em;cursor:pointer;border-radius:4px 4px 0 0;margin-right:2px">SOUND</button>
-      <button id="apptab-assets" onclick="switchAppTab('assets')" style="flex:1;padding:7px 0;background:transparent;border:1px solid transparent;border-bottom:none;color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.08em;cursor:pointer;border-radius:4px 4px 0 0;margin-right:2px">ASSETS</button>
       <button id="apptab-appcredits" onclick="switchAppTab('appcredits')" style="flex:1;padding:7px 0;background:transparent;border:1px solid transparent;border-bottom:none;color:var(--ink4);font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.08em;cursor:pointer;border-radius:4px 4px 0 0">CREDITS</button>
     </div>
 
@@ -2180,26 +2179,6 @@
 
     </div><!-- end apptab-sound-content -->
 
-    <!-- ASSETS tab -->
-    <div id="apptab-assets-content" style="display:none">
-      <p style="margin-top:-6px;margin-bottom:10px;font-size:.68rem;color:var(--ink4);font-family:'JetBrains Mono',monospace">Choose which asset packs load on startup</p>
-      <label style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--ac10);cursor:pointer">
-        <input type="checkbox" id="asset-load-custom" checked onchange="onAssetLoadToggle()" style="width:16px;height:16px;accent-color:var(--sky);cursor:pointer;flex-shrink:0">
-        <span>
-          <span style="display:block;font-family:'JetBrains Mono',monospace;font-size:.66rem;color:var(--ink2);letter-spacing:.06em">LOAD CUSTOM ASSETS</span>
-          <span style="display:block;font-family:'JetBrains Mono',monospace;font-size:.54rem;color:var(--ink4);margin-top:2px">Custom Planet Data, Custom Tex1–2</span>
-        </span>
-      </label>
-      <label style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--ac10);cursor:pointer">
-        <input type="checkbox" id="asset-load-vanilla" checked onchange="onAssetLoadToggle()" style="width:16px;height:16px;accent-color:var(--sky);cursor:pointer;flex-shrink:0">
-        <span>
-          <span style="display:block;font-family:'JetBrains Mono',monospace;font-size:.66rem;color:var(--ink2);letter-spacing:.06em">LOAD VANILLA ASSETS</span>
-          <span style="display:block;font-family:'JetBrains Mono',monospace;font-size:.54rem;color:var(--ink4);margin-top:2px">Vanilla Planet Data, Vanilla Tex1–3, Terrain 1–3</span>
-        </span>
-      </label>
-      <p style="margin-top:14px;font-size:.58rem;color:var(--ink4);font-family:'JetBrains Mono',monospace;line-height:1.6">Changes take effect the next time the page loads.</p>
-    </div><!-- end apptab-assets-content -->
-
     <div id="apptab-appcredits-content" style="display:none">
       <div style="font-family:'JetBrains Mono',monospace;font-size:.66rem;line-height:2;color:var(--ink2)">
         <div style="margin-bottom:14px">
@@ -2230,32 +2209,6 @@
 
     <div class="modal-footer" style="justify-content:center">
       <button class="mf-btn ok" onclick="closeAppSettings()" ontouchend="event.stopPropagation();closeAppSettings()">CLOSE</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ FIRST-VISIT ASSET CHOICE ══════════════ -->
-<div id="modal-asset-firstrun" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(10,10,12,.92);backdrop-filter:blur(12px);align-items:center;justify-content:center;padding:16px">
-  <div class="mpanel" style="width:420px;max-height:90vh;overflow-y:auto">
-    <h2>WELCOME — CHOOSE ASSETS TO LOAD</h2>
-    <p style="margin-top:-2px;margin-bottom:6px;font-size:.66rem;color:var(--ink4);font-family:'JetBrains Mono',monospace;line-height:1.6">Asset packs are downloaded once, then cached on this device for faster future visits.</p>
-      <label style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--ac10);cursor:pointer">
-        <input type="checkbox" id="fr-load-vanilla" checked style="width:16px;height:16px;margin-top:2px;accent-color:var(--sky);cursor:pointer;flex-shrink:0">
-        <span>
-          <span style="display:block;font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--ink2);letter-spacing:.06em">LOAD VANILLA ASSETS</span>
-          <span style="display:block;font-family:'JetBrains Mono',monospace;font-size:.56rem;color:var(--ink4);margin-top:4px;line-height:1.6">The stock Spaceflight Simulator content: vanilla solar system presets, base textures and terrain heightmaps. Recommended — most systems build on these.</span>
-        </span>
-      </label>
-      <label style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--ac10);cursor:pointer">
-        <input type="checkbox" id="fr-load-custom" checked style="width:16px;height:16px;margin-top:2px;accent-color:var(--sky);cursor:pointer;flex-shrink:0">
-        <span>
-          <span style="display:block;font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--ink2);letter-spacing:.06em">LOAD CUSTOM ASSETS</span>
-          <span style="display:block;font-family:'JetBrains Mono',monospace;font-size:.56rem;color:var(--ink4);margin-top:4px;line-height:1.6">Extra custom planet presets and textures bundled with the editor. Optional — untick for a lighter, faster start.</span>
-        </span>
-      </label>
-    <p style="margin-top:12px;margin-bottom:16px;font-size:.56rem;color:var(--ink4);font-family:'JetBrains Mono',monospace;line-height:1.6">You can change this any time in Settings → Assets (applies on the next page load).</p>
-    <div class="modal-footer" style="justify-content:center">
-      <button class="mf-btn ok" onclick="confirmAssetFirstRun()">CONTINUE</button>
     </div>
   </div>
 </div>
@@ -2492,6 +2445,17 @@
   </div>
 </div>
 
+<!-- Non-blocking asset download progress (bottom, above the status bar) -->
+<div id="bg-asset-chip" role="status" aria-live="polite">
+  <div class="bgc-row">
+    <span class="bgc-title" id="bgc-title">Loading assets</span>
+    <span class="bgc-sub" id="bgc-sub"></span>
+    <span class="bgc-pct" id="bgc-pct">0%</span>
+    <button class="bgc-x" onclick="cancelRemoteAssets()" title="Stop downloading assets" aria-label="Stop downloading assets">&#10005;</button>
+  </div>
+  <div class="bgc-track"><div class="bgc-fill" id="bgc-fill"></div></div>
+</div>
+
 <!-- PeerJS: WebRTC wrapper used for serverless multiplayer signaling (see js/collab.js) -->
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="js/background.js?v=5.13"></script>
@@ -2500,8 +2464,8 @@
 <!-- io.js must precede presets.js — it declares dynamicPresets which
      buildAllPresets() references at parse/call time. -->
 <script src="js/idb-cache.js?v=5.13"></script>
-<script src="js/assets.js?v=5.13"></script>
-<script src="js/io.js?v=5.16"></script>
+<script src="js/assets.js?v=5.14"></script>
+<script src="js/io.js?v=5.15"></script>
 <script src="js/presets.js?v=5.13"></script>
 <script src="js/state.js?v=5.13"></script>
 <script src="js/collab.js?v=1.0"></script>
@@ -2509,7 +2473,7 @@
 <script src="js/collab-sync.js"></script>
 <script src="js/collab-debug.js?v=1.0"></script>
 <script src="js/autosave.js?v=5.13"></script>
-<script src="js/settings.js?v=5.14"></script>
+<script src="js/settings.js?v=5.13"></script>
 <script src="js/preset-modal.js?v=5.13"></script>
 <script src="js/viewport.js?v=5.17"></script>
 <script src="js/tools.js?v=5.13"></script>

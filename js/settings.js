@@ -36,7 +36,7 @@ function switchSettingsTab(tab){
 }
 
 function switchAppTab(tab){
-  ['theme','sound','assets','appcredits'].forEach(t=>{
+  ['theme','sound','appcredits'].forEach(t=>{
     const active = t===tab;
     const btn = document.getElementById('apptab-'+t);
     const content = document.getElementById('apptab-'+t+'-content');
@@ -48,28 +48,12 @@ function switchAppTab(tab){
     }
     if(content) content.style.display = active ? '' : 'none';
   });
-  if(tab === 'assets') syncAssetLoadUI();
   if(tab === 'theme'){
     if(window._syncUiColorPicker) window._syncUiColorPicker();
     if(window._getUiHue) _updateUiSwatches(window._getUiHue());
     _syncThemeBtns();
     _updateCustomBgUI(!!_customBgImg);
   }
-}
-
-// ── ASSETS tab: custom / vanilla auto-load checkboxes ──
-function syncAssetLoadUI(){
-  const p = getAssetLoadPrefs();
-  const c = document.getElementById('asset-load-custom');
-  const v = document.getElementById('asset-load-vanilla');
-  if(c) c.checked = p.custom;
-  if(v) v.checked = p.vanilla;
-}
-function onAssetLoadToggle(){
-  setAssetLoadPrefs({
-    custom:  document.getElementById('asset-load-custom')?.checked,
-    vanilla: document.getElementById('asset-load-vanilla')?.checked
-  });
 }
 
 function openAppSettings(){
