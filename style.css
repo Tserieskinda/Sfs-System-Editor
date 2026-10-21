@@ -3618,3 +3618,30 @@ body.pseudo-fullscreen {
   .dc-color-pair { gap: 6px; }
   .dc-cloud-source-row { gap: 6px; }
 }
+
+/* ── Non-blocking asset download bar (sits just above the status bar) ── */
+#bg-asset-chip {
+  position: fixed; left: 0; right: 0; bottom: 28px; z-index: 150;
+  padding: 5px 16px 0; background: var(--panel); border-top: 1px solid var(--rim);
+  font-family: 'Exo 2', sans-serif; font-size: .66rem; letter-spacing: .06em;
+  color: var(--sky2); transform: translateY(110%); opacity: 0; pointer-events: none;
+  transition: transform .25s ease, opacity .25s ease;
+}
+#bg-asset-chip.show { transform: none; opacity: 1; pointer-events: auto; }
+#bg-asset-chip .bgc-row { display: flex; align-items: center; gap: 10px; min-height: 20px; }
+#bg-asset-chip .bgc-title { flex: 0 0 auto; text-transform: uppercase; }
+#bg-asset-chip .bgc-sub { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .6; }
+#bg-asset-chip .bgc-pct { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+#bg-asset-chip .bgc-x { flex: 0 0 auto; background: none; border: 0; color: inherit; opacity: .55; cursor: pointer; padding: 2px 6px; font-size: .75rem; }
+#bg-asset-chip .bgc-x:hover { opacity: 1; }
+#bg-asset-chip .bgc-track { height: 3px; margin: 4px -16px 0; background: rgba(255,255,255,.07); }
+#bg-asset-chip .bgc-fill { height: 100%; width: 0; background: var(--sky2); transition: width .2s linear; }
+#bg-asset-chip.done { color: var(--jade); }
+#bg-asset-chip.done .bgc-fill { background: var(--jade); }
+#bg-asset-chip.done .bgc-x, #bg-asset-chip.warn .bgc-x { display: none; }
+#bg-asset-chip.warn { color: var(--amber); }
+#bg-asset-chip.warn .bgc-fill { background: var(--amber); }
+@media (max-width: 640px) {
+  #bg-asset-chip { bottom: 44px; padding: 5px 12px 0; }
+  #bg-asset-chip .bgc-track { margin: 4px -12px 0; }
+}

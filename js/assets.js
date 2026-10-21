@@ -16,8 +16,30 @@ const _decodeYieldMs = _lowMemDevice ? 16 : 0; // one frame gap on low-end phone
 
 // While a bulk load is in progress, suppress per-texture redraws — fire once at end.
 let _bulkLoadActive = false;
+// Ref-counted: a background asset download, a user's system import and a
+// manual asset upload can all be "bulk" at once. A plain boolean let whichever
+// finished first switch bulk mode off under the others.
+let _bulkLoadDepth = 0;
+function _bulkBegin(){ _bulkLoadDepth++; _bulkLoadActive = true; }
+function _bulkEnd(){ _bulkLoadDepth = Math.max(0, _bulkLoadDepth - 1); _bulkLoadActive = _bulkLoadDepth > 0; }
+
+// Coalesced "a texture finished decoding" notification. The lazy sweep and
+// background downloads decode many textures while the user is working; one
+// full redraw + picker rebuild per texture made that janky.
+let _texNotifyTimer = null;
+function _scheduleTexNotify(){
+  if(_texNotifyTimer) return;
+  _texNotifyTimer = setTimeout(() => {
+    _texNotifyTimer = null;
+    drawViewport();
+    if(typeof refreshTexPickerLists === 'function') refreshTexPickerLists();
+    if(typeof _PSC !== 'undefined' && _PSC.open && typeof _pscScheduleDraw === 'function') _pscScheduleDraw();
+  }, 120);
+}
 
 function cacheTexture(name, dataUrl){
+  // An explicit/eager load of this name wins over any lazy library entry.
+  if(typeof _lazyTexRegistry !== 'undefined' && _lazyTexRegistry[name]) delete _lazyTexRegistry[name];
   _decodeQueue.push({ name, dataUrl });
   _processDecodeQueue();
 }
@@ -47,13 +69,7 @@ async function _processDecodeQueue(){
 
         // During bulk loads suppress per-texture redraws — the caller fires
         // one final drawViewport/refreshTexPickerLists when the batch ends.
-        if(!_bulkLoadActive){
-          drawViewport();
-          if(typeof refreshTexPickerLists === 'function') refreshTexPickerLists();
-          if(typeof _PSC !== 'undefined' && _PSC.open && typeof _pscScheduleDraw === 'function'){
-            _pscScheduleDraw();
-          }
-        }
+        if(!_bulkLoadActive) _scheduleTexNotify();
         resolve();
       };
       img.onerror = () => {
@@ -75,8 +91,7 @@ async function _processDecodeQueue(){
 
   // Queue drained — fire deferred notifications now.
   if(_bulkLoadActive) return; // caller will fire them
-  drawViewport();
-  if(typeof refreshTexPickerLists === 'function') refreshTexPickerLists();
+  _scheduleTexNotify();
 }
 
 // ════════════════════════════════ LAZY VANILLA-TEXTURE DECODE ════════════════════════════════
@@ -104,6 +119,9 @@ const _lazyTexRegistry = {};
 // Image()+pixel-sample step is deferred.
 function registerLazyTexture(name, url, size){
   if(textureCache[name]) return; // already decoded, nothing to defer
+  // Same name already queued for an eager decode (e.g. the user's own
+  // texture): it owns the name — don't let the library entry overwrite it.
+  if(_decodeQueue.length && _decodeQueue.some(q => q.name === name)) return;
   _lazyTexRegistry[name] = { name, url, size: size || 0 };
 }
 
@@ -148,9 +166,15 @@ function startLazyTextureSweep(){
   _lazySweepActive = true;
   const step = (deadline) => {
     // Drain what idle time allows this pass, largest remaining entry first.
+    // Promoting only enqueues, so it never uses up idle time on its own —
+    // cap the batch and the queue depth, otherwise one callback dumps the
+    // whole registry into the decode queue and anything waiting for that
+    // queue to drain (a user's system import) waits for all of it.
+    let budget = 8;
     while(true){
       const names = Object.keys(_lazyTexRegistry);
       if(names.length === 0){ _lazySweepActive = false; return; }
+      if(budget-- <= 0 || _decodeQueue.length > 8) break;
       const hasDeadline = deadline && typeof deadline.timeRemaining === 'function';
       if(hasDeadline && deadline.timeRemaining() <= 0 && !deadline.didTimeout) break;
       let biggest = names[0];
@@ -246,6 +270,7 @@ function renderAssetThumb(entry){
   const grid = document.getElementById('agrid-textures');
   if(!grid) return;
   const safe = sanitize(entry.name);
+  if(document.getElementById('asset-tex-'+safe)) return; // already rendered (chunked render racing a grid rebuild)
   const div = document.createElement('div');
   div.className = 'asset-thumb'; div.id='asset-tex-'+safe;
   div.dataset.name = entry.name.replace(/\.[^.]+$/,'').toLowerCase();
@@ -271,7 +296,10 @@ function renderAssetThumbsChunked(entries, chunk){
   return new Promise(resolve => {
     function step(){
       const end = Math.min(i + chunk, entries.length);
-      for(; i < end; i++) renderAssetThumb(entries[i]);
+      for(; i < end; i++){
+        // Skip entries removed (or replaced) while this render was pending.
+        if(assets.textures.includes(entries[i])) renderAssetThumb(entries[i]);
+      }
       if(i < entries.length) requestAnimationFrame(step);
       else resolve();
     }
