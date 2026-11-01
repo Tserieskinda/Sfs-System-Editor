@@ -98,7 +98,10 @@
         .container { 
             position: relative; 
             cursor: crosshair; 
-            background: #000; 
+            background-color: #2a2d36;
+            background-image: linear-gradient(45deg,#3a3e4a 25%,transparent 25%,transparent 75%,#3a3e4a 75%),
+                              linear-gradient(45deg,#3a3e4a 25%,transparent 25%,transparent 75%,#3a3e4a 75%);
+            background-size: 16px 16px; background-position: 0 0, 8px 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
             border-radius: 8px;
             overflow: hidden;
@@ -145,7 +148,11 @@
         .preview-box { display: flex; flex-direction: column; align-items: center; gap: 8px; }
         .preview-box span { font-size: 0.75rem; color: #718096; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
         .preview-box canvas {
-            border: 1px solid #2d3748; border-radius: 6px; background: #000;
+            border: 1px solid #2d3748; border-radius: 6px;
+            background-color: #2a2d36;
+            background-image: linear-gradient(45deg,#3a3e4a 25%,transparent 25%,transparent 75%,#3a3e4a 75%),
+                              linear-gradient(45deg,#3a3e4a 25%,transparent 25%,transparent 75%,#3a3e4a 75%);
+            background-size: 16px 16px; background-position: 0 0, 8px 8px;
             max-width: 220px; max-height: 160px; display: block;
         }
         #previewInner { border-radius: 50% !important; width: 140px; height: 140px; }
@@ -341,6 +348,7 @@
     // ── Reset / guides ──────────────────────────────────────────────────────
     function resetImage() {
         if (!img.src) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
         drawGuides();
     }
@@ -382,18 +390,21 @@
     }
 
     // ── Bilinear sampler ────────────────────────────────────────────────────
+    // Returns PREMULTIPLIED rgba so transparent pixels (usually rgb 0,0,0)
+    // don't bleed black into neighbouring opaque pixels.
     function getBilinearPixel(data, w, h, x, y) {
         const x0 = Math.floor(x), x1 = Math.min(x0+1, w-1);
         const y0 = Math.floor(y), y1 = Math.min(y0+1, h-1);
         const dx = x-x0, dy = y-y0;
-        const i00=(y0*w+x0)*4, i01=(y0*w+x1)*4, i10=(y1*w+x0)*4, i11=(y1*w+x1)*4;
-        const out=[];
-        for(let i=0;i<4;i++){
-            const top = data[i00+i]*(1-dx)+data[i01+i]*dx;
-            const bot = data[i10+i]*(1-dx)+data[i11+i]*dx;
-            out[i] = top*(1-dy)+bot*dy;
+        const idx = [(y0*w+x0)*4, (y0*w+x1)*4, (y1*w+x0)*4, (y1*w+x1)*4];
+        const wt  = [(1-dx)*(1-dy), dx*(1-dy), (1-dx)*dy, dx*dy];
+        let r=0, g=0, b=0, a=0;
+        for (let k=0;k<4;k++){
+            const i = idx[k], al = data[i+3];
+            const wa = wt[k]*al/255;
+            r += data[i]*wa; g += data[i+1]*wa; b += data[i+2]*wa; a += wt[k]*al;
         }
-        return out;
+        return [r,g,b,a];
     }
 
     // ── Transform ───────────────────────────────────────────────────────────
@@ -430,8 +441,7 @@
                 const sx = doFlipH ? (outW-1-x) : x;
                 const sy = doFlipV ? (outH-1-y) : y;
                 
-                let rTot = 0, gTot = 0, bTot = 0, aTot = 0;
-                let validSamples = 0;
+                let rTot = 0, gTot = 0, bTot = 0, aTot = 0; // premultiplied sums
 
                 // 2x2 Supersampling to mimic GIMP's smooth rendering
                 for(let dy = 0.25; dy < 1; dy += 0.5) {
@@ -466,17 +476,19 @@
                         if (srcX >= 0 && srcX < srcW && srcY >= 0 && srcY < srcH) {
                             const px = getBilinearPixel(srcData, srcW, srcH, srcX, srcY);
                             rTot += px[0]; gTot += px[1]; bTot += px[2]; aTot += px[3];
-                            validSamples++;
                         }
                     }
                 }
 
                 const oIdx = (y * outW + x) * 4;
-                if (validSamples > 0) {
-                    output.data[oIdx]   = rTot / validSamples;
-                    output.data[oIdx+1] = gTot / validSamples;
-                    output.data[oIdx+2] = bTot / validSamples;
-                    output.data[oIdx+3] = aTot / validSamples; // Proper Alpha support
+                const aAvg = aTot / 4; // 4 samples; out-of-bounds ones count as transparent
+                if (aAvg > 0) {
+                    // un-premultiply back to straight alpha for output
+                    const inv = 255 / aAvg / 4;
+                    output.data[oIdx]   = rTot * inv;
+                    output.data[oIdx+1] = gTot * inv;
+                    output.data[oIdx+2] = bTot * inv;
+                    output.data[oIdx+3] = aAvg;
                 } else {
                     // Return clear transparency if entirely out-of-bounds
                     output.data[oIdx] = output.data[oIdx+1] = output.data[oIdx+2] = output.data[oIdx+3] = 0;
@@ -491,6 +503,7 @@
 
         canvas.width  = overlay.width  = srcW;
         canvas.height = overlay.height = srcH;
+        ctx.clearRect(0, 0, srcW, srcH);
         ctx.drawImage(warpCanvas, 0, 0, srcW, srcH);
         octx.clearRect(0, 0, srcW, srcH);
 
