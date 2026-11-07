@@ -5425,7 +5425,7 @@ function _terrainClipPath(b, bodyName, sp, physR_px, radius_m, N, arcInfo) {
 // screen position and scaling by its current on-screen radius. Neither the
 // path traversal cost nor a rebuild happens on pan/zoom — only this cheap
 // transform changes — which is what keeps large, fully-zoomed planets
-// smooth instead of rebuilding a many-thousand-vertex path every frame.
+// smooth instead of rebuilding a many-thousand-vertex path every frame
 function _applyTerrainClip(ctx, path, sp, physR_px) {
   ctx.translate(sp.x, sp.y);
   ctx.scale(physR_px, physR_px);
