@@ -2044,6 +2044,14 @@ function _liveSyncNow(){
   // raw string may be incomplete (e.g. "-", "1.", ""). We must not parse it yet —
   // instead keep the last committed value for that field.
   const _focusId = document.activeElement?.id || '';
+  // PERF: while a slider/colour picker is being dragged, every surface cache (cloud, water,
+  // atmosphere polar warp, fog) is already keyed on the parameters it depends on, so
+  // wiping them each tick only forces a full per-pixel rebuild (up to 1M px) per frame.
+  // Texture swaps come through <select>/change paths and still flush below.
+  const _focusEl = document.activeElement;
+  const _isDrag = !!_focusEl && (_focusEl.type === 'range' || _focusEl.type === 'color');
+  // Controls that never change terrain geometry (atmosphere, clouds, fog, rings, post-proc, map colour)
+  const _terrainIrrelevant = _isDrag && /^(cl|fc|fk|fog|av|ap|rng|ppk)-|^b-c[rgba]$/.test(_focusId);
 
   // Safe numeric read: if the focused element is this field and its raw value is
   // unparseable/empty, return the fallback instead of clobbering with 0 or NaN.
@@ -2063,7 +2071,7 @@ function _liveSyncNow(){
   // Orbit fields (SMA, eccentricity, AoP, direction) never affect terrain geometry —
   // skipping the invalidation prevents a full terrain re-sample every slider tick on mobile.
   const _orbitOnlyIds = new Set(['or-ecc','or-ecc-sl','or-aop','or-aop-sl','or-sma','or-sma-unit','or-dir','or-period','or-period-unit']);
-  if(typeof invalidateTerrainCache === 'function' && !_orbitOnlyIds.has(_focusId)){
+  if(typeof invalidateTerrainCache === 'function' && !_orbitOnlyIds.has(_focusId) && !_terrainIrrelevant){
     invalidateTerrainCache(selectedBody);
   }
 
@@ -2204,7 +2212,8 @@ function _liveSyncNow(){
     if(rktype && rktype !== 'None'){
       d.TERRAIN_DATA.rocks = { rockType:rktype, rockDensity:_sf('rk-den', 0.5), minSize:_sf('rk-min', 0.2), maxSize:_sf('rk-max', 0.8), powerCurve:_sf('rk-pc', 2), maxAngle:_sf('rk-ma', 25) };
     }
-    // Invalidate cloud/water/atmo caches when texture changes
+    // Invalidate cloud/water/atmo caches when texture changes (skipped during slider/colour drags — see _isDrag)
+    if(!_isDrag){
     if(drawViewport._cloudCache) drawViewport._cloudCache = {};
     if(drawViewport._waterCache) drawViewport._waterCache = {};
     if(drawViewport._atmoStopCache) drawViewport._atmoStopCache = {};
@@ -2212,12 +2221,15 @@ function _liveSyncNow(){
     if(drawViewport._atmoSrcCache) drawViewport._atmoSrcCache = {};
     if(drawViewport._fcCache) drawViewport._fcCache = {};
     if(drawViewport._fogCache) drawViewport._fogCache = {};
+    }
   } else {
     delete d.TERRAIN_DATA;
     // Flush surface caches when terrain is removed
+    if(!_isDrag){
     if(drawViewport._cloudCache) drawViewport._cloudCache = {};
     if(drawViewport._waterCache) drawViewport._waterCache = {};
     if(drawViewport._atmoPolarCache) drawViewport._atmoPolarCache = {};
+    }
   }
 
   // RINGS
@@ -2266,10 +2278,12 @@ function _liveSyncNow(){
     };
   } else delete d.WATER_DATA;
   // Invalidate the water colour canvas cache so changes render immediately
+  if(!_isDrag){
   if(drawViewport._waterCache) drawViewport._waterCache = {};
   if(drawViewport._cloudCache) drawViewport._cloudCache = {};
   if(drawViewport._fcCache) drawViewport._fcCache = {};
   if(drawViewport._fogCache) drawViewport._fogCache = {};
+  }
 
   // POST PROCESSING — only write if keys exist (off by default)
   const _ppKeys = collectPPKeys();
@@ -2280,7 +2294,8 @@ function _liveSyncNow(){
   d.LANDMARKS = collectLandmarks();
 
   // Invalidate cloud canvas cache so any atmosphere/texture change renders immediately
-  if(drawViewport._cloudCache) drawViewport._cloudCache = {};
+  // (cache key already covers every cloud parameter, so skip while dragging a slider/colour)
+  if(!_isDrag && drawViewport._cloudCache) drawViewport._cloudCache = {};
 
   drawViewport();
 }

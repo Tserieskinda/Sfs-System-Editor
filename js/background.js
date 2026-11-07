@@ -1,3 +1,12 @@
+// PERF: starfield/aurora are time-based (not per-frame-stepped), so cap them at ~30fps.
+// Halves the full-screen canvas raster + compositor commit cost that competes with the viewport render.
+let _bgLastT = 0;
+function _bgGate(fn){
+  return function g(t){
+    if(t - _bgLastT < 32){ animId = requestAnimationFrame(g); return; }
+    _bgLastT = t; fn(t);
+  };
+}
 // ════════════════════════════════ BACKGROUND THEMES ════════════════════════════════
 const BG_THEMES = ['gamelike','nebula','matrix','custom'];
 // Migrate anyone who had the old "Twinkling Stars" theme selected — it's been
@@ -182,9 +191,9 @@ function perlin2D(x, y){
             x.fillStyle = s.col + a + ')'; x.fill();
           });
         }
-        animId = requestAnimationFrame(draw);
+        animId = requestAnimationFrame(_bgGate(draw));
       }
-      animId = requestAnimationFrame(draw);
+      animId = requestAnimationFrame(_bgGate(draw));
 
     } else if(bgTheme === 'nebula'){
       // Drifting nebula clouds + sparse stars
@@ -298,9 +307,9 @@ function perlin2D(x, y){
           x.beginPath(); x.arc(s.x,s.y,s.r,0,Math.PI*2);
           x.fillStyle=`rgba(200,255,220,${a})`; x.fill();
         });
-        animId = requestAnimationFrame(draw);
+        animId = requestAnimationFrame(_bgGate(draw));
       }
-      animId = requestAnimationFrame(draw);
+      animId = requestAnimationFrame(_bgGate(draw));
     } else if(bgTheme === 'custom'){
       // Static cover-fit custom image — no animation loop needed
       x.clearRect(0,0,c.width,c.height);
@@ -329,4 +338,3 @@ function setBgTheme(t){
   if(typeof _updateCustomBgUI === 'function') _updateCustomBgUI(!!_customBgImg);
   window._bgInit();
 }
-

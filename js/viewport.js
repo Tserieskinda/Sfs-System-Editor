@@ -755,6 +755,27 @@ window.hideCloudOverlayTool = function(){
   if(i) i.remove();
 };
 
+// PERF: per-pixel radius + wrapped angle for an SZxSZ polar warp never depend on the texture or
+// innerFrac, so compute them once per size. Rebuilding the atmosphere polar canvas then only does
+// table lookups instead of 1M sqrt()+atan2() calls each time innerFrac crosses a cache bucket.
+const _polarLUTs = {};
+function _getPolarLUT(SZ){
+  let L = _polarLUTs[SZ];
+  if(L) return L;
+  const rad = new Float32Array(SZ*SZ), uu = new Float32Array(SZ*SZ);
+  const half = SZ/2, TAU = Math.PI*2;
+  for(let py=0; py<SZ; py++){
+    const dy = py - half;
+    for(let px=0; px<SZ; px++){
+      const dx = px - half, i = py*SZ+px;
+      rad[i] = Math.sqrt(dx*dx + dy*dy) / half;
+      let a = Math.atan2(dy, dx) / TAU; if(a < 0) a += 1;
+      uu[i] = (1 - a) % 1;
+    }
+  }
+  return (_polarLUTs[SZ] = { rad, uu });
+}
+
 // Throttle drawViewport to one RAF per call — prevents stacking on rapid scroll/zoom
 let _drawPending = false;
 function drawViewport(){
@@ -2097,12 +2118,13 @@ function _drawViewportNow(){
                 inner_b=bSum/cnt+.5|0; inner_a=aSum/cnt+.5|0;
               }
 
+              const _lut = _getPolarLUT(SZ), _lutRad = _lut.rad, _lutU = _lut.uu;
+              const _invBand = 1 / (1 - innerFracClamped);
               for(let py = 0; py < SZ; py++){
                 for(let ppx = 0; ppx < SZ; ppx++){
-                  const dx = ppx - half, dy = py - half;
-                  const dist = Math.sqrt(dx*dx + dy*dy);
-                  const radFrac = dist / half;
-                  const oi = (py*SZ + ppx)*4;
+                  const li = py*SZ + ppx;
+                  const radFrac = _lutRad[li];
+                  const oi = li*4;
 
                   if(radFrac > 1.0){ od[oi+3]=0; continue; }
 
@@ -2113,11 +2135,9 @@ function _drawViewportNow(){
                     continue;
                   }
 
-                  let cwAngle = Math.atan2(dy, dx) / (Math.PI*2);
-                  if(cwAngle < 0) cwAngle += 1;
-                  const u = (1 - cwAngle) % 1;
+                  const u = _lutU[li];
 
-                  const t = (radFrac - innerFracClamped) / (1 - innerFracClamped);
+                  const t = (radFrac - innerFracClamped) * _invBand;
                   const texRowF = (1 - t) * (SH - 1);
                   const sx = Math.min(SW-1, Math.max(0, Math.round(u * (SW-1))));
                   // Bilinear interpolation along Y to avoid hard row-quantisation rings
