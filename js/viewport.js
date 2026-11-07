@@ -993,6 +993,14 @@ const FAST_ICON_BODY_THRESHOLD = 200;
 // exists to render (terrain, atmosphere, clouds, rings, water, landmarks) and is
 // not a star/black hole/barycentre, so the only thing the full pipeline would
 // draw for it is the icon disc, selection rings and label.
+// A "VFX carrier": a near-zero-radius body at (or near) SMA 0 whose whole job is to paint a
+// CLOUDS texture band over its parent (e.g. a rotating gas-giant surface layer). Like the
+// front-cloud decorators it has no independent presence, so LOD/overlap culling must not apply.
+function _isCloudVfxCarrier(b){
+  const c = b?.data?.ATMOSPHERE_VISUALS_DATA?.CLOUDS;
+  return !!(c && c.texture && c.texture !== 'None' && (c.alpha === undefined || c.alpha > 0.005));
+}
+
 function _isPlainIconBody(b){
   if(b.isCenter) return false;
   const p = b.preset;
@@ -1223,7 +1231,7 @@ function _drawViewportNow(){
     // close-orbit shadow disc) instead of just fading its OWN disc/label,
     // which is all the original fade was ever meant to do.
     const fcd = b.data.FRONT_CLOUDS_DATA;
-    if(fcd && fcd.cloudsTexture && fcd.cloudsTexture !== 'None'){
+    if((fcd && fcd.cloudsTexture && fcd.cloudsTexture !== 'None') || _isCloudVfxCarrier(b)){
       bodyVisible[name] = true;
       bodyFadeVal[name] = 1;
       // Label fade stays as computed — we still don't want a label floating
@@ -1692,7 +1700,7 @@ function _drawViewportNow(){
     // inside the bigger body. Only applies to bodies actually being shown at
     // their icon floor (iconR >= physR_px) — real, physically-sized terrain
     // discs are never culled this way.
-    if(iconR >= physR_px){
+    if(iconR >= physR_px && !_isCloudVfxCarrier(b)){
       for(let _oi = 0; _oi < _drawnDiscs.length; _oi++){
         const _d = _drawnDiscs[_oi];
         if(_d.r <= r * 1.05) continue; // not meaningfully bigger — no cull
