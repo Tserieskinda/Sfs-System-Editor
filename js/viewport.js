@@ -997,8 +997,13 @@ const FAST_ICON_BODY_THRESHOLD = 200;
 // CLOUDS texture band over its parent (e.g. a rotating gas-giant surface layer). Like the
 // front-cloud decorators it has no independent presence, so LOD/overlap culling must not apply.
 function _isCloudVfxCarrier(b){
-  const c = b?.data?.ATMOSPHERE_VISUALS_DATA?.CLOUDS;
-  return !!(c && c.texture && c.texture !== 'None' && (c.alpha === undefined || c.alpha > 0.005));
+  const av = b?.data?.ATMOSPHERE_VISUALS_DATA;
+  const c = av?.CLOUDS;
+  if(c && c.texture && c.texture !== 'None' && (c.alpha === undefined || c.alpha > 0.005)) return true;
+  // Gradient-only carrier: atmosphere GRADIENT texture painted by a body that has no
+  // ATMOSPHERE_PHYSICS_DATA (e.g. a star's VFX shell). Same "no independent presence" rule.
+  const g = av?.GRADIENT;
+  return !!(g && g.texture && g.texture !== 'None' && !b.data.ATMOSPHERE_PHYSICS_DATA && !b.data.TERRAIN_DATA);
 }
 
 function _isPlainIconBody(b){
@@ -1935,7 +1940,11 @@ function _drawViewportNow(){
     const _atmoH_m  = (b.data.ATMOSPHERE_PHYSICS_DATA?.height || 0) * getAtmoDifficultyMult(b.data);
     const _gradH_m  = (b.data.ATMOSPHERE_VISUALS_DATA?.GRADIENT?.height || _atmoH_m) * getAtmoDifficultyMult(b.data);
     const _R_eff_px = bodyRadius_m * radiusMult;
-    const _atmoOuterPx = _atmoH_m > 0
+    // Physics-less gradient carrier (VFX shell): the visual gradient alone defines its extent.
+    const _gradOnly = !b.data.ATMOSPHERE_PHYSICS_DATA && !b.data.TERRAIN_DATA &&
+      !!(b.data.ATMOSPHERE_VISUALS_DATA?.GRADIENT?.texture && b.data.ATMOSPHERE_VISUALS_DATA.GRADIENT.texture !== 'None') &&
+      _gradH_m > 0;
+    const _atmoOuterPx = (_atmoH_m > 0 || _gradOnly)
       ? physR_px * (_R_eff_px + _gradH_m) / _R_eff_px
       : physR_px;
     // LOD threshold: larger atmospheres (by physical outer radius in metres) start
@@ -2042,14 +2051,14 @@ function _drawViewportNow(){
       }
     }
 
-    if(envFlags.atmo && !envFlags.heightmaps && atmoFade > 0 && b.data.ATMOSPHERE_PHYSICS_DATA && b.data.ATMOSPHERE_VISUALS_DATA?.GRADIENT){
-      const APD = b.data.ATMOSPHERE_PHYSICS_DATA;
+    if(envFlags.atmo && !envFlags.heightmaps && atmoFade > 0 && (b.data.ATMOSPHERE_PHYSICS_DATA || _gradOnly) && b.data.ATMOSPHERE_VISUALS_DATA?.GRADIENT){
+      const APD = b.data.ATMOSPHERE_PHYSICS_DATA || {};
       const GRD = b.data.ATMOSPHERE_VISUALS_DATA.GRADIENT;
       const atmosH_m = APD.height || 0;
       const gradH_m  = GRD.height || atmosH_m;
       const atmoTex  = GRD.texture;
 
-      if(atmosH_m > 0 && atmoTex && atmoTex !== 'None'){
+      if((atmosH_m > 0 || _gradOnly) && atmoTex && atmoTex !== 'None'){
         const srcImg = textureCache[atmoTex];
         if(srcImg && srcImg.complete && srcImg.naturalWidth > 0){
           // Always use physR_px (true physical pixel radius) for atmosphere sizing,
