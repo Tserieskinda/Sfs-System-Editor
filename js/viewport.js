@@ -3243,7 +3243,8 @@ function _drawViewportNow(){
     // NOT altitude. We evaluate the gradient at bodyRadius_m (typical map-view
     // distance) to get the representative fog colour for the current zoom level,
     // then apply it as a centre→limb radial, scaled by dbgFogOpacity.
-    if(envFlags.fog && !envFlags.heightmaps && atmoFade > 0 && b.data.ATMOSPHERE_VISUALS_DATA?.FOG?.keys){
+    // In-game FOG is a uniform on the TERRAIN shader only; bodies without TERRAIN_DATA (gas giants, VFX shells) never show it.
+    if(envFlags.fog && !envFlags.heightmaps && atmoFade > 0 && b.data.TERRAIN_DATA && b.data.ATMOSPHERE_VISUALS_DATA?.FOG?.keys){
       const fogKeys = b.data.ATMOSPHERE_VISUALS_DATA.FOG.keys;
       if(fogKeys.length >= 1){
         // ColorGradient.Evaluate — mirrors the C# implementation exactly:
