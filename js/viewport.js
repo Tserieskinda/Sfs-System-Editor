@@ -1781,8 +1781,13 @@ function _drawViewportNow(){
       if(typeof groupSelectMode !== 'undefined' && groupSelectMode && typeof groupSelected !== 'undefined' && groupSelected.has(name)){ ctx2.beginPath(); polygonCircle(ctx2,sp.x,sp.y,11,64); ctx2.closePath(); ctx2.strokeStyle='rgba(255,155,40,0.9)'; ctx2.lineWidth=2; ctx2.setLineDash([3,3]); ctx2.stroke(); ctx2.setLineDash([]); }
       ctx2.fillStyle='rgba(150,200,240,0.7)'; ctx2.font='9px "JetBrains Mono",monospace'; ctx2.textAlign='center';
       ctx2.fillText(name, sp.x, sp.y+18);
+      // Any body inferred as 'barycentre' (radius < 200 m, no terrain) that still carries real
+      // visual data must fall through. ATMOSPHERE_VISUALS_DATA (CLOUDS/GRADIENT/FOG) is what
+      // "VFX carrier" bodies use, e.g. a rotating cloud layer over a gas giant.
       const _hasOwnVisuals = !!(b.data.FRONT_CLOUDS_DATA || b.data.ATMOSPHERE_PHYSICS_DATA ||
-                                 b.data.RINGS_DATA || b.data.TERRAIN_DATA);
+                                 b.data.ATMOSPHERE_VISUALS_DATA || b.data.WATER_DATA ||
+                                 b.data.RINGS_DATA || b.data.TERRAIN_DATA ||
+                                 (b.data.LANDMARKS && b.data.LANDMARKS.length));
       if(!_hasOwnVisuals){
         ctx2.restore(); // must restore before early return
         return;
@@ -5425,7 +5430,7 @@ function _terrainClipPath(b, bodyName, sp, physR_px, radius_m, N, arcInfo) {
 // screen position and scaling by its current on-screen radius. Neither the
 // path traversal cost nor a rebuild happens on pan/zoom — only this cheap
 // transform changes — which is what keeps large, fully-zoomed planets
-// smooth instead of rebuilding a many-thousand-vertex path every frame
+// smooth instead of rebuilding a many-thousand-vertex path every frame.
 function _applyTerrainClip(ctx, path, sp, physR_px) {
   ctx.translate(sp.x, sp.y);
   ctx.scale(physR_px, physR_px);
