@@ -538,6 +538,11 @@
                     <button id="export2DBumpBtn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all">
                         <i class="fa-solid fa-mountain text-amber-400"></i> Export 2D Bump / Normal Map (PNG)
                     </button>
+                    <button id="exportViewBtn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all">
+                        <i class="fa-solid fa-circle-half-stroke text-violet-400"></i> Export Current View (Square PNG)
+                    </button>
+                    <label class="flex items-center gap-2 text-slate-300 px-1 -mt-0.5"><input type="checkbox" id="viewIgnoreShadow"> Ignore shadow (flat, evenly lit)</label>
+                    <p id="viewExportHint" class="text-[10px] text-slate-500 leading-snug px-1 -mt-1"></p>
                     <button id="export3DMeshBtn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all">
                         <i class="fa-solid fa-cube text-emerald-400"></i> Export 3D Mesh (.OBJ)
                     </button>
@@ -2610,6 +2615,9 @@
             document.getElementById('export2DColorBtn').addEventListener('click', () => exportTextureMap('color'));
             document.getElementById('export2DBumpBtn').addEventListener('click', () => exportTextureMap('bump'));
             document.getElementById('export3DMeshBtn').addEventListener('click', exportOBJMesh);
+            document.getElementById('exportViewBtn').addEventListener('click', exportCurrentView);
+            document.getElementById('exportResolution').addEventListener('change', updateViewExportHint);
+            updateViewExportHint();
 
             // Mobile menu toggle
             document.getElementById('toggleControlsBtn').addEventListener('click', () => {
@@ -2634,6 +2642,122 @@
             }
             label.textContent = oldLabel;
             recomputeAll();   // restore the live preview (the export bake replaced it)
+        }
+
+        // Current View export: square PNG of the planet exactly as framed in the viewer (same angle + lighting),
+        // re-fitted so the planet disc is inscribed in the square (~1-2px margin). Side = selected map width
+        // (1K/2K/4K/8K); the textures are re-baked at 2x that width (capped at 8192) so the disc stays sharp.
+        // Rendered on a private renderer/scene in tiles, so the live viewer is never touched.
+        function updateViewExportHint() {
+            const el = document.getElementById('viewExportHint');
+            if (!el) return;
+            const S = parseInt(document.getElementById('exportResolution').value.split('x')[0], 10);
+            el.textContent = 'Output: ' + S + ' x ' + S + ' px, transparent background, planet fitted to the frame.';
+        }
+
+        let viewExporting = false;
+        async function exportCurrentView() {
+            if (viewExporting || !planetMesh) return;
+            viewExporting = true;
+            const flat = document.getElementById('viewIgnoreShadow').checked;
+            const S = parseInt(document.getElementById('exportResolution').value.split('x')[0], 10);
+            const overlay = document.getElementById('loadingOverlay');
+            const label = overlay.querySelector('span');
+            const oldLabel = label.textContent;
+            overlay.classList.remove('hidden');
+
+            let rend = null, mat = null, texs = [], interrupted = false;
+            try {
+                // 1. bake high-res maps (flat mode only needs colour: no lights -> bump/roughness can't show)
+                const mapW = Math.min(S * 2, 8192, renderer.capabilities.maxTextureSize), mapH = mapW / 2;
+                const r = await bakeMaps(mapW, mapH, { color: true, bump: !flat, rough: !flat },
+                    (p) => { label.textContent = 'Baking ' + mapW + 'x' + mapH + '... ' + Math.round(p * 100) + '%'; });
+                if (!r) { interrupted = true; return; }
+
+                // 2. private renderer + scene
+                const tile = Math.min(S, 2048);
+                rend = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+                rend.setPixelRatio(1);
+                rend.setSize(tile, tile, false);
+                rend.setClearColor(0x000000, 0);
+                rend.toneMapping = flat ? THREE.NoToneMapping : renderer.toneMapping;
+                rend.toneMappingExposure = renderer.toneMappingExposure;
+
+                const mkTex = (img) => {
+                    const c = document.createElement('canvas');
+                    c.width = img.width; c.height = img.height;
+                    c.getContext('2d').putImageData(img, 0, 0);
+                    const t = new THREE.CanvasTexture(c);
+                    t.wrapS = THREE.RepeatWrapping;
+                    t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter;
+                    t.anisotropy = rend.capabilities.getMaxAnisotropy();
+                    texs.push(t);
+                    return t;
+                };
+                const scn = new THREE.Scene();
+                if (flat) {
+                    mat = new THREE.MeshBasicMaterial({ map: mkTex(r.color) });
+                } else {
+                    mat = new THREE.MeshStandardMaterial({
+                        map: mkTex(r.color), bumpMap: mkTex(r.bump), bumpScale: 0.022,
+                        roughnessMap: mkTex(r.rough), roughness: 0.85, metalness: 0.05
+                    });
+                    scn.add(new THREE.AmbientLight(0xffffff, state.ambientLight));
+                    const sun = new THREE.DirectionalLight(sunLight.color, state.sunLight); sun.position.copy(sunLight.position); scn.add(sun);
+                    const fill = new THREE.DirectionalLight(fillLight.color, fillLight.intensity); fill.position.copy(fillLight.position); scn.add(fill);
+                }
+                const mesh = new THREE.Mesh(planetMesh.geometry, mat);   // shares geometry (never disposed here)
+                mesh.position.copy(planetMesh.position); mesh.quaternion.copy(planetMesh.quaternion); mesh.scale.copy(planetMesh.scale);
+                scn.add(mesh);
+                mesh.updateMatrixWorld(true);
+
+                // 3. orthographic camera looking from the live camera's direction; frame = silhouette half-extent
+                const q = camera.quaternion.clone();
+                const dir = camera.position.clone().sub(controls.target).normalize();
+                const right = new THREE.Vector3(1, 0, 0).applyQuaternion(q), up = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
+                const pos = mesh.geometry.attributes.position, v = new THREE.Vector3();
+                let ext = 0;
+                for (let i = 0; i < pos.count; i++) {
+                    v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+                    ext = Math.max(ext, Math.abs(v.dot(right)), Math.abs(v.dot(up)));
+                }
+                const half = ext * (S / 2) / (S / 2 - 1.5);   // planet radius = S/2 - 1.5 px
+                const cam = new THREE.OrthographicCamera(-half, half, half, -half, 1, 60);
+                cam.position.copy(dir).multiplyScalar(25);
+                cam.quaternion.copy(q);
+                cam.updateMatrixWorld(true);
+
+                // 4. render tile by tile into a 2D canvas
+                const out = document.createElement('canvas');
+                out.width = S; out.height = S;
+                const octx = out.getContext('2d');
+                const n = S / tile, span = 2 * half / n;
+                for (let ty = 0; ty < n; ty++) {
+                    for (let tx = 0; tx < n; tx++) {
+                        cam.left = -half + tx * span; cam.right = cam.left + span;
+                        cam.top = half - ty * span;   cam.bottom = cam.top - span;
+                        cam.updateProjectionMatrix();
+                        rend.render(scn, cam);
+                        octx.drawImage(rend.domElement, tx * tile, ty * tile);
+                        label.textContent = 'Rendering view ' + S + 'x' + S + '... ' + Math.round(((ty * n + tx + 1) / (n * n)) * 100) + '%';
+                        await new Promise(res => setTimeout(res, 0));
+                    }
+                }
+                const blob = await new Promise(res => out.toBlob(res, 'image/png'));
+                if (blob) await saveFileBlob(blob, `planet_view_${S}x${S}_seed${state.seed}${flat ? '_flat' : ''}.png`);
+            } catch (e) {
+                console.error('Current View export failed', e);
+                label.textContent = 'Export failed (see console)';
+                await new Promise(res => setTimeout(res, 1800));
+            } finally {
+                if (interrupted) { label.textContent = 'Export interrupted (settings changed)'; await new Promise(res => setTimeout(res, 1500)); }
+                texs.forEach(t => t.dispose());
+                if (mat) mat.dispose();
+                if (rend) { rend.dispose(); try { rend.forceContextLoss(); } catch (e) {} }
+                label.textContent = oldLabel;
+                viewExporting = false;
+                recomputeAll();   // bake token was superseded by the export bake: restore the live preview
+            }
         }
 
         async function saveFileBlob(blob, filename) {
