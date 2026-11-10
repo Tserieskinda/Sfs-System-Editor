@@ -1,0 +1,2784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realistic Planet & Terrain Texture Generator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #020617;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #334155;
+        }
+
+        /* Range input styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-track {
+            width: 100%;
+            height: 5px;
+            cursor: pointer;
+            background: #1e293b;
+            border-radius: 3px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 15px;
+            width: 15px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -5px;
+            box-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
+            transition: transform 0.1s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        /* Color inputs */
+        input[type=color] {
+            -webkit-appearance: none;
+            border: none;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        input[type=color]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+        input[type=color]::-webkit-color-swatch {
+            border: 2px solid #334155;
+            border-radius: 50%;
+        }
+
+        input[type=range].hue-range::-webkit-slider-track { background: linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00); }
+        input[type=range].hue-range::-moz-range-track { background: linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00); height: 5px; border-radius: 3px; }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen w-screen overflow-hidden flex flex-col md:flex-row">
+
+    <!-- 3D Canvas Viewport -->
+    <div class="relative flex-1 h-full w-full bg-slate-950 overflow-hidden flex flex-col justify-between">
+        
+        <!-- Header Controls Bar -->
+        <header class="absolute top-0 left-0 right-0 z-10 p-4 flex justify-between items-center bg-gradient-to-b from-slate-950/90 to-transparent pointer-events-none">
+            <div class="flex items-center space-x-3 pointer-events-auto">
+                <div class="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                    <i class="fa-solid fa-globe text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold tracking-wide text-white leading-tight">Planet Forge Studio</h1>
+                    <p class="text-[11px] text-slate-400">Realistic Terrain & Texture Engine</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2 pointer-events-auto">
+                <button id="toggleControlsBtn" class="md:hidden px-3 py-1.5 bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium flex items-center gap-2 backdrop-blur-md">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>Controls</span>
+                </button>
+                <button id="randomSeedBtn" class="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-lg shadow-cyan-950/50 transition-all active:scale-95">
+                    <i class="fa-solid fa-dice"></i>
+                    <span class="hidden sm:inline">Randomize</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main 3D Rendering Area -->
+        <div id="canvasContainer" class="w-full h-full cursor-grab active:cursor-grabbing"></div>
+
+        <!-- Render Status / Low-Res Indicator -->
+        <div class="absolute top-16 left-4 z-10 pointer-events-none flex items-center gap-2">
+            <span class="text-[10px] bg-slate-900/80 border border-slate-800 text-slate-400 px-2.5 py-1 rounded-md backdrop-blur-sm flex items-center gap-1.5 font-mono">
+                <span id="previewDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                <span id="previewStatus">BAKING...</span>
+            </span>
+        </div>
+
+        <!-- Floating View Tools -->
+        <div class="absolute bottom-4 left-4 z-10 flex items-center space-x-2 bg-slate-900/80 border border-slate-800 p-1 rounded-xl backdrop-blur-md">
+            <button id="toggleWireframeBtn" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all" title="Toggle Wireframe">
+                <i class="fa-solid fa-border-none text-sm"></i>
+            </button>
+            <button id="toggleRotationBtn" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all" title="Toggle Auto Rotation">
+                <i class="fa-solid fa-rotate text-sm"></i>
+            </button>
+            <button id="resetCameraBtn" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all" title="Reset Camera View">
+                <i class="fa-solid fa-video text-sm"></i>
+            </button>
+        </div>
+
+        <!-- Loading Overlay during Generation -->
+        <div id="loadingOverlay" class="hidden absolute inset-0 z-30 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center">
+            <div class="flex items-center gap-3 bg-slate-900 border border-slate-800 px-4 py-3 rounded-xl shadow-2xl">
+                <i class="fa-solid fa-circle-notch fa-spin text-cyan-400 text-lg"></i>
+                <span class="text-xs text-slate-200 font-medium">Baking Photorealistic Surface...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls Sidebar -->
+    <aside id="controlsSidebar" class="w-full md:w-96 bg-slate-900/95 border-t md:border-t-0 md:border-l border-slate-800/80 backdrop-blur-xl flex flex-col h-1/2 md:h-full z-20">
+        
+        <div class="px-4 py-3.5 border-b border-slate-800 flex justify-between items-center">
+            <h2 class="text-xs font-bold tracking-wider text-slate-300 uppercase flex items-center gap-2">
+                <i class="fa-solid fa-sliders text-cyan-400"></i>
+                Terrain & Shader Parameters
+            </h2>
+            <span class="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 font-mono px-2 py-0.5 rounded">NO ATMOSPHERE</span>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 space-y-5 text-xs">
+
+            <!-- Whole Planet Colour -->
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-cyan-400 uppercase text-[10px] tracking-widest flex items-center gap-1.5"><i class="fa-solid fa-palette"></i> Whole Planet Colour</h3>
+                    <button id="gReset" class="text-[10px] text-slate-400 hover:text-white border border-slate-700 rounded px-2 py-0.5">Reset</button>
+                </div>
+                <div class="space-y-1">
+                    <div class="flex justify-between"><span class="text-slate-300">Hue Shift</span><span id="gHueVal" class="text-slate-400 font-mono">0</span></div>
+                    <input type="range" id="gHue" class="hue-range w-full" min="-180" max="180" step="1" value="0">
+                </div>
+                <div class="space-y-1">
+                    <div class="flex justify-between"><span class="text-slate-300">Saturation</span><span id="gSatVal" class="text-slate-400 font-mono">1.00</span></div>
+                    <input type="range" id="gSat" min="0" max="2.5" step="0.01" value="1" class="w-full">
+                </div>
+                <div class="space-y-1">
+                    <div class="flex justify-between"><span class="text-slate-300">Contrast</span><span id="gContrastVal" class="text-slate-400 font-mono">1.00</span></div>
+                    <input type="range" id="gContrast" min="0.4" max="2.2" step="0.01" value="1" class="w-full">
+                </div>
+                <div class="space-y-1">
+                    <div class="flex justify-between"><span class="text-slate-300">Brightness</span><span id="gBrightVal" class="text-slate-400 font-mono">1.00</span></div>
+                    <input type="range" id="gBright" min="0.3" max="2" step="0.01" value="1" class="w-full">
+                </div>
+            </div>
+
+            <hr class="border-slate-800">
+
+            <!-- Presets -->
+            <div class="space-y-2">
+                <label class="font-semibold text-slate-400 uppercase text-[10px] tracking-wider">Presets</label>
+                <div class="grid grid-cols-3 gap-1.5">
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="earth">Realistic Earth</button>
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="moon">Lunar Crater</button>
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="mars">Mars Desert</button>
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="volcanic">Volcanic Basalt</button>
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="ice">Europa Ice</button>
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="asteroid">Asteroid</button>
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="ganymede">Ganymede</button>
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="io">Io</button>
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="pluto">Pluto (Heart)</button>
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="iapetus">Iapetus</button>
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="enceladus">Enceladus</button>
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="charon">Charon</button>
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="callisto">Callisto</button>
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="ceres">Ceres</button>
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="marsrift">Mars Rift</button>
+                    <button class="preset-btn px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] font-medium text-slate-200" data-preset="tycho">Tycho Rays</button>
+                </div>
+            </div>
+
+            <!-- Body Type -->
+            <div class="space-y-1.5">
+                <label class="font-semibold text-slate-400 uppercase text-[10px] tracking-wider">Body Type (surface engine)</label>
+                <select id="bodyType" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-cyan-500">
+                    <option value="earth">Earth-like (continents, oceans, ice caps)</option>
+                    <option value="painted">Painted moon / planet (SFS style: stains, craters, chasmas)</option>
+                    <option value="volcanic">Volcanic (lava seas, fissures)</option>
+                    <option value="asteroid">Asteroid (irregular, saturated craters)</option>
+                </select>
+            </div>
+
+            <!-- Seed Settings -->
+            <div class="space-y-1.5">
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-300 font-medium">Random Seed</span>
+                    <span id="seedVal" class="text-cyan-400 font-mono text-[11px]">123456</span>
+                </div>
+                <div class="flex gap-2">
+                    <input type="number" id="seedInput" value="123456" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+                    <button id="applySeedBtn" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs rounded-lg text-slate-200">Apply</button>
+                </div>
+            </div>
+
+            <hr class="border-slate-800">
+
+            <!-- Space Lighting & Shadow Controls -->
+            <div class="space-y-3">
+                <h3 class="font-bold text-amber-400 uppercase text-[10px] tracking-widest flex items-center gap-1.5">
+                    <i class="fa-solid fa-sun"></i> Lighting & Night Shadow Controls
+                </h3>
+                
+                <div class="space-y-1">
+                    <div class="flex justify-between">
+                        <span class="text-slate-300">Space Ambient Light (Fill)</span>
+                        <span id="ambientLightVal" class="text-slate-400 font-mono">0.30</span>
+                    </div>
+                    <input type="range" id="ambientLight" min="0.05" max="1.0" step="0.05" value="0.30" class="w-full">
+                </div>
+
+                <div class="space-y-1">
+                    <div class="flex justify-between">
+                        <span class="text-slate-300">Sunlight Intensity</span>
+                        <span id="sunLightVal" class="text-slate-400 font-mono">1.60</span>
+                    </div>
+                    <input type="range" id="sunLight" min="0.5" max="3.0" step="0.1" value="1.60" class="w-full">
+                </div>
+
+                <div class="space-y-1">
+                    <div class="flex justify-between">
+                        <span class="text-slate-300">Night Shadow Darkness</span>
+                        <span id="shadowDarknessVal" class="text-slate-400 font-mono">0.85</span>
+                    </div>
+                    <input type="range" id="shadowDarkness" min="0.0" max="1.0" step="0.05" value="0.85" class="w-full">
+                </div>
+            </div>
+
+            <hr class="border-slate-800">
+
+            <!-- Asteroid Surface Designer -->
+            <div id="astPanel" class="space-y-3 hidden">
+                <h3 class="font-bold text-amber-400 uppercase text-[10px] tracking-widest flex items-center gap-1.5"><i class="fa-solid fa-meteor"></i> Asteroid Surface Designer</h3>
+                <div class="grid grid-cols-3 gap-1.5">
+                    <button data-ast-style="smooth" class="px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] text-slate-200">Smooth</button>
+                    <button data-ast-style="cratered" class="px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] text-slate-200">Cratered</button>
+                    <button data-ast-style="rubble" class="px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] text-slate-200">Rubble</button>
+                    <button data-ast-style="fractured" class="px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[11px] text-slate-200">Fractured</button>
+                    <button data-ast-style="random" class="col-span-2 px-2 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-md text-[11px] font-semibold"><i class="fa-solid fa-dice"></i> Random Look</button>
+                </div>
+                <div id="astSliders" class="space-y-2"></div>
+            </div>
+
+            <hr class="border-slate-800 ast-hr hidden">
+
+            <!-- Mesh & Celestial Shape -->
+            <div class="space-y-3">
+                <h3 class="font-bold text-cyan-400 uppercase text-[10px] tracking-widest flex items-center gap-1.5">
+                    <i class="fa-solid fa-shapes"></i> Celestial Shape & Geometry
+                </h3>
+
+                <!-- Asteroid Shader Mode Checkbox -->
+                <div class="flex items-center justify-between p-2.5 bg-slate-950 rounded-lg border border-slate-800">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-meteor text-amber-400"></i>
+                        <span class="text-slate-200 font-semibold text-xs">Asteroid Surface Shader</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="asteroidShaderToggle" class="sr-only peer">
+                        <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                </div>
+                
+                <div class="space-y-1">
+                    <div class="flex justify-between">
+                        <span class="text-slate-300">Spherical Shape Factor</span>
+                        <span id="shapeFactorVal" class="text-slate-400 font-mono">1.00</span>
+                    </div>
+                    <input type="range" id="shapeFactor" min="0" max="1" step="0.01" value="1" class="w-full">
+                    <div class="flex justify-between text-[9px] text-slate-500">
+                        <span>0: Asteroid (Irregular)</span>
+                        <span>1: Sphere</span>
+                    </div>
+                </div>
+
+                <div class="space-y-1">
+                    <div class="flex justify-between">
+                        <span class="text-slate-300">3D Terrain Displacement Height</span>
+                        <span id="displacementHeightVal" class="text-slate-400 font-mono">0.12</span>
+                    </div>
+                    <input type="range" id="displacementHeight" min="0" max="0.4" step="0.01" value="0.12" class="w-full">
+                </div>
+            </div>
+
+            <hr class="border-slate-800">
+
+            <!-- Continents & Physical Features -->
+            <div class="space-y-3">
+                <h3 class="font-bold text-cyan-400 uppercase text-[10px] tracking-widest flex items-center gap-1.5">
+                    <i class="fa-solid fa-mountain-sun"></i> Procedural Ground <span id="lblGroundType" class="text-slate-500 normal-case tracking-normal"></span>
+                </h3>
+
+                <div class="space-y-1">
+                    <div class="flex justify-between">
+                        <span id="lblPlate" class="text-slate-300">Tectonic Plate Grouping / Clustering</span>
+                        <span id="plateClusteringVal" class="text-slate-400 font-mono">0.75</span>
+                    </div>
+                    <input type="range" id="plateClustering" min="0.1" max="1.0" step="0.05" value="0.75" class="w-full">
+                </div>
+
+                <div class="space-y-1">
+                    <div class="flex justify-between">
+                        <span id="lblScale" class="text-slate-300">Continent Scale / Frequency</span>
+                        <span id="continentScaleVal" class="text-slate-400 font-mono">1.8</span>
+                    </div>
+                    <input type="range" id="continentScale" min="0.5" max="4.0" step="0.1" value="1.8" class="w-full">
+                </div>
+
+                <div class="space-y-1">
+                    <div class="flex justify-between">
+                        <span id="lblSea" class="text-slate-300">Sea Level (Ocean / Land Ratio)</span>
+                        <span id="seaLevelVal" class="text-slate-400 font-mono">0.48</span>
+                    </div>
+                    <input type="range" id="seaLevel" min="0.0" max="0.85" step="0.01" value="0.48" class="w-full">
+                </div>
+
+                <div class="space-y-1">
+                    <div class="flex justify-between">
+                        <span id="lblODepth" class="text-slate-300">Ocean Trench / Abyssal Depth</span>
+                        <span id="oceanDepthVal" class="text-slate-400 font-mono">0.85</span>
+                    </div>
+                    <input type="range" id="oceanDepth" min="0.1" max="1.5" step="0.05" value="0.85" class="w-full">
+                </div>
+
+                <div class="space-y-1">
+                    <div class="flex justify-between">
+                        <span id="lblMicro" class="text-slate-300">Micro-Ground Detail Noise</span>
+                        <span id="microNoiseVal" class="text-slate-400 font-mono">0.45</span>
+                    </div>
+                    <input type="range" id="microNoise" min="0.0" max="1.0" step="0.05" value="0.45" class="w-full">
+                </div>
+
+                <div class="space-y-1">
+                    <div class="flex justify-between">
+                        <span id="lblOct" class="text-slate-300">Erosion & Octave Roughness</span>
+                        <span id="terrainRoughnessVal" class="text-slate-400 font-mono">6</span>
+                    </div>
+                    <input type="range" id="terrainRoughness" min="1" max="8" step="1" value="6" class="w-full">
+                </div>
+
+                <div class="space-y-1">
+                    <div class="flex justify-between">
+                        <span id="lblMountH" class="text-slate-300">Mountain Elevation & Steepness</span>
+                        <span id="mountainSharpnessVal" class="text-slate-400 font-mono">2.2</span>
+                    </div>
+                    <input type="range" id="mountainSharpness" min="0.5" max="4.0" step="0.1" value="2.2" class="w-full">
+                </div>
+
+                <div class="space-y-1">
+                    <div class="flex justify-between">
+                        <span id="lblCrater" class="text-slate-300">Crater Impact Density</span>
+                        <span id="craterDensityVal" class="text-slate-400 font-mono">0.05</span>
+                    </div>
+                <input type="range" id="craterDensity" min="0" max="1" step="0.05" value="0.05" class="w-full">
+                </div>
+                <div class="space-y-1">
+                    <div class="flex justify-between"><span id="lblChasma" class="text-slate-300">Chasma / Crack Amount</span><span id="chasmaAmountVal" class="text-slate-400 font-mono">0.00</span></div>
+                    <input type="range" id="chasmaAmount" min="0" max="1" step="0.05" value="0" class="w-full">
+                </div>
+                <div class="space-y-1">
+                    <div class="flex justify-between"><span id="lblSpot" class="text-slate-300">Dark Spot Density</span><span id="spotDensityVal" class="text-slate-400 font-mono">0.00</span></div>
+                    <input type="range" id="spotDensity" min="0" max="1" step="0.05" value="0" class="w-full">
+                </div>
+                <div class="space-y-1">
+                    <span id="lblPattern" class="text-slate-300">Large-Scale Features</span>
+                    <div class="flex gap-1.5 mt-1">
+                        <select id="patternSelect" class="flex-1 min-w-0 bg-slate-950 border border-slate-800 text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-cyan-500">
+                        
+                        <option value="hemisphere">Two-tone hemisphere (Iapetus)</option>
+                        <option value="heart">Bright heart region (Pluto)</option>
+                        <option value="nearside">Dark nearside seas (Moon)</option>
+                        <option value="band">Dark equatorial band (Pluto's Cthulhu)</option>
+                        <option value="ridge">Equatorial ridge (Iapetus)</option>
+                        <option value="bullseye">Giant ring basin (Valhalla / Callisto)</option>
+                        <option value="rift">Great rift canyon (Valles Marineris)</option>
+                        <option value="tiger">Tiger-stripe fractures at south pole (Enceladus)</option>
+                        <option value="redpole">Dark red polar region (Charon)</option>
+                        <option value="bigray">Giant ray crater (Tycho)</option>
+                        <option value="brightspots">Bright salt spots (Ceres)</option>
+                        <option value="bands">Latitude haze bands (Titan / Neptune)</option>
+                    </select>
+                        <button id="patternAddBtn" class="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-[11px] font-semibold whitespace-nowrap"><i class="fa-solid fa-plus"></i> Add</button>
+                    </div>
+                    <div id="patternList" class="space-y-2 mt-2"></div>
+                </div>
+            </div>
+
+            <hr class="border-slate-800">
+
+            <!-- Custom Surface Features -->
+            <div class="space-y-3">
+                <h3 class="font-bold text-fuchsia-400 uppercase text-[10px] tracking-widest flex items-center gap-1.5">
+                    <i class="fa-solid fa-pen-nib"></i> Custom Surface Features
+                </h3>
+                <div class="grid grid-cols-4 gap-1.5">
+                    <button class="feat-tool px-1 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[10px] font-medium text-slate-200" data-ftype="mountain">Mountains</button>
+                    <button class="feat-tool px-1 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[10px] font-medium text-slate-200" data-ftype="valley">Valley</button>
+                    <button class="feat-tool px-1 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[10px] font-medium text-slate-200" data-ftype="plateau">Plateau</button>
+                    <button class="feat-tool px-1 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[10px] font-medium text-slate-200" data-ftype="crater">Crater</button>
+                </div>
+                <p id="featHint" class="text-[10px] text-slate-500 leading-snug"></p>
+                <button id="featDrawBtn" class="w-full px-2 py-2 rounded-md text-[11px] font-semibold border bg-slate-800/80 border-slate-700/80 text-slate-200 hover:bg-slate-700">Draw on Planet: OFF</button>
+
+                <div class="space-y-1">
+                    <div class="flex justify-between"><span class="text-slate-300">Brush Width / Radius</span><span id="featWidthVal" class="text-slate-400 font-mono">6&deg;</span></div>
+                    <input type="range" id="featWidth" min="1" max="30" step="0.5" value="6" class="w-full">
+                </div>
+                <div class="space-y-1">
+                    <div class="flex justify-between"><span class="text-slate-300">Brush Height / Depth</span><span id="featHeightVal" class="text-slate-400 font-mono">0.8</span></div>
+                    <input type="range" id="featHeight" min="0.1" max="1.5" step="0.05" value="0.8" class="w-full">
+                </div>
+                <div class="space-y-1">
+                    <div class="flex justify-between"><span class="text-slate-300">Brush Roughness</span><span id="featRoughVal" class="text-slate-400 font-mono">0.6</span></div>
+                    <input type="range" id="featRough" min="0" max="1" step="0.05" value="0.6" class="w-full">
+                </div>
+
+                <label class="flex items-center gap-2 text-slate-300"><input type="checkbox" id="featGuides" checked> Show feature guide lines</label>
+                <div id="featureList" class="space-y-1.5"></div>
+                <div class="grid grid-cols-4 gap-1.5">
+                    <button id="featUndo" class="px-1 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[10px] text-slate-200">Undo</button>
+                    <button id="featClear" class="px-1 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[10px] text-slate-200">Clear</button>
+                    <button id="featCopy" class="px-1 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[10px] text-slate-200">Copy</button>
+                    <button id="featPaste" class="px-1 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-md text-[10px] text-slate-200">Paste</button>
+                </div>
+            </div>
+
+            <hr class="border-slate-800">
+
+            <!-- Surface Realistic Color Palette -->
+            <div class="space-y-3">
+                <h3 class="font-bold text-cyan-400 uppercase text-[10px] tracking-widest flex items-center gap-1.5">
+                    <i class="fa-solid fa-palette"></i> Space-Engine Realistic Biomes
+                </h3>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="flex items-center justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+                        <span id="lblDeep" class="text-slate-300">Abyssal Trench</span>
+                        <input type="color" id="cDeepWater" value="#010714">
+                    </div>
+                    <div class="flex items-center justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+                        <span id="lblShallow" class="text-slate-300">Shallow Ocean</span>
+                        <input type="color" id="cShallowWater" value="#0d607a">
+                    </div>
+                    <div class="flex items-center justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+                        <span id="lblCoast" class="text-slate-300">Beach / Coast</span>
+                        <input type="color" id="cCoast" value="#cbb886">
+                    </div>
+                    <div class="flex items-center justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+                        <span id="lblLow" class="text-slate-300">Lowland Vegetation</span>
+                        <input type="color" id="cLowland" value="#204e27">
+                    </div>
+                    <div class="flex items-center justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+                        <span id="lblHigh" class="text-slate-300">Inland Desert / Plateau</span>
+                        <input type="color" id="cHighland" value="#70553b">
+                    </div>
+                    <div class="flex items-center justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+                        <span id="lblMount" class="text-slate-300">Alpine Rock</span>
+                        <input type="color" id="cMountain" value="#36383e">
+                    </div>
+                </div>
+
+                <div class="space-y-2 pt-1">
+                    <div class="flex items-center justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+                        <span id="lblSnow" class="text-slate-300">Polar Ice / Glacier</span>
+                        <input type="color" id="cSnow" value="#edf4f8">
+                    </div>
+                    <div class="space-y-1">
+                        <div class="flex justify-between">
+                            <span id="lblCap" class="text-slate-300">Ice Cap Coverage</span>
+                            <span id="snowCapVal" class="text-slate-400 font-mono">0.25</span>
+                        </div>
+                        <input type="range" id="snowCap" min="0" max="0.8" step="0.02" value="0.25" class="w-full">
+                    </div>
+                </div>
+            </div>
+
+            <hr class="border-slate-800">
+
+            <!-- High-Res Export Controls -->
+            <div class="space-y-3 pb-4">
+                <h3 class="font-bold text-emerald-400 uppercase text-[10px] tracking-widest flex items-center gap-1.5">
+                    <i class="fa-solid fa-download"></i> High-Res Texture Export
+                </h3>
+
+                <div class="space-y-1.5">
+                    <label class="text-slate-400 font-medium">Export Texture Resolution</label>
+                    <select id="exportResolution" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-lg px-2.5 py-1.5 font-mono focus:outline-none focus:border-cyan-500">
+                        <option value="1024x512">1K Map (1024 x 512)</option>
+                        <option value="2048x1024" selected>2K Map (2048 x 1024)</option>
+                        <option value="4096x2048">4K Map (4096 x 2048)</option>
+                        <option value="8192x4096">8K Ultra Map (8192 x 4096)</option>
+                    </select>
+                </div>
+
+                <div class="flex flex-col gap-2 pt-1">
+                    <button id="export2DColorBtn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all">
+                        <i class="fa-solid fa-image text-cyan-400"></i> Export 2D Color Map (PNG)
+                    </button>
+                    <button id="export2DBumpBtn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all">
+                        <i class="fa-solid fa-mountain text-amber-400"></i> Export 2D Bump / Normal Map (PNG)
+                    </button>
+                    <button id="export3DMeshBtn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all">
+                        <i class="fa-solid fa-cube text-emerald-400"></i> Export 3D Mesh (.OBJ)
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </aside>
+
+    <!-- Canvas Elements for High-Res Preview (1024x512) and Maps -->
+    <canvas id="previewCanvas" width="1024" height="512" class="hidden"></canvas>
+    <canvas id="bumpCanvas" width="1024" height="512" class="hidden"></canvas>
+    <canvas id="roughnessCanvas" width="1024" height="512" class="hidden"></canvas>
+    <canvas id="exportCanvas" width="2048" height="1024" class="hidden"></canvas>
+
+    <!-- Three.js Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/OBJExporter.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
+
+    <script>
+        // --- Canvas & WebGL Global Setup ---
+        const container = document.getElementById('canvasContainer');
+
+        // Canvases for procedural textures
+        const previewCanvas = document.getElementById('previewCanvas');
+        const previewCtx = previewCanvas.getContext('2d');
+
+        const bumpCanvas = document.getElementById('bumpCanvas');
+        const bumpCtx = bumpCanvas.getContext('2d');
+
+        const roughnessCanvas = document.getElementById('roughnessCanvas');
+        const roughnessCtx = roughnessCanvas.getContext('2d');
+
+        // Three.js Canvas Textures
+        const previewTexture = new THREE.CanvasTexture(previewCanvas);
+        previewTexture.minFilter = THREE.LinearMipmapLinearFilter;
+        previewTexture.magFilter = THREE.LinearFilter;
+        previewTexture.wrapS = THREE.RepeatWrapping;   // blend across the u=0/1 seam
+
+        const bumpTexture = new THREE.CanvasTexture(bumpCanvas);
+        bumpTexture.minFilter = THREE.LinearMipmapLinearFilter;
+        bumpTexture.magFilter = THREE.LinearFilter;
+        bumpTexture.wrapS = THREE.RepeatWrapping;   // blend across the u=0/1 seam
+
+        const roughnessTexture = new THREE.CanvasTexture(roughnessCanvas);
+        roughnessTexture.minFilter = THREE.LinearMipmapLinearFilter;
+        roughnessTexture.magFilter = THREE.LinearFilter;
+        roughnessTexture.wrapS = THREE.RepeatWrapping;   // blend across the u=0/1 seam
+
+        // Three.js Scene, Camera, and Renderer Setup
+        const scene = new THREE.Scene();
+
+        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+        camera.position.set(0, 0, 4.5);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        container.appendChild(renderer.domElement);
+
+        // Anisotropic filtering stops the polar smear (equirect texels are squeezed hard near the poles)
+        const maxAniso = renderer.capabilities.getMaxAnisotropy();
+        [previewTexture, bumpTexture, roughnessTexture].forEach(t => { t.anisotropy = maxAniso; });
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.rotateSpeed = 0.8;
+        controls.minDistance = 2.0;
+        controls.maxDistance = 15.0;
+
+        // Space Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.30);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.6);
+        sunLight.position.set(5, 3, 5);
+        scene.add(sunLight);
+
+        const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.15);
+        fillLight.position.set(-5, -2, -3);
+        scene.add(fillLight);
+
+        // Helper Color Utility Functions
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : { r: 0, g: 0, b: 0 };
+        }
+
+        // --- State Management ---
+        const state = {
+            seed: 123456,
+            bodyType: 'earth',          // earth | moon | mars | volcanic | ice | asteroid
+            asteroidMode: false,
+            shapeFactor: 1.0,
+            displacementHeight: 0.12,
+            continentScale: 1.8,
+            seaLevel: 0.62,
+            oceanDepthFactor: 0.85,
+            plateClustering: 0.55,
+            microNoise: 0.45,
+            roughnessOctaves: 6,
+            mountainSharpness: 2.2,
+            craterDensity: 0.05,
+            snowCap: 0.25,
+            ambientLight: 0.30,
+            sunLight: 1.60,
+            shadowDarkness: 0.85,
+            autoRotate: false,
+            features: [],
+            chasmaAmount: 0, spotDensity: 0, pattern: 'none', patterns: [],
+            gHue: 0, gSat: 1, gContrast: 1, gBright: 1,
+            ast: {},
+            wireframe: false,
+            colors: {
+                deepWater: '#061f40', shallowWater: '#2294b0', coast: '#d3c28f', lowland: '#2f5d2c',
+                highland: '#8a7048', mountain: '#5b5750', snow: '#f1f6f9'
+            }
+        };
+
+        const presets = {
+            earth: {
+                bodyType: 'earth', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.07, continentScale: 1.6, seaLevel: 0.62, oceanDepthFactor: 0.85, plateClustering: 0.55, microNoise: 0.45, roughnessOctaves: 6, mountainSharpness: 2.2, craterDensity: 0.0, snowCap: 0.25,
+                colors: { deepWater: '#061f40', shallowWater: '#2294b0', coast: '#d3c28f', lowland: '#2f5d2c', highland: '#8a7048', mountain: '#5b5750', snow: '#f1f6f9' }
+            },
+            moon: {
+                bodyType: 'moon', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.14, continentScale: 1.4, seaLevel: 0.35, oceanDepthFactor: 0.9, plateClustering: 0.2, microNoise: 0.6, roughnessOctaves: 6, mountainSharpness: 1.5, craterDensity: 0.7, snowCap: 0.0,
+                colors: { deepWater: '#3d3d3f', shallowWater: '#5c5c5b', coast: '#6e6d6a', lowland: '#8d8c88', highland: '#b2b0aa', mountain: '#d6d4ce', snow: '#f2f1ec' }
+            },
+            mars: {
+                bodyType: 'mars', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.12, continentScale: 1.4, seaLevel: 0.3, oceanDepthFactor: 0.2, plateClustering: 0.8, microNoise: 0.6, roughnessOctaves: 5, mountainSharpness: 2.8, craterDensity: 0.35, snowCap: 0.07,
+                colors: { deepWater: '#5a3626', shallowWater: '#9a5430', coast: '#d09a6a', lowland: '#b8683a', highland: '#9c5532', mountain: '#5e3626', snow: '#f0eeea' }
+            },
+            volcanic: {
+                bodyType: 'volcanic', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.14, continentScale: 1.8, seaLevel: 0.28, oceanDepthFactor: 0.9, plateClustering: 0.6, microNoise: 0.7, roughnessOctaves: 6, mountainSharpness: 2.8, craterDensity: 0.1, snowCap: 0.0,
+                colors: { deepWater: '#ff8a1e', shallowWater: '#b01f06', coast: '#15100f', lowland: '#26201f', highland: '#3a322f', mountain: '#6a5d52', snow: '#d9c76a' }
+            },
+            ice: {
+                bodyType: 'ice', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.04, continentScale: 1.6, seaLevel: 0.15, oceanDepthFactor: 0.6, plateClustering: 0.5, microNoise: 0.4, roughnessOctaves: 5, mountainSharpness: 1.2, craterDensity: 0.12, snowCap: 0.0,
+                colors: { deepWater: '#7a4a38', shallowWater: '#b99a86', coast: '#cbd9e0', lowland: '#dfe9ee', highland: '#f3f8fa', mountain: '#fbfdfd', snow: '#ffffff' }
+            },
+            asteroid: {
+                bodyType: 'asteroid', asteroidMode: true, shapeFactor: 0.5, displacementHeight: 0.16, continentScale: 1.2, seaLevel: 0.0, oceanDepthFactor: 0.1, plateClustering: 0.5, microNoise: 0.8, roughnessOctaves: 6, mountainSharpness: 1.8, craterDensity: 0.75, snowCap: 0.0,
+                colors: { deepWater: '#141311', shallowWater: '#24221e', coast: '#4a463e', lowland: '#3b3832', highland: '#6a655a', mountain: '#8a8476', snow: '#b8b1a2' }
+            }
+        };
+
+        // Painted-body presets (the old Moon / Mars / Ice presets now use the painted engine too)
+        Object.assign(presets, {
+            painted: {
+                bodyType: 'painted', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.04, continentScale: 1.6, seaLevel: 0.35, oceanDepthFactor: 0.3, plateClustering: 0.6, microNoise: 0.5, roughnessOctaves: 5, mountainSharpness: 1.8, craterDensity: 0.7, snowCap: 0.0, chasmaAmount: 0.0, spotDensity: 0.0, pattern: 'none',
+                colors: { deepWater: '#3a3a3b', shallowWater: '#5d5c5a', coast: '#9a9894', lowland: '#a8a49c', highland: '#c4c2bc', mountain: '#e4e2dc', snow: '#f2f1ee' }
+            },
+            moon: {
+                bodyType: 'painted', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.04, continentScale: 1.6, seaLevel: 0.35, oceanDepthFactor: 0.3, plateClustering: 0.6, microNoise: 0.5, roughnessOctaves: 5, mountainSharpness: 1.8, craterDensity: 0.7, snowCap: 0.0, chasmaAmount: 0.0, spotDensity: 0.0, pattern: 'none',
+                colors: { deepWater: '#3a3a3b', shallowWater: '#5d5c5a', coast: '#9a9894', lowland: '#a8a49c', highland: '#c4c2bc', mountain: '#e4e2dc', snow: '#f2f1ee' }
+            },
+            mars: {
+                bodyType: 'painted', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.04, continentScale: 1.4, seaLevel: 0.3, oceanDepthFactor: 0.3, plateClustering: 0.55, microNoise: 0.5, roughnessOctaves: 5, mountainSharpness: 1.4, craterDensity: 0.35, snowCap: 0.08, chasmaAmount: 0.25, spotDensity: 0.0, pattern: 'none',
+                colors: { deepWater: '#4a2a1e', shallowWater: '#7e4a30', coast: '#b9714a', lowland: '#c98558', highland: '#d9a379', mountain: '#e8c9a8', snow: '#f3ece6' }
+            },
+            ice: {
+                bodyType: 'painted', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.03, continentScale: 1.2, seaLevel: 0.4, oceanDepthFactor: 0.25, plateClustering: 0.7, microNoise: 0.35, roughnessOctaves: 5, mountainSharpness: 1.2, craterDensity: 0.08, snowCap: 0.0, chasmaAmount: 0.9, spotDensity: 0.0, pattern: 'none',
+                colors: { deepWater: '#9a5f4a', shallowWater: '#c4917c', coast: '#d8d2cf', lowland: '#e6dcd6', highland: '#f1f1f1', mountain: '#ffffff', snow: '#ffffff' }
+            },
+            ganymede: {
+                bodyType: 'painted', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.04, continentScale: 1.7, seaLevel: 0.5, oceanDepthFactor: 0.3, plateClustering: 0.45, microNoise: 0.5, roughnessOctaves: 5, mountainSharpness: 2.6, craterDensity: 0.85, snowCap: 0.0, chasmaAmount: 0.35, spotDensity: 0.0, pattern: 'none',
+                colors: { deepWater: '#2f2824', shallowWater: '#58493f', coast: '#8a7968', lowland: '#9a8672', highland: '#b8aa98', mountain: '#eceae4', snow: '#f4f3ef' }
+            },
+            io: {
+                bodyType: 'painted', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.03, continentScale: 1.8, seaLevel: 0.3, oceanDepthFactor: 0.3, plateClustering: 0.7, microNoise: 0.45, roughnessOctaves: 5, mountainSharpness: 1.2, craterDensity: 0.0, snowCap: 0.0, chasmaAmount: 0.0, spotDensity: 0.85, pattern: 'none',
+                colors: { deepWater: '#2a2118', shallowWater: '#b48a22', coast: '#e0cc58', lowland: '#ecdc7c', highland: '#f4eed2', mountain: '#d4983a', snow: '#f8f5e4' }
+            },
+            pluto: {
+                bodyType: 'painted', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.03, continentScale: 1.5, seaLevel: 0.3, oceanDepthFactor: 0.3, plateClustering: 0.35, microNoise: 0.45, roughnessOctaves: 5, mountainSharpness: 1.2, craterDensity: 0.1, snowCap: 0.0, chasmaAmount: 0.0, spotDensity: 0.0, pattern: 'heart',
+                colors: { deepWater: '#4a1f16', shallowWater: '#7a3a2b', coast: '#9a4d3a', lowland: '#8a4030', highland: '#c8b3a8', mountain: '#d8c8bd', snow: '#e6e9ef' }
+            },
+            enceladus: {
+                bodyType: 'painted', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.03, continentScale: 1.2, seaLevel: 0.0, oceanDepthFactor: 0.3, plateClustering: 0.8, microNoise: 0.3, roughnessOctaves: 4, mountainSharpness: 1.4, craterDensity: 0.25, snowCap: 0.0, chasmaAmount: 0.3, spotDensity: 0.0, pattern: 'tiger',
+                colors: { deepWater: '#2c7f8e', shallowWater: '#8ec3cf', coast: '#e6edf0', lowland: '#eef3f5', highland: '#f8fafb', mountain: '#ffffff', snow: '#ffffff' }
+            },
+            charon: {
+                bodyType: 'painted', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.04, continentScale: 1.5, seaLevel: 0.3, oceanDepthFactor: 0.3, plateClustering: 0.6, microNoise: 0.45, roughnessOctaves: 5, mountainSharpness: 1.4, craterDensity: 0.4, snowCap: 0.0, chasmaAmount: 0.25, spotDensity: 0.0, pattern: 'redpole',
+                colors: { deepWater: '#5a2a1e', shallowWater: '#8c4c3a', coast: '#8a8782', lowland: '#9a948c', highland: '#b4b0a8', mountain: '#d6d3cc', snow: '#ebe9e4' }
+            },
+            callisto: {
+                bodyType: 'painted', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.04, continentScale: 1.6, seaLevel: 0.2, oceanDepthFactor: 0.3, plateClustering: 0.5, microNoise: 0.5, roughnessOctaves: 5, mountainSharpness: 2.8, craterDensity: 0.95, snowCap: 0.0, chasmaAmount: 0.0, spotDensity: 0.0, pattern: 'bullseye',
+                colors: { deepWater: '#241e1a', shallowWater: '#3e352e', coast: '#5a4e44', lowland: '#6a5d50', highland: '#8a7c6c', mountain: '#eeece6', snow: '#f6f5f1' }
+            },
+            ceres: {
+                bodyType: 'painted', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.04, continentScale: 1.5, seaLevel: 0.25, oceanDepthFactor: 0.3, plateClustering: 0.6, microNoise: 0.5, roughnessOctaves: 5, mountainSharpness: 1.6, craterDensity: 0.8, snowCap: 0.0, chasmaAmount: 0.0, spotDensity: 0.0, pattern: 'brightspots',
+                colors: { deepWater: '#3a3836', shallowWater: '#55524f', coast: '#6e6b67', lowland: '#7a7772', highland: '#908d87', mountain: '#d8d6d0', snow: '#f4f4f2' }
+            },
+            marsrift: {
+                bodyType: 'painted', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.04, continentScale: 1.4, seaLevel: 0.3, oceanDepthFactor: 0.3, plateClustering: 0.55, microNoise: 0.5, roughnessOctaves: 5, mountainSharpness: 1.4, craterDensity: 0.35, snowCap: 0.08, chasmaAmount: 0.15, spotDensity: 0.0, pattern: 'rift',
+                colors: { deepWater: '#4a2a1e', shallowWater: '#7e4a30', coast: '#b9714a', lowland: '#c98558', highland: '#d9a379', mountain: '#e8c9a8', snow: '#f3ece6' }
+            },
+            tycho: {
+                bodyType: 'painted', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.04, continentScale: 1.6, seaLevel: 0.35, oceanDepthFactor: 0.3, plateClustering: 0.6, microNoise: 0.5, roughnessOctaves: 5, mountainSharpness: 1.8, craterDensity: 0.7, snowCap: 0.0, chasmaAmount: 0.0, spotDensity: 0.0, pattern: 'bigray',
+                colors: { deepWater: '#3a3a3b', shallowWater: '#5d5c5a', coast: '#9a9894', lowland: '#a8a49c', highland: '#c4c2bc', mountain: '#e4e2dc', snow: '#f4f3ef' }
+            },
+            iapetus: {
+                bodyType: 'painted', asteroidMode: false, shapeFactor: 1.0, displacementHeight: 0.04, continentScale: 1.5, seaLevel: 0.25, oceanDepthFactor: 0.3, plateClustering: 0.5, microNoise: 0.4, roughnessOctaves: 5, mountainSharpness: 1.4, craterDensity: 0.5, snowCap: 0.0, chasmaAmount: 0.0, spotDensity: 0.0, pattern: 'hemisphere',
+                colors: { deepWater: '#17120f', shallowWater: '#2a211b', coast: '#c9c4bc', lowland: '#d6d1c9', highland: '#e8e5df', mountain: '#f1efea', snow: '#ffffff' }
+            }
+        });
+        ['earth', 'volcanic', 'asteroid'].forEach(k => { presets[k].chasmaAmount = 0; presets[k].spotDensity = 0; presets[k].pattern = 'none'; });
+
+        // =====================================================================
+        //  SURFACE GENERATOR
+        //  Every body type samples the sphere in true 3D (never in UV space), so
+        //  there is no polar pinching or seam in the data itself.
+        // =====================================================================
+        let simplex = new SimplexNoise(state.seed);
+
+        // ---------- Noise helpers ----------
+        function getNoise3D(x, y, z, octaves, persistence = 0.5, lacunarity = 2.0) {
+            let total = 0, frequency = 1, amplitude = 1, maxVal = 0;
+            for (let i = 0; i < octaves; i++) {
+                total += simplex.noise3D(x * frequency, y * frequency, z * frequency) * amplitude;
+                maxVal += amplitude;
+                amplitude *= persistence;
+                frequency *= lacunarity;
+            }
+            return total / maxVal;
+        }
+
+        // Ridged multifractal; each octave is weighted by the previous one so valleys stay smooth
+        function getRidgedNoise3D(x, y, z, octaves) {
+            let total = 0, frequency = 1, amplitude = 0.5, weight = 1, maxVal = 0;
+            for (let i = 0; i < octaves; i++) {
+                let n = 1.0 - Math.abs(simplex.noise3D(x * frequency, y * frequency, z * frequency));
+                n *= n;
+                n *= weight;
+                weight = n * 1.6; if (weight > 1) weight = 1;
+                total += n * amplitude;
+                maxVal += amplitude;
+                amplitude *= 0.5;
+                frequency *= 2.0;
+            }
+            return total / maxVal;
+        }
+
+        function hash3i(x, y, z, salt) {
+            let h = Math.imul(x, 0x27d4eb2d) ^ Math.imul(y, 0x165667b1) ^ Math.imul(z, 0x9e3779b1) ^ Math.imul((salt + state.seed) | 0, 0x85ebca6b);
+            h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d);
+            h ^= h >>> 12; h = Math.imul(h, 0x297a2d39);
+            h ^= h >>> 15;
+            return h >>> 0;
+        }
+
+        function clamp01(x) { return x < 0 ? 0 : (x > 1 ? 1 : x); }
+        function smoothstep(a, b, x) {
+            let t = (x - a) / (b - a);
+            t = t < 0 ? 0 : (t > 1 ? 1 : t);
+            return t * t * (3 - 2 * t);
+        }
+        function mix(a, b, t) { return a + (b - a) * t; }
+        function mixC(a, b, t) {
+            t = t < 0 ? 0 : (t > 1 ? 1 : t);
+            return { r: a.r + (b.r - a.r) * t, g: a.g + (b.g - a.g) * t, b: a.b + (b.b - a.b) * t };
+        }
+        function shadeC(c, k) { return { r: c.r * k, g: c.g * k, b: c.b * k }; }
+
+        // 3D Worley / Voronoi: F1, F2 distance and the id of the nearest cell
+        const VOR = { f1: 0, f2: 0, id: 0 };
+        function voronoi3(x, y, z, salt) {
+            const bx = Math.floor(x), by = Math.floor(y), bz = Math.floor(z);
+            let f1 = 9, f2 = 9, id = 0;
+            for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+                const cx = bx + dx, cy = by + dy, cz = bz + dz;
+                const h = hash3i(cx, cy, cz, salt);
+                const ex = cx + (h & 255) / 255 - x, ey = cy + ((h >>> 8) & 255) / 255 - y, ez = cz + ((h >>> 16) & 255) / 255 - z;
+                const d = ex * ex + ey * ey + ez * ez;
+                if (d < f1) { f2 = f1; f1 = d; id = (h >>> 24) / 255; }
+                else if (d < f2) { f2 = d; }
+            }
+            VOR.f1 = Math.sqrt(f1); VOR.f2 = Math.sqrt(f2); VOR.id = id;
+        }
+
+        let PAL = null;
+        function refreshPalette() {
+            PAL = {};
+            for (const k in state.colors) PAL[k] = hexToRgb(state.colors[k]);
+        }
+
+        // ---------- Crater engine ----------
+        // Real circular craters: flat floor, steep wall, raised rim, ejecta blanket and central peaks on
+        // the big ones. Placed with a 3D cell hash over many size classes (big basins -> small pits).
+        // Output is accumulated into the object passed in.
+        function newCraterAcc() { return { h: 0, floor: 0, rim: 0, ejecta: 0, fresh: 0, flood: 0, ray: 0, shade: 0 }; }
+        const CRA = newCraterAcc(), CRB = newCraterAcc();
+
+        function sampleCraters(out, x, y, z, density, pixelSize, s0, s1, floodProb, freqBase) {
+            out.h = 0; out.floor = 0; out.rim = 0; out.ejecta = 0; out.fresh = 0; out.flood = 0; out.ray = 0; out.shade = 0;
+            if (density <= 0) return out;
+            let freq = freqBase * Math.pow(1.62, s0);
+            for (let s = s0; s < s1; s++, freq *= 1.62) {
+                const cell = 1 / freq;
+                const maxR = 0.25 * cell;
+                if (maxR < pixelSize * 1.5) break;
+
+                const px = x * freq, py = y * freq, pz = z * freq;
+                const bx = Math.floor(px), by = Math.floor(py), bz = Math.floor(pz);
+                const presence = density * (0.42 + s * 0.2);
+                const presenceCut = ((presence > 1 ? 1 : presence) * 255) | 0;
+                const salt = 101 + s * 17;
+
+                for (let dx = -1; dx <= 1; dx++) {
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dz = -1; dz <= 1; dz++) {
+                            const cx = bx + dx, cy = by + dy, cz = bz + dz;
+                            const hh = hash3i(cx, cy, cz, salt);
+                            if ((hh & 255) >= presenceCut) continue;
+
+                            const qx = cx + ((hh >>> 8) & 255) / 255;
+                            const qy = cy + ((hh >>> 16) & 255) / 255;
+                            const qz = cz + ((hh >>> 24) & 255) / 255;
+                            const ql = Math.sqrt(qx * qx + qy * qy + qz * qz);
+                            if (Math.abs(ql - freq) > 0.5) continue;      // feature must sit on this shell
+
+                            const il = 1 / ql;
+                            const cxn = qx * il, cyn = qy * il, czn = qz * il;
+                            const ddx = cxn - x, ddy = cyn - y, ddz = czn - z;
+                            const d2 = ddx * ddx + ddy * ddy + ddz * ddz;
+
+                            const hr = hash3i(cx, cy, cz, 977 + s * 31);
+                            const rr = (hr & 255) / 255;
+                            const age = ((hr >>> 8) & 255) / 255;
+                            const R = maxR * (0.38 + 0.62 * rr * rr);
+                            const fresh = age < 0.12;
+                            const reach = R * (fresh && s < 5 ? 3.3 : 2.5);
+                            if (d2 > reach * reach) continue;
+
+                            const t = Math.sqrt(d2) / R;
+                            const flooded = floodProb > 0 && s < 1 && (((hr >>> 16) & 255) / 255) < floodProb;
+                            const soft = 1.0 - 0.55 * age;
+                            const depth = 0.52 * Math.pow(R, 0.62) * soft;
+                            const rimH = depth * 0.36 * soft;
+
+                            let ch = 0;
+                            if (t < 1.0) {
+                                const f = clamp01((1.0 - t) / 0.6);
+                                const bowl = f * f * (3 - 2 * f);
+                                if (flooded) {
+                                    ch = -depth * bowl * 0.28;
+                                    const fm = smoothstep(1.0, 0.8, t);
+                                    if (fm > out.flood) out.flood = fm;
+                                } else {
+                                    ch = -depth * bowl;
+                                    if (R > 0.018 && age < 0.8) {
+                                        const pk = clamp01(1.0 - t / 0.2);
+                                        ch += depth * 0.5 * pk * pk * (3 - 2 * pk);
+                                    }
+                                    if (bowl > out.floor) out.floor = bowl;
+                                }
+                            }
+                            const rt = (t - 1.0) / 0.13;
+                            const ring = Math.exp(-rt * rt);
+                            ch += rimH * (flooded ? 0.6 : 1.0) * ring;
+                            {   // baked light: same direction (towards the north pole) at every crater, like SFS's painted craters
+                                const lx = -cyn * cxn, ly = 1.0 - cyn * cyn, lz = -cyn * czn;
+                                const ll = Math.sqrt(lx * lx + ly * ly + lz * lz);
+                                if (ll > 1e-3 && t < 2.2) {
+                                    const sdir = -(ddx * lx + ddy * ly + ddz * lz) / (ll * R);
+                                    let sh = 0;
+                                    if (t < 1.0) {
+                                        const wall = smoothstep(0.35, 1.0, t);
+                                        sh -= 0.36 * sdir * wall * (flooded ? 0.35 : 1.0) * soft;
+                                        sh -= flooded ? 0 : 0.05 * (1.0 - wall);
+                                    }
+                                    sh += 0.30 * ring * (0.3 + 0.7 * sdir) * soft;
+                                    out.shade += sh;
+                                }
+                            }
+                            if (t > 1.0) {
+                                const ej = Math.pow(t, -2.6) * smoothstep(2.6, 1.15, t);
+                                ch += rimH * 0.8 * ej;
+                                const em = ej * (1.0 - age);
+                                if (em > out.ejecta) out.ejecta = em;
+                            }
+                            if (ring > out.rim) out.rim = ring;
+                            if (fresh) {
+                                const fr = (1.0 - age / 0.12) * smoothstep(3.3, 1.0, t);
+                                if (fr > out.fresh) out.fresh = fr;
+                                if (t > 1.15 && s < 5) {
+                                    // radial ray streaks around young craters
+                                    const ux = ddx, uy = ddy, uz = ddz;
+                                    const ex = Math.abs(cyn) > 0.9 ? 1 : 0, ey = Math.abs(cyn) > 0.9 ? 0 : 1;
+                                    // basis perpendicular to crater centre
+                                    let b1x = cyn * 0 - czn * ey, b1y = czn * ex - cxn * 0, b1z = cxn * ey - cyn * ex;
+                                    const bl = Math.sqrt(b1x * b1x + b1y * b1y + b1z * b1z) || 1;
+                                    b1x /= bl; b1y /= bl; b1z /= bl;
+                                    const b2x = cyn * b1z - czn * b1y, b2y = czn * b1x - cxn * b1z, b2z = cxn * b1y - cyn * b1x;
+                                    const ang = Math.atan2(ux * b2x + uy * b2y + uz * b2z, ux * b1x + uy * b1y + uz * b1z);
+                                    const rays = Math.pow(0.5 + 0.5 * Math.sin(ang * (6 + (hr & 7)) + Math.sin(ang * 3.7 + hr) * 1.6 + hr * 0.001), 9);
+                                    const rv = rays * fr * smoothstep(3.3, 1.2, t);
+                                    if (rv > out.ray) out.ray = rv;
+                                }
+                            }
+                            out.h += ch;
+                        }
+                    }
+                }
+            }
+            return out;
+        }
+
+        // ---------- Shared sample result ----------
+        const S = {
+            h: 0.5, datum: 0.5,
+            land: 0, depth: 0, wet: 0, moist: 0,
+            ice: 0,
+            feat: 0, featType: 0, featPeak: 0, featB: 0, featR: 0,
+            a1: 0, a2: 0, a3: 0, a4: 0, a5: 0,
+            cra: CRA, crb: CRB
+        };
+
+        // ---------- Continents (earth-like and lava worlds) ----------
+        const CFD = { u: 0, ax: 0, ay: 0, az: 0 };
+        function continentField(x, y, z) {
+            const f = 0.62 * state.continentScale;
+            // domain warp = organic coastlines
+            const wx = getNoise3D(x * 1.1 + 3.1, y * 1.1, z * 1.1, 3) * 0.38;
+            const wy = getNoise3D(x * 1.1, y * 1.1 + 7.7, z * 1.1, 3) * 0.38;
+            const wz = getNoise3D(x * 1.1, y * 1.1, z * 1.1 + 2.3, 3) * 0.38;
+            const ax = x + wx, ay = y + wy, az = z + wz;
+
+            let base = getNoise3D(ax * f, ay * f, az * f, 5, 0.52, 2.05);
+            const big = getNoise3D(ax * f * 0.42 + 11.0, ay * f * 0.42, az * f * 0.42, 2);
+            const cl = state.plateClustering;
+            base = base * (1.0 - 0.45 * cl) + big * (0.9 * cl);
+            const coast = getNoise3D(ax * f * 4.5, ay * f * 4.5, az * f * 4.5, Math.max(2, state.roughnessOctaves - 2), 0.5, 2.1);
+            const c = base + coast * 0.07;
+            // Rank-normalise so that seaLevel ~= fraction of the surface that is ocean
+            const z0 = (c - CONT_MU) / CONT_SIGMA;
+            CFD.u = 1.0 / (1.0 + Math.exp(-1.702 * z0));
+            CFD.ax = ax; CFD.ay = ay; CFD.az = az;
+        }
+        let CONT_MU = 0.0, CONT_SIGMA = 0.25;
+
+        // ---------- Polar ice caps ----------
+        // Cap edge is a latitude line pushed around by multi-scale 3D noise, with ragged floes along the fringe,
+        // ice sheets that creep further on land and altitude, and thinner, shorter sea ice.
+        function iceFraction(x, y, z) {
+            const cap = state.snowCap;
+            if (cap <= 0) return 0;
+            const absLat = Math.asin(Math.min(1, Math.abs(y)));
+            const edge = 1.5708 - cap * 1.13;
+            const n1 = getNoise3D(x * 2.3 + 1.7, y * 2.3 + 0.5, z * 2.3 + 5.1, 4, 0.55);
+            const n2 = getNoise3D(x * 13.0, y * 13.0 + 3.0, z * 13.0, 3, 0.55);
+            const seaW = S.wet ? smoothstep(0.0, 0.12, S.depth) : 0;
+            const shift = mix(0.05, -0.06, seaW) + S.land * 0.18;
+            const v = absLat - (edge + shift) + n1 * (0.07 + 0.05 * cap) * (1.0 + seaW * 1.1);
+            const fr = 0.03 + 0.045 * cap;
+            return smoothstep(-fr, fr, v + n2 * fr * 1.1);
+        }
+
+        // ---------- Terrestrial body (earth + lava world share the same landmass engine) ----------
+        function sampleTerrestrial(x, y, z, Q, lava) {
+            continentField(x, y, z);
+            const sea = state.seaLevel;
+            const u = CFD.u, ax = CFD.ax, ay = CFD.ay, az = CFD.az;
+            const f = 0.62 * state.continentScale;
+            const oct = state.roughnessOctaves;
+            S.datum = sea;
+
+            if (u < sea) {
+                // ---- Ocean: shelf -> slope -> abyssal plain, flat sea surface ----
+                const dco = (sea - u) / Math.max(0.06, sea);
+                let d = 0.20 * smoothstep(0.0, 0.07, dco) + 0.45 * smoothstep(0.05, 0.22, dco) + 0.35 * smoothstep(0.18, 0.9, dco);
+                const rn = getNoise3D(ax * f * 0.9 + 4, ay * f * 0.9, az * f * 0.9 + 9, 2);
+                const ridge = Math.pow(clamp01(1.0 - Math.abs(rn) * 3.2), 3);
+                d -= 0.015 * ridge * smoothstep(0.3, 0.6, dco);
+                d += getNoise3D(ax * f * 2.0 + 30, ay * f * 2.0, az * f * 2.0, 3) * 0.03 * smoothstep(0.2, 0.5, dco);
+                d *= (0.5 + 0.55 * state.oceanDepthFactor);
+                S.depth = clamp01(d);
+                S.wet = 1; S.land = 0; S.moist = 0;
+                S.h = sea;
+                S.a1 = ax; S.a2 = ay; S.a3 = az;
+                S.cra.h = 0;
+            } else {
+                // ---- Land ----
+                const inland = (u - sea) / Math.max(0.001, 1.0 - sea);
+                const bn = getNoise3D(ax * f * 0.8 + 21, ay * f * 0.8, az * f * 0.8 + 4, 2);
+                const belt = Math.pow(clamp01(1.0 - Math.abs(bn) * 2.6), 2.0);
+                const rid = getRidgedNoise3D(ax * f * 3.2, ay * f * 3.2, az * f * 3.2, Math.min(oct, 6));
+                const hills = getNoise3D(ax * f * 6.0, ay * f * 6.0, az * f * 6.0, Math.min(oct, 5), 0.5, 2.1);
+                const mAmp = state.mountainSharpness * (lava ? 0.30 : 0.24);
+                let rel = 0.08 * smoothstep(0.0, 0.12, inland) + 0.15 * Math.pow(inland, 1.2)
+                    + mAmp * belt * rid * (0.25 + 0.75 * smoothstep(0.03, 0.45, inland))
+                    + hills * 0.035 * (0.4 + belt);
+                if (state.microNoise > 0) rel += getNoise3D(x * f * 14, y * f * 14, z * f * 14, 3) * state.microNoise * 0.012;
+                if (state.craterDensity > 0) {
+                    sampleCraters(S.cra, x, y, z, state.craterDensity * 0.5, Q.px, 0, Q.scales, 0, 2.1);
+                    rel += S.cra.h * 0.8;
+                } else S.cra.h = 0;
+                rel = clamp01(rel);
+                S.land = rel; S.wet = 0; S.depth = 0;
+                S.a1 = belt; S.a2 = rid; S.a3 = inland;
+
+                // Climate: wet equator, dry subtropical belt, cool poles; drier far inland
+                const alat = Math.abs(y);
+                const mn = getNoise3D(x * 2.1 + 9, y * 2.1, z * 2.1 + 2, 3);
+                S.moist = clamp01(0.58 + mn * 0.9 + (1.0 - smoothstep(0.0, 0.5, alat)) * 0.2
+                    - Math.exp(-Math.pow((alat - 0.42) / 0.15, 2)) * 0.45 - inland * 0.18);
+                S.h = sea + rel * (1.0 - sea);
+            }
+
+            S.ice = (state.snowCap > 0) ? iceFraction(x, y, z) : 0;
+            if (S.ice > 0 && !S.wet) {
+                // land ice sheets are smooth domes
+                const plateau = sea + (S.h - sea) * 0.5 + 0.012;
+                S.h = mix(S.h, plateau, S.ice * 0.65);
+            }
+        }
+
+        // ---------- Airless cratered body (Moon / Mercury) ----------
+        function sampleMoon(x, y, z, Q) {
+            const f = 0.9 * state.continentScale;
+            const oct = state.roughnessOctaves;
+            const n1 = getNoise3D(x * f, y * f, z * f, 4, 0.55);
+            const hum = getRidgedNoise3D(x * f * 2.3 + 7, y * f * 2.3, z * f * 2.3, Math.min(5, oct));
+            const sea = state.seaLevel;                      // maria coverage
+
+            // Big impact basins flooded with basalt = maria
+            sampleCraters(CRA, x, y, z, 0.95, Q.px, 0, 2, Math.min(1, sea * 1.6), 2.1);
+            const pf = 0.5 + (1.0 - state.plateClustering) * 1.6;   // high clustering = big merged seas
+            const patchN = getNoise3D(x * pf + 3, y * pf, z * pf + 8, 3);
+            const patch = smoothstep(0.22 - sea * 0.55, 0.30 - sea * 0.55, patchN + n1 * 0.15) * (sea > 0.02 ? 1 : 0);
+            const warp = getNoise3D(x * 4.0, y * 4.0, z * 4.0, 3) * 0.7;
+            const maria = clamp01(Math.max(smoothstep(0.35, 0.65, CRA.flood + warp), patch));
+
+            const rug = state.mountainSharpness / 1.5;
+            const baseHigh = 0.44 + n1 * 0.12 * Math.sqrt(rug) + (hum - 0.35) * 0.10 * rug;
+            const wrinkle = (1.0 - Math.abs(getNoise3D(x * 14, y * 14, z * 14, 2))) * 0.012;
+            const baseMaria = 0.40 - 0.05 * state.oceanDepthFactor + wrinkle + n1 * 0.015;
+            let h = mix(baseHigh, baseMaria, maria);
+
+            sampleCraters(CRB, x, y, z, state.craterDensity * (1.0 - 0.75 * maria), Q.px, 2, Q.scales, 0, 2.1);
+            h += CRA.h + CRB.h;
+            if (state.microNoise > 0) h += getNoise3D(x * 40, y * 40, z * 40, 2) * state.microNoise * 0.006;
+
+            S.h = clamp01(h); S.datum = 0.42;
+            S.a1 = maria; S.a2 = n1; S.a3 = hum;
+            S.land = 0; S.wet = 0; S.depth = 0; S.moist = 0; S.ice = 0;
+        }
+
+        // ---------- Desert world (Mars) ----------
+        let MARS_V = null, MARS_SEED = -1;
+        function marsFeatures() {
+            if (MARS_SEED === state.seed && MARS_V) return MARS_V;
+            const rnd = (k) => hash3i(k, 7, 13, 4242) / 4294967296;
+            const vols = [];
+            // Tharsis-like volcano chain + one giant (Olympus-like) shield, near the equator
+            const baseLon = rnd(1) * 6.283;
+            const spec = [[0.0, 0.0, 0.12, 0.30], [0.16, 0.05, 0.085, 0.24], [0.30, -0.02, 0.085, 0.24], [-0.34, 0.10, 0.15, 0.34]];
+            for (const [dl, la, r, a] of spec) {
+                const lon = baseLon + dl * 1.2, lat = la + (rnd(3 + Math.floor(dl * 10)) - 0.5) * 0.2;
+                vols.push({ x: Math.cos(lat) * Math.cos(lon), y: Math.sin(lat), z: Math.cos(lat) * Math.sin(lon), r: r, a: a });
+            }
+            // Canyon system along a great circle through the volcano province
+            const cl = baseLon + 0.55;
+            const cx = Math.cos(cl), cz = Math.sin(cl);
+            const tilt = 0.18 + rnd(9) * 0.1;
+            const nx = -cz * Math.cos(tilt), ny = Math.sin(tilt), nz = cx * Math.cos(tilt);
+            const nl = Math.sqrt(nx * nx + ny * ny + nz * nz);
+            const normal = { x: nx / nl, y: ny / nl, z: nz / nl };
+            // basis in the circle's plane
+            const e1 = { x: cx, y: 0, z: cz };
+            const e2 = { x: normal.y * e1.z - normal.z * e1.y, y: normal.z * e1.x - normal.x * e1.z, z: normal.x * e1.y - normal.y * e1.x };
+            MARS_V = { vols: vols, normal: normal, e1: e1, e2: e2, canyonAngle: 0.0 };
+            MARS_SEED = state.seed;
+            return MARS_V;
+        }
+
+        function sampleMars(x, y, z, Q) {
+            const F = marsFeatures();
+            const f = 0.9 * state.continentScale;
+            const oct = state.roughnessOctaves;
+            // Hemispheric dichotomy: smooth northern lowlands vs cratered southern highlands
+            const bound = getNoise3D(x * 1.3 + 2, y * 1.3, z * 1.3 + 6, 3) * 0.55;
+            const shift = (state.seaLevel - 0.3) * 1.4;
+            const dw = 0.55 - 0.45 * state.plateClustering;                   // dichotomy edge softness
+            const L = smoothstep(-dw, dw, y * 0.9 + bound * 0.6 + shift);   // 1 = lowland
+            const hillsN = getNoise3D(x * f * 2.4, y * f * 2.4, z * f * 2.4, Math.min(5, oct), 0.52);
+            const rid = getRidgedNoise3D(x * f * 3.5 + 5, y * f * 3.5, z * f * 3.5, Math.min(4, oct));
+            const mScale = state.mountainSharpness / 2.8;
+            const step = 0.04 + 0.05 * state.plateClustering;     // highland/lowland height contrast
+            let h = mix(0.48 + step + hillsN * 0.16 + (rid - 0.35) * 0.08 * mScale, 0.48 - step + hillsN * 0.035, L);
+
+            // Volcanoes with calderas on a raised bulge
+            let volc = 0;
+            for (let i = 0; i < F.vols.length; i++) {
+                const v = F.vols[i];
+                const dx = x - v.x, dy = y - v.y, dz = z - v.z;
+                const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (d < v.r * 3.5) {
+                    const t = d / v.r;
+                    const va = v.a * mScale;
+                    let cone = va * Math.exp(-Math.pow(t, 1.7) * 1.3);
+                    cone -= va * 0.18 * Math.exp(-Math.pow(t / 0.16, 2));          // caldera
+                    cone += va * 0.06 * Math.exp(-Math.pow((t - 0.17) / 0.05, 2)); // caldera lip
+                    h += cone; volc += Math.exp(-t * t * 0.35);
+                    // lava flow streaks
+                    h += 0.01 * getNoise3D(x * 25, y * 25, z * 25, 2) * Math.exp(-t * 0.6);
+                }
+            }
+            const bulge = Math.exp(-Math.pow((x * F.vols[0].x + y * F.vols[0].y + z * F.vols[0].z - 1) / 0.12, 2));
+            h += 0.08 * bulge;
+
+            // Canyon system
+            const dn = x * F.normal.x + y * F.normal.y + z * F.normal.z;
+            const along = Math.atan2(x * F.e2.x + y * F.e2.y + z * F.e2.z, x * F.e1.x + y * F.e1.y + z * F.e1.z);
+            const cw = dn + getNoise3D(x * 9, y * 9, z * 9, 3) * 0.03 + Math.sin(along * 5) * 0.01;
+            const canyonMain = 1.0 - smoothstep(0.012, 0.045, Math.abs(cw));
+            const segment = smoothstep(0.75, 0.45, Math.abs(along));
+            const canyon = canyonMain * segment;
+            h -= canyon * Math.min(0.45, state.oceanDepthFactor * 0.85);
+            h += canyon * (getRidgedNoise3D(x * 30, y * 30, z * 30, 2) - 0.4) * 0.05;
+
+            // Craters (sparse in the lowlands)
+            sampleCraters(CRB, x, y, z, state.craterDensity * (1.0 - 0.8 * L), Q.px, 0, Q.scales, 0, 1.9);
+            h += CRB.h;
+            h += getNoise3D(x * 30, y * 30, z * 30, 3) * state.microNoise * 0.012;
+
+            S.h = clamp01(h); S.datum = 0.45;
+            S.a1 = L; S.a2 = canyon; S.a3 = volc; S.a4 = hillsN;
+            S.land = 0; S.wet = 0; S.depth = 0; S.moist = 0;
+            S.ice = (state.snowCap > 0) ? iceFraction(x, y, z) : 0;
+            if (S.ice > 0) S.h = mix(S.h, Math.max(S.h * 0.9, 0.46), S.ice * 0.6);
+        }
+
+        // ---------- Ice moon (Europa-like): smooth shell, long double-ridge cracks, chaos terrain ----------
+        function sampleIce(x, y, z, Q) {
+            const f = 0.9 * state.continentScale;
+            const oct = state.roughnessOctaves;
+            const wx = getNoise3D(x * 0.9 + 3, y * 0.9, z * 0.9, 2) * 0.35;
+            const wy = getNoise3D(x * 0.9, y * 0.9 + 9, z * 0.9, 2) * 0.35;
+            const wz = getNoise3D(x * 0.9, y * 0.9, z * 0.9 + 4, 2) * 0.35;
+            const ax = x + wx, ay = y + wy, az = z + wz;
+
+            const broad = getNoise3D(x * f * 0.8, y * f * 0.8, z * f * 0.8, 3);
+            const widthN = (0.65 + 0.7 * (0.5 + 0.5 * getNoise3D(x * 3 + 8, y * 3, z * 3, 2))) * (state.oceanDepthFactor / 0.6);
+
+            // Three generations of lineae at decreasing scale
+            const v1 = simplex.noise3D(ax * 1.1 * f, ay * 1.1 * f, az * 1.1 * f);
+            const v2 = simplex.noise3D(ax * 2.3 * f + 5, ay * 2.3 * f, az * 2.3 * f);
+            const v3 = simplex.noise3D(ax * 4.6 * f + 11, ay * 4.6 * f, az * 4.6 * f);
+            const l1 = 1.0 - smoothstep(0.0, 0.030 * widthN, Math.abs(v1));
+            const l2 = 1.0 - smoothstep(0.0, 0.040 * widthN, Math.abs(v2));
+            const l3 = 1.0 - smoothstep(0.0, 0.050 * widthN, Math.abs(v3));
+            const linea = Math.max(l1, l2 * 0.85, l3 * 0.6);
+            // double ridge profile: raised flanks with a thin central trough
+            const ridgeProfile = Math.exp(-Math.pow((Math.abs(v1) - 0.035) / 0.03, 2)) * 0.6 + Math.exp(-Math.pow((Math.abs(v2) - 0.045) / 0.035, 2)) * 0.4;
+
+            // Chaos terrain: broken rafts of ice
+            const chaosField = smoothstep(0.12, 0.30, getNoise3D(x * f * 0.9 + 5, y * f * 0.9, z * f * 0.9 + 2, 3) + 0.05 + (state.plateClustering - 0.5) * 0.5);
+            let chaos = 0, plateB = 0.5, gap = 0;
+            if (chaosField > 0.01) {
+                voronoi3(ax * 11 * f * 0.6, ay * 11 * f * 0.6, az * 11 * f * 0.6, 777);
+                plateB = VOR.id;
+                gap = 1.0 - smoothstep(0.0, 0.10, VOR.f2 - VOR.f1);
+                chaos = chaosField;
+            }
+
+            let h = 0.5 + broad * 0.04 + getNoise3D(x * f * 4, y * f * 4, z * f * 4, Math.min(4, oct)) * 0.012;
+            h += ridgeProfile * 0.035 * (state.mountainSharpness / 1.2) * (0.3 + 0.7 * smoothstep(0.1, 1.0, linea + ridgeProfile));
+            h -= linea * 0.012;
+            h += chaos * ((plateB - 0.5) * 0.07 - gap * 0.05);
+
+            sampleCraters(CRB, x, y, z, state.craterDensity, Q.px, 0, Q.scales, 0, 2.4);
+            h += CRB.h * 0.8;
+            h += getNoise3D(x * 38, y * 38, z * 38, 2) * state.microNoise * 0.006;
+
+            S.h = clamp01(h); S.datum = 0.5;
+            S.a1 = linea; S.a2 = chaos; S.a3 = plateB; S.a4 = gap; S.a5 = broad;
+            S.land = 0; S.wet = 0; S.depth = 0; S.moist = 0;
+            S.ice = (state.snowCap > 0) ? iceFraction(x, y, z) : 0;
+        }
+
+        // ---------- Asteroid / small rocky body ----------
+        function sampleAsteroid(x, y, z, Q) {
+            const A = state.ast, o = A.seed * 7.31;
+            const f = Math.max(0.6, state.continentScale) * 0.9 * A.lumpScale;
+            const oct = state.roughnessOctaves;
+            const n = getNoise3D(x * f + o, y * f, z * f, 4, 0.55);
+            const fr = f * A.ridgeScale / A.lumpScale;
+            const rid = A.ridge > 0 ? getRidgedNoise3D(x * fr + 4 + o, y * fr, z * fr, Math.min(5, oct)) : 0.4;
+            const fg = f * A.grooveScale / A.lumpScale;
+            const groove = A.groove > 0 ? (1.0 - smoothstep(0.0, A.grooveWidth, Math.abs(simplex.noise3D(x * fg + 17 + o, y * fg, z * fg)))) * A.groove : 0;
+            let h = 0.5 + n * 0.13 * A.lump * (0.4 + state.plateClustering * 1.2) + (rid - 0.35) * 0.10 * A.ridge * (state.mountainSharpness / 1.8) - groove * 0.025 * Math.min(4, state.oceanDepthFactor * 10);
+            if (A.pit > 0) h += getNoise3D(x * 14 + o, y * 14 + 3, z * 14, 3) * A.pit * 0.03;
+
+            sampleCraters(CRA, x, y, z, state.craterDensity, Q.px, 0, Q.scales, 0, A.craterSize);
+            h += CRA.h * A.craterDepth;
+            h += getNoise3D(x * 36, y * 36, z * 36, 3) * state.microNoise * 0.012;
+
+            S.h = clamp01(h); S.datum = 0.5;
+            S.a1 = n; S.a2 = rid; S.a3 = groove;
+            S.land = 0; S.wet = 0; S.depth = 0; S.moist = 0; S.ice = 0;
+        }
+
+
+        // =====================================================================
+        //  PAINTED BODY (SFS-style): soft blotchy stains for the base, flat circular craters with baked
+        //  directional shading, dark chasma lines with a light outline, and the "isolated cases"
+        //  (Pluto heart, Iapetus two-tone, Io dark paterae, Europa crack network).
+        // =====================================================================
+        function samplePainted(x, y, z, Q) {
+            sampleCraters(CRA, x, y, z, state.craterDensity, Q.px, 0, Q.scales, 0, 1.7);
+            const n = getNoise3D(x * 1.2 + 2, y * 1.2, z * 1.2, 3) * 0.03;
+            S.h = clamp01(0.5 + n + CRA.h * 0.8); S.datum = 0.5;
+            S.land = 0; S.wet = 0; S.depth = 0; S.moist = 0;
+            S.ice = (state.snowCap > 0) ? iceFraction(x, y, z) : 0;
+        }
+
+        const PFIXED = { c: [1, 0, 0], e1: [0, 0, -1], e2: [0, 1, 0] };
+        function patternInfo() { return PFIXED; }
+        function __unusedPatternInfo() {
+            if (PAT && PAT_SEED === state.seed) return PAT;
+            const r = (k) => hash3i(k, 3, 5, 911) / 4294967296;
+            const lon = r(1) * 6.2832, lat = (r(2) - 0.5) * 0.7;
+            const c = [Math.cos(lat) * Math.cos(lon), Math.sin(lat), Math.cos(lat) * Math.sin(lon)];
+            let e1 = [c[2], 0, -c[0]];
+            const l = Math.hypot(e1[0], e1[1], e1[2]) || 1; e1 = e1.map(v => v / l);
+            const e2 = [c[1] * e1[2] - c[2] * e1[1], c[2] * e1[0] - c[0] * e1[2], c[0] * e1[1] - c[1] * e1[0]];
+            PAT = { c: c, e1: e1, e2: e2 }; PAT_SEED = state.seed;
+            return PAT;
+        }
+        let CRK = null, CRK_SEED = -1;
+        function crackSet() {
+            if (CRK && CRK_SEED === state.seed) return CRK;
+            CRK = [];
+            for (let k = 0; k < 24; k++) {
+                const r = (j) => hash3i(k, j, 17, 733) / 4294967296;
+                const z0 = r(1) * 2 - 1, t = r(2) * 6.2832, rr = Math.sqrt(1 - z0 * z0);
+                CRK.push([rr * Math.cos(t), z0, rr * Math.sin(t), r(3), r(4)]);
+            }
+            CRK_SEED = state.seed; return CRK;
+        }
+        function blot(v, thr, e) { return smoothstep(thr - e, thr + e, v); }
+
+
+        function crackLine(v, w) { return 1.0 - smoothstep(0.0, w, v); }
+        function outlineOf(v, w) { return smoothstep(w, w * 1.5, v) * (1.0 - smoothstep(w * 1.5, w * 3.0, v)); }
+
+        function patternCore(pat, c, x, y, z, n1, n3, soft) {
+            const P = PFIXED;
+            const dcen = x * P.c[0] + y * P.c[1] + z * P.c[2];
+            const e1d = x * P.e1[0] + y * P.e1[1] + z * P.e1[2];
+            const e2d = x * P.e2[0] + y * P.e2[1] + z * P.e2[2];
+            switch (pat) {
+                case 'heart': {
+                    const dc = dcen;
+                const P = patternInfo();
+                
+                if (dc > 0.35) {
+                    const R = 0.6;
+                    const u = (x * P.e1[0] + y * P.e1[1] + z * P.e1[2]) / R + getNoise3D(x * 4 + 2, y * 4, z * 4, 3) * 0.07;
+                    const v = (x * P.e2[0] + y * P.e2[1] + z * P.e2[2]) / R + 0.15 + getNoise3D(x * 4, y * 4 + 6, z * 4, 3) * 0.07;
+                    const q = u * u + v * v - 1.0;
+                    const heart = q * q * q - u * u * v * v * v;
+                    const m = smoothstep(0.05 + 0.2 * soft, -0.05 - 0.1 * soft, heart);
+                    const mott = 0.96 + getNoise3D(x * 12, y * 12, z * 12, 3) * 0.12;
+                    c = mixC(c, shadeC(PAL.snow, mott), m * 0.96);
+                }
+            
+                    return c; }
+                case 'hemisphere': {
+                
+                const d = x * P.c[0] + y * P.c[1] + z * P.c[2] + n3 * 0.2;
+                const band = 1.0 - smoothstep(0.0, 0.4, Math.abs(d));
+                const sc = getNoise3D(x * 7 + 1, y * 7, z * 7, 4);
+                const darkMain = smoothstep(0.05, -0.05, d);
+                const darkSpots = (d > 0 ? 1 : 0) * band * blot(sc, 0.08, 0.05);
+                const brightSpots = (d < 0 ? 1 : 0) * band * blot(-sc, 0.04, 0.05);
+                const dm = clamp01(Math.max(darkMain * (1.0 - brightSpots), darkSpots));
+                const dcol = mixC(PAL.deepWater, PAL.shallowWater, clamp01(0.3 + n1 * 0.3));
+                c = mixC(c, dcol, dm * 0.95);
+            
+                    return c; }
+                case 'nearside': {      // dark seas piled onto one hemisphere, soft blotchy edges (Moon's nearside)
+                    const d = dcen + n3 * 0.2;
+                    const v = n3 * 0.8 + d * 1.1;
+                    c = mixC(c, PAL.shallowWater, blot(v, 0.35, 0.12 + 0.15 * soft) * 0.85);
+                    return mixC(c, PAL.deepWater, blot(v, 0.85, 0.12 + 0.1 * soft) * 0.7); }
+                case 'band': {          // dark ragged equatorial belt (Pluto's Cthulhu)
+                    const lat = y + getNoise3D(x * 3 + 1, y * 3, z * 3, 3) * 0.12;
+                    const m = 1.0 - smoothstep(0.16, 0.26 + 0.12 * soft, Math.abs(lat));
+                    const frag = blot(getNoise3D(x * 8, y * 8, z * 8, 3), -0.15, 0.1 + 0.1 * soft);
+                    return mixC(c, mixC(PAL.deepWater, PAL.shallowWater, clamp01(0.3 + n1 * 0.3)), m * frag * 0.9); }
+                case 'ridge': {         // thin raised equatorial ridge (Iapetus)
+                    const v = y + getNoise3D(x * 5 + 2, y * 5, z * 5, 3) * 0.03;
+                    const part = smoothstep(-0.2, 0.2, simplex.noise3D(x * 2 + 4, y * 2, z * 2));
+                    const core = crackLine(Math.abs(v), 0.014) * (0.5 + 0.5 * part);
+                    const shadow = smoothstep(0.0, 0.015, -v) * (1.0 - smoothstep(0.015, 0.06, -v)) * (0.4 + 0.6 * part);
+                    c = shadeC(c, 1.0 - 0.22 * shadow);
+                    return mixC(c, PAL.mountain, core * 0.85); }
+                case 'bullseye': {      // giant concentric ring basin (Valhalla on Callisto)
+                    const d = Math.acos(clamp01(dcen < 0 ? 0 : dcen)) + getNoise3D(x * 5, y * 5, z * 5, 2) * 0.03;
+                    if (dcen <= 0) return c;
+                    const fade = 1.0 - smoothstep(0.2, 1.15, d);
+                    const ring = 0.5 + 0.5 * Math.cos(d * 34.0);
+                    const central = 1.0 - smoothstep(0.0, 0.14, d);
+                    c = mixC(c, PAL.snow, central * 0.92);
+                    c = shadeC(c, 1.0 + (ring - 0.5) * 0.2 * fade);
+                    return mixC(c, PAL.mountain, Math.pow(ring, 7.0) * 0.4 * fade); }
+                case 'rift': {          // huge branching rift canyon (Valles Marineris)
+                    if (dcen < 0.15) return c;
+                    const along = Math.abs(e1d);
+                    const wob = getNoise3D(x * 5 + 3, y * 5, z * 5, 3) * 0.05;
+                    const seg = smoothstep(0.85, 0.55, along);
+                    const wMain = 0.02 + 0.04 * (1.0 - along);
+                    const vMain = Math.abs(e2d + wob);
+                    const vBr = Math.abs(e2d - 0.12 * (1.0 + e1d * 1.5) + wob * 0.8);
+                    const brSeg = smoothstep(0.6, 0.2, Math.abs(e1d - 0.25));
+                    const core = Math.max(crackLine(vMain, wMain), crackLine(vBr, wMain * 0.55) * brSeg) * seg;
+                    const outl = Math.max(outlineOf(vMain, wMain), outlineOf(vBr, wMain * 0.55) * brSeg) * seg;
+                    c = mixC(c, mixC(shadeC(c, 0.55), PAL.deepWater, 0.5), core * 0.95);
+                    return shadeC(c, 1.0 + outl * 0.18 * (1.0 - core)); }
+                case 'tiger': {         // parallel fractures at the south pole (Enceladus)
+                    const reg = smoothstep(-0.7, -0.84, y) * smoothstep(0.42, 0.2, Math.abs(z));
+                    if (reg <= 0) return c;
+                    const wob = getNoise3D(x * 6, z * 6 + 2, y * 6, 3) * 0.012;
+                    let core = 0, halo = 0;
+                    for (let k = 0; k < 4; k++) {
+                        const off = (k - 1.5) * 0.075;
+                        const v = Math.abs(x - off + wob + z * 0.04 * (k - 1.5));
+                        core = Math.max(core, crackLine(v, 0.011));
+                        halo = Math.max(halo, 1.0 - smoothstep(0.011, 0.05, v));
+                    }
+                    c = mixC(c, PAL.shallowWater, halo * reg * 0.55);
+                    return mixC(c, PAL.deepWater, core * reg * 0.95); }
+                case 'redpole': {       // dark red polar region (Charon's Mordor)
+                    const edge = y + n3 * 0.12 + getNoise3D(x * 9, y * 9, z * 9, 3) * 0.06;
+                    const m = smoothstep(0.7, 0.78 + 0.1 * soft, edge);
+                    return mixC(c, mixC(PAL.deepWater, PAL.shallowWater, clamp01(0.4 + n1 * 0.3)), m * 0.95); }
+                case 'bigray': {        // one huge young crater with rays across the globe (Tycho)
+                    if (dcen <= -0.2) return c;
+                    const d = Math.acos(Math.max(-1, Math.min(1, dcen)));
+                    const ang = Math.atan2(e2d, e1d);
+                    const rays = Math.pow(0.5 + 0.5 * Math.sin(ang * 23 + Math.sin(ang * 5 + 1) * 1.6 + getNoise3D(x * 6, y * 6, z * 6, 2) * 2.5), 10);
+                    const fade = 1.0 - smoothstep(0.12, 1.5, d);
+                    const halo = 1.0 - smoothstep(0.0, 0.28, d);
+                    c = mixC(c, PAL.snow, clamp01(rays * fade * 0.75 + halo * 0.65));
+                    const floorM = 1.0 - smoothstep(0.03, 0.07, d);
+                    return shadeC(c, 1.0 - 0.25 * floorM); }
+                case 'brightspots': {   // a few very bright salt deposits (Ceres' Occator)
+                    for (let L = 0; L < 2; L++) {
+                        const fS = L === 0 ? 3.2 : 6.5;
+                        voronoi3(x * fS + L * 9.0, y * fS, z * fS, 640 + L);
+                        if (VOR.id < 0.16) {
+                            const r = 0.12 + 0.18 * (VOR.id / 0.16);
+                            const core = smoothstep(r, r * 0.5, VOR.f1);
+                            const halo = smoothstep(r * 2.2, r, VOR.f1) * (1.0 - core);
+                            c = mixC(c, PAL.mountain, halo * 0.5);
+                            c = mixC(c, PAL.snow, core * 0.97);
+                        }
+                    }
+                    return c; }
+                case 'bands': {         // soft latitude haze bands
+                    const b = 0.5 + 0.5 * Math.sin(y * 9.0 + getNoise3D(x * 2, y * 2, z * 2, 3) * 2.5);
+                    c = mixC(c, PAL.shallowWater, smoothstep(0.55, 0.95, b) * 0.35);
+                    return mixC(c, PAL.highland, smoothstep(0.55, 0.95, 1.0 - b) * 0.3); }
+            }
+            return c;
+        }
+
+
+        // ---------- multiple large-scale features, each with its own settings ----------
+        const PAT_TYPES = {
+            heart: { n: 'Bright heart', f: 'cx', z: 'ang', p: 'rand' }, hemisphere: { n: 'Two-tone hemisphere', f: 'cx', z: 'ang', p: 'rand' },
+            nearside: { n: 'Dark nearside seas', f: 'cx', z: 'ang', p: 'rand' }, band: { n: 'Dark equatorial band', f: 'cx', z: 'lat', p: 'eq' },
+            ridge: { n: 'Equatorial ridge', f: 'cx', z: 'lat', p: 'eq' }, bullseye: { n: 'Giant ring basin', f: 'cx', z: 'ang', p: 'rand' },
+            rift: { n: 'Great rift canyon', f: 'cx', z: 'ang', p: 'rand' }, tiger: { n: 'Tiger-stripe fractures', f: 'sp', z: 'ang', p: 'S' },
+            redpole: { n: 'Dark red polar region', f: 'np', z: 'ang', p: 'N' }, bigray: { n: 'Giant ray crater', f: 'cx', z: 'ang', p: 'rand' },
+            brightspots: { n: 'Bright salt spots', f: 'cx', z: 'ang', p: 'rand' }, bands: { n: 'Latitude haze bands', f: 'np', z: 'ang', p: 'N' }
+        };
+        const PAT_BASIS = {
+            cx: [[0, 0, -1], [0, 1, 0], [1, 0, 0]],
+            sp: [[1, 0, 0], [0, 0, 1], [0, -1, 0]],
+            np: [[1, 0, 0], [0, 0, -1], [0, 1, 0]]
+        };
+        const PAT_SLIDERS = [
+            ['size', 'Size', 0.3, 2.5, 0.05, 1], ['intensity', 'Intensity', 0, 2, 0.05, 1],
+            ['tintHue', 'Hue', 0, 360, 1, 30], ['tint', 'Hue Strength', 0, 1, 0.05, 0],
+            ['bright', 'Brightness', 0.3, 2, 0.05, 1], ['soft', 'Edge Softness', -0.5, 0.5, 0.05, 0],
+            ['lon', 'Longitude', -180, 180, 1, 0], ['lat', 'Latitude', -90, 90, 1, 0], ['spin', 'Rotation', -180, 180, 1, 0]
+        ];
+        function patDefaultPos(type, idx) {
+            const r = (k) => hash3i(k, 3 + idx, 5, 911) / 4294967296;
+            const p = PAT_TYPES[type].p;
+            let lon = r(1) * 360 - 180, lat = (r(2) - 0.5) * 0.7 * 180 / Math.PI;
+            if (p === 'eq') lat = 0; else if (p === 'S') lat = -90; else if (p === 'N') lat = 90;
+            return { lon: Math.round(lon), lat: Math.round(lat) };
+        }
+        function makePattern(type) {
+            const o = { type: type, on: true, open: true };
+            PAT_SLIDERS.forEach(s => { o[s[0]] = s[5]; });
+            delete o.lon; delete o.lat;       // undefined = follows the seed until you move it
+            return o;
+        }
+        function patPos(pt, idx) { const d = patDefaultPos(pt.type, idx); return { lon: pt.lon !== undefined ? pt.lon : d.lon, lat: pt.lat !== undefined ? pt.lat : d.lat }; }
+        function hslToRgb255(h, s, l) {
+            const k = (n) => (n + h * 12) % 12, a = s * Math.min(l, 1 - l);
+            const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+            return { r: f(0) * 255, g: f(8) * 255, b: f(4) * 255 };
+        }
+        function refreshPatterns() {
+            (state.patterns || []).forEach((pt, i) => {
+                const T = PAT_TYPES[pt.type]; if (!T) { pt._f = null; return; }
+                const pos = patPos(pt, i), lo = pos.lon * Math.PI / 180, la = pos.lat * Math.PI / 180, sp = (pt.spin || 0) * Math.PI / 180;
+                const D = [Math.cos(la) * Math.cos(lo), Math.sin(la), Math.cos(la) * Math.sin(lo)];
+                let e1 = [D[2], 0, -D[0]]; const l = Math.hypot(e1[0], e1[1], e1[2]);
+                if (l < 1e-6) e1 = [1, 0, 0]; else e1 = e1.map(v => v / l);
+                let e2 = [D[1] * e1[2] - D[2] * e1[1], D[2] * e1[0] - D[0] * e1[2], D[0] * e1[1] - D[1] * e1[0]];
+                const cs = Math.cos(sp), sn = Math.sin(sp);
+                const r1 = [0, 1, 2].map(k => cs * e1[k] + sn * e2[k]);
+                const r2 = [D[1] * r1[2] - D[2] * r1[1], D[2] * r1[0] - D[0] * r1[2], D[0] * r1[1] - D[1] * r1[0]];
+                pt._f = { D: D, e1: r1, e2: r2, B: PAT_BASIS[T.f], mode: T.z, size: Math.max(0.05, pt.size),
+                    tintRGB: pt.tint > 0 ? hslToRgb255(pt.tintHue / 360, 0.8, 0.5) : null };
+            });
+        }
+        function applyPattern(c, x, y, z, n1, n3, soft) {
+            const list = state.patterns;
+            if (!list || !list.length) return c;
+            for (let i = 0; i < list.length; i++) {
+                const pt = list[i], f = pt._f;
+                if (pt.on === false || !f) continue;
+                let a1 = x * f.e1[0] + y * f.e1[1] + z * f.e1[2];
+                let a2 = x * f.e2[0] + y * f.e2[1] + z * f.e2[2];
+                let a3 = x * f.D[0] + y * f.D[1] + z * f.D[2];
+                if (f.size !== 1) {
+                    if (f.mode === 'lat') {
+                        a2 /= f.size; const m = Math.hypot(a1, a2, a3) || 1; a1 /= m; a2 /= m; a3 /= m;
+                    } else {
+                        const s = Math.hypot(a1, a2);
+                        if (s > 1e-6) {
+                            const th = Math.min(Math.PI, Math.atan2(s, a3) / f.size), k = Math.sin(th) / s;
+                            a1 *= k; a2 *= k; a3 = Math.cos(th);
+                        }
+                    }
+                }
+                const B = f.B;
+                const lx = a1 * B[0][0] + a2 * B[1][0] + a3 * B[2][0];
+                const ly = a1 * B[0][1] + a2 * B[1][1] + a3 * B[2][1];
+                const lz = a1 * B[0][2] + a2 * B[1][2] + a3 * B[2][2];
+                const c0 = c;
+                const c1 = patternCore(pt.type, c0, lx, ly, lz, n1, n3, clamp01(soft + (pt.soft || 0)));
+                if (c1 === c0) continue;
+                const diff = Math.max(Math.abs(c1.r - c0.r), Math.abs(c1.g - c0.g), Math.abs(c1.b - c0.b));
+                if (diff < 0.01) continue;
+                let t = c1, w = 1;
+                const br = pt.bright;
+                if (f.tintRGB || br !== 1) {
+                    if (f.tintRGB) {
+                        const L = clamp01(((Math.max(c1.r, c1.g, c1.b) + Math.min(c1.r, c1.g, c1.b)) / 510));
+                        const tc = hslToRgb255(pt.tintHue / 360, 0.8, Math.min(0.75, Math.max(0.2, L)));
+                        t = mixC(c1, tc, pt.tint);
+                    }
+                    if (br !== 1) t = shadeC(t, br);
+                    w = smoothstep(0, 12, diff);
+                }
+                const I = pt.intensity;
+                const er = c0.r + (t.r - c0.r) * w, eg = c0.g + (t.g - c0.g) * w, eb = c0.b + (t.b - c0.b) * w;
+                c = { r: Math.max(0, Math.min(255, c0.r + (er - c0.r) * I)), g: Math.max(0, Math.min(255, c0.g + (eg - c0.g) * I)), b: Math.max(0, Math.min(255, c0.b + (eb - c0.b) * I)) };
+            }
+            return c;
+        }
+
+        // ---------- whole-planet hue / contrast / brightness ----------
+        const GADJ = { on: false, m: null, k: 1, b: 1, s: 1 };
+        function refreshGlobalAdjust() {
+            const h = (state.gHue || 0) * Math.PI / 180, cs = Math.cos(h), sn = Math.sin(h);
+            GADJ.on = !!(state.gHue || state.gSat !== 1 || state.gContrast !== 1 || state.gBright !== 1);
+            GADJ.s = state.gSat;
+            GADJ.k = state.gContrast; GADJ.b = state.gBright;
+            GADJ.m = [0.213 + cs * 0.787 - sn * 0.213, 0.715 - cs * 0.715 - sn * 0.715, 0.072 - cs * 0.072 + sn * 0.928,
+                      0.213 - cs * 0.213 + sn * 0.143, 0.715 + cs * 0.285 + sn * 0.140, 0.072 - cs * 0.072 - sn * 0.283,
+                      0.213 - cs * 0.213 - sn * 0.787, 0.715 - cs * 0.715 + sn * 0.715, 0.072 + cs * 0.928 + sn * 0.072];
+        }
+        function applyGlobalAdjust() {
+            if (!GADJ.on) return;
+            const m = GADJ.m, r = COL.r, g = COL.g, b = COL.b;
+            let nr = m[0] * r + m[1] * g + m[2] * b, ng = m[3] * r + m[4] * g + m[5] * b, nb = m[6] * r + m[7] * g + m[8] * b;
+            const lum = 0.213 * nr + 0.715 * ng + 0.072 * nb;
+            nr = lum + (nr - lum) * GADJ.s; ng = lum + (ng - lum) * GADJ.s; nb = lum + (nb - lum) * GADJ.s;
+            nr = ((nr * GADJ.b) - 128) * GADJ.k + 128; ng = ((ng * GADJ.b) - 128) * GADJ.k + 128; nb = ((nb * GADJ.b) - 128) * GADJ.k + 128;
+            COL.r = nr < 0 ? 0 : (nr > 255 ? 255 : nr); COL.g = ng < 0 ? 0 : (ng > 255 ? 255 : ng); COL.b = nb < 0 ? 0 : (nb > 255 ? 255 : nb);
+        }
+
+        function colorPainted(x, y, z) {
+            const f = 0.62 * state.continentScale;
+            const oct = Math.max(2, Math.min(4, state.roughnessOctaves));
+            const soft = clamp01(state.plateClustering);
+            const e = 0.04 + 0.26 * soft;
+            const mn = state.microNoise;
+            const wx = getNoise3D(x * 1.2 + 3.0, y * 1.2, z * 1.2, 2) * 0.35;
+            const wy = getNoise3D(x * 1.2, y * 1.2 + 7.0, z * 1.2, 2) * 0.35;
+            const wz = getNoise3D(x * 1.2, y * 1.2, z * 1.2 + 4.0, 2) * 0.35;
+            const ax = x + wx, ay = y + wy, az = z + wz;
+            const n1 = getNoise3D(ax * f, ay * f, az * f, oct, 0.55) * 1.7;
+            const n2 = getNoise3D(ax * f * 1.6 + 9, ay * f * 1.6, az * f * 1.6, oct, 0.55) * 1.7;
+            const n3 = getNoise3D(ax * f * 0.8 + 21, ay * f * 0.8, az * f * 0.8, 3, 0.6) * 1.7;
+            const hf = getNoise3D(x * 9 + 5, y * 9, z * 9, 3) * 0.10;
+
+            // ---- 1. base stains ----
+            let c = PAL.coast;
+            c = mixC(c, PAL.lowland, blot(n1 + hf, 0.0, e) * 0.9);
+            c = mixC(c, PAL.highland, blot(n2 + hf * 0.8, 0.28, e * 0.9) * 0.85);
+            const thrD = 0.62 - state.seaLevel * 1.1;
+            c = mixC(c, PAL.shallowWater, blot(n3 + hf, thrD, e) * 0.8);
+            c = mixC(c, PAL.deepWater, blot(n3 * 0.7 + n1 * 0.5 + hf, thrD + 0.45, e * 0.8) * 0.75);
+
+            // ---- 2. large-scale pattern (isolated cases) ----
+            c = applyPattern(c, x, y, z, n1, n3, soft);
+
+            // ---- 3. dark paterae / spots (Io-style) ----
+            const sd = state.spotDensity;
+            if (sd > 0) {
+                for (let L = 0; L < 2; L++) {
+                    const fS = L === 0 ? 5.5 : 11.0;
+                    voronoi3(x * fS + L * 7.0, y * fS, z * fS, 555 + L);
+                    const lim = sd * 0.55;
+                    if (VOR.id < lim) {
+                        const r = 0.10 + 0.22 * (VOR.id / lim);
+                        const core = smoothstep(r, r * 0.55, VOR.f1);
+                        const halo = smoothstep(r * 2.4, r, VOR.f1) * (1.0 - core);
+                        c = mixC(c, PAL.mountain, halo * 0.5);
+                        c = mixC(c, PAL.deepWater, core * 0.93);
+                    }
+                }
+            }
+
+            // ---- 4. polar caps ----
+            if (S.ice > 0) c = mixC(c, iceColor(x, y, z), S.ice * 0.95);
+
+            // ---- 5. chasmas: dark line, thin lighter outline ----
+            const amt = state.chasmaAmount;
+            if (amt > 0) {
+                const fc = 1.7 * state.continentScale;
+                const regN = getNoise3D(x * 1.1 + 5, y * 1.1, z * 1.1 + 2, 2) * 1.4;
+                const reg = smoothstep(0.1 - amt * 0.9, 0.5 - amt * 0.9, regN + 0.35);
+                const w = 0.012 + 0.02 * state.oceanDepthFactor;
+                // long, straight-ish crossing cracks = arcs of great circles, broken up by noise (Europa-style lineae)
+                const CR = crackSet();
+                const count = Math.min(CR.length, Math.round(amt * 20));
+                const wob = getNoise3D(x * 3 + 7, y * 3, z * 3, 2) * 0.045 + getNoise3D(x * 11, y * 11 + 4, z * 11, 2) * 0.008;
+                let core = 0, outline = 0;
+                for (let k = 0; k < count; k++) {
+                    const n = CR[k];
+                    const d = Math.abs(x * n[0] + y * n[1] + z * n[2] + wob * (0.5 + 0.5 * n[4]));
+                    const wk = w * (0.45 + 0.9 * n[3]);
+                    if (d > wk * 3.2) continue;
+                    const part = smoothstep(-0.25, 0.25, simplex.noise3D(x * 1.3 + k * 5.1, y * 1.3, z * 1.3 + k * 1.7));
+                    const cr = (1.0 - smoothstep(0.0, wk, d)) * part;
+                    const ol = smoothstep(wk, wk * 1.5, d) * (1.0 - smoothstep(wk * 1.5, wk * 3.0, d)) * part;
+                    if (cr > core) core = cr;
+                    if (ol > outline) outline = ol;
+                }
+                core *= reg; outline *= reg;
+                c = mixC(c, mixC(shadeC(c, 0.65), PAL.deepWater, 0.6), core * 0.92);
+                c = shadeC(c, 1.0 + outline * 0.16 * (1.0 - core));
+            }
+
+            // ---- 6. craters: flat circles with baked shading, bright fresh ejecta and rays ----
+            const rb = Math.max(0.3, state.mountainSharpness / 1.8);
+            const bright = clamp01(CRA.fresh * 0.55 * rb + CRA.ejecta * 0.25 + CRA.ray * 0.9 * rb + CRA.rim * 0.12);
+            c = mixC(c, PAL.mountain, bright);
+            c = mixC(c, shadeC(c, 0.82), CRA.floor * 0.5);
+            c = shadeC(c, 1.0 + CRA.shade);
+
+            // ---- 7. grain ----
+            const g = getNoise3D(x * 50, y * 50, z * 50, 3);
+            c = shadeC(c, 1.0 + g * (0.03 + 0.14 * mn));
+            setCol(c, 235);
+        }
+
+        const activeKind = () => state.asteroidMode ? 'asteroid' : state.bodyType;
+
+        const QMESH = { px: 0.032, scales: 6 };
+        function sampleBase(x, y, z, Q) {
+            switch (activeKind()) {
+                case 'painted': samplePainted(x, y, z, Q); break;
+                case 'moon': sampleMoon(x, y, z, Q); break;
+                case 'mars': sampleMars(x, y, z, Q); break;
+                case 'ice': sampleIce(x, y, z, Q); break;
+                case 'asteroid': sampleAsteroid(x, y, z, Q); break;
+                case 'volcanic': sampleTerrestrial(x, y, z, Q, true); break;
+                default: sampleTerrestrial(x, y, z, Q, false);
+            }
+        }
+        function sampleSurface(x, y, z, Q) { sampleBase(x, y, z, Q); applyFeatures(x, y, z); }
+        // Relief above the body's datum, used for 3D mesh displacement
+        function getMeshRelief(x, y, z) {
+            sampleSurface(x, y, z, QMESH);
+            return S.h - S.datum;
+        }
+        function getSampleElevation(x, y, z) { sampleSurface(x, y, z, QMESH); return S.h; }
+
+
+        // =====================================================================
+        //  CUSTOM SURFACE FEATURES  (mountain ranges, valleys, plateaus, craters drawn on the globe)
+        //  Stored as vectors on the unit sphere and evaluated per sample, so they stay razor sharp at any
+        //  export size, never stretch at the poles, and blend into whatever base terrain is underneath.
+        // =====================================================================
+        let FEAT = [];
+        function refreshFeatures() {
+            FEAT = [];
+            const list = state.features || [];
+            for (let i = 0; i < list.length; i++) {
+                const f = list[i];
+                if (f.on === false || !f.pts || f.pts.length === 0) continue;
+                if (!f.pts.every(p => isFinite(p[0] + p[1] + p[2])) || !isFinite(f.width)) continue;
+                const pts = f.pts.map(p => { const l = Math.hypot(p[0], p[1], p[2]) || 1; return [p[0] / l, p[1] / l, p[2] / l]; });
+                let cx = 0, cy = 0, cz = 0;
+                pts.forEach(p => { cx += p[0]; cy += p[1]; cz += p[2]; });
+                let cl = Math.hypot(cx, cy, cz);
+                if (cl < 1e-6) { cx = pts[0][0]; cy = pts[0][1]; cz = pts[0][2]; cl = 1; }
+                cx /= cl; cy /= cl; cz /= cl;
+                let far = 0;
+                pts.forEach(p => { far = Math.max(far, Math.hypot(p[0] - cx, p[1] - cy, p[2] - cz)); });
+                const reachMul = f.type === 'crater' ? 2.6 : 1.4;
+                const cap = far + f.width * reachMul;
+                const segs = [];
+                for (let k = 0; k < pts.length - 1; k++) {
+                    const a = pts[k], b = pts[k + 1];
+                    const abx = b[0] - a[0], aby = b[1] - a[1], abz = b[2] - a[2];
+                    segs.push({ ax: a[0], ay: a[1], az: a[2], bx: abx, by: aby, bz: abz, l2: abx * abx + aby * aby + abz * abz || 1e-9 });
+                }
+                FEAT.push({ f: f, pts: pts, segs: segs, cx: cx, cy: cy, cz: cz, cap2: cap * cap,
+                            fq: Math.min(40, 0.9 / Math.max(0.02, f.width)), sd: (f.seed || 1) * 0.37 });
+            }
+        }
+
+        function featDist(F, x, y, z) {
+            if (F.segs.length === 0) {
+                const p = F.pts[0]; return Math.hypot(x - p[0], y - p[1], z - p[2]);
+            }
+            let best = 9;
+            for (let i = 0; i < F.segs.length; i++) {
+                const s = F.segs[i];
+                const px = x - s.ax, py = y - s.ay, pz = z - s.az;
+                let t = (px * s.bx + py * s.by + pz * s.bz) / s.l2;
+                t = t < 0 ? 0 : (t > 1 ? 1 : t);
+                const dx = px - s.bx * t, dy = py - s.by * t, dz = pz - s.bz * t;
+                const d2 = dx * dx + dy * dy + dz * dz;
+                if (d2 < best) best = d2;
+            }
+            return Math.sqrt(best);
+        }
+
+        function applyFeatures(x, y, z) {
+            S.feat = 0; S.featType = 0; S.featPeak = 0; S.featB = 0; S.featR = 0;
+            if (FEAT.length === 0) return;
+            const kind = activeKind();
+            let h = S.h, dh = 0, plateauW = 0, plateauT = 0, touched = false;
+            let bestInfl = 0;
+            for (let i = 0; i < FEAT.length; i++) {
+                const F = FEAT[i], f = F.f;
+                const ex = x - F.cx, ey = y - F.cy, ez = z - F.cz;
+                if (ex * ex + ey * ey + ez * ez > F.cap2) continue;
+                const d = featDist(F, x, y, z);
+                const W = f.width;
+                const rough = f.rough;
+                // irregular edges so nothing looks like a stamped shape
+                const en = getNoise3D(x * F.fq * 0.9 + F.sd, y * F.fq * 0.9, z * F.fq * 0.9, 2);
+                let t = d / W * (1.0 + en * (0.18 + 0.3 * rough));
+                let infl = 0, code = 0, peak = 0;
+                if (f.type === 'mountain') {
+                    if (t >= 1) continue;
+                    const base = (1 - t * t); const b2 = Math.pow(base, 1.3);
+                    const r = getRidgedNoise3D(x * F.fq + F.sd, y * F.fq, z * F.fq, 5);
+                    const amp = f.height * 0.42 * b2 * (1.0 - rough * 0.65 + rough * 1.5 * r);
+                    dh += amp; infl = Math.sqrt(b2); code = 1; peak = amp / (f.height * 0.42 + 1e-6);
+                } else if (f.type === 'valley') {
+                    if (t >= 1) continue;
+                    const v = Math.pow(1 - t, 1.6);
+                    const wob = 0.85 + 0.3 * getNoise3D(x * F.fq * 2 + F.sd, y * F.fq * 2, z * F.fq * 2, 3) * (0.5 + rough);
+                    dh -= f.height * 0.3 * v * wob; infl = v; code = 2;
+                } else if (f.type === 'plateau') {
+                    if (t >= 1) continue;
+                    const w = smoothstep(1.0, 0.62, t);
+                    plateauW = Math.max(plateauW, w);
+                    plateauT = S.datum + f.height * 0.3 + getNoise3D(x * 18, y * 18, z * 18, 2) * 0.008 * rough;
+                    infl = w; code = 3;
+                } else if (f.type === 'crater') {
+                    const tt = d / W;
+                    if (tt >= 2.6) continue;
+                    const depth = f.height * 0.22, rimH = depth * 0.36;
+                    let ch = 0;
+                    if (tt < 1) {
+                        const q = clamp01((1 - tt) / 0.6); const bowl = q * q * (3 - 2 * q);
+                        ch = -depth * bowl;
+                        if (W > 0.1) { const pk = clamp01(1 - tt / 0.2); ch += depth * 0.5 * pk * pk * (3 - 2 * pk); }
+                        S.featB = Math.max(S.featB, bowl);
+                    }
+                    const rt = (tt - 1) / 0.13, ring = Math.exp(-rt * rt);
+                    ch += rimH * ring;
+                    if (tt > 1) ch += rimH * 0.8 * Math.pow(tt, -2.6) * smoothstep(2.6, 1.15, tt);
+                    dh += ch; S.featR = Math.max(S.featR, ring);
+                    infl = Math.max(S.featB, ring); code = 4;
+                }
+                touched = true;
+                if (infl > bestInfl) { bestInfl = infl; S.featType = code; S.featPeak = peak; }
+            }
+            if (!touched) return;
+            h += dh;
+            if (plateauW > 0) h = mix(h, plateauT, plateauW);
+            S.feat = bestInfl;
+
+            if (kind === 'earth' || kind === 'volcanic') {
+                const sea = state.seaLevel;
+                if (S.wet && h > sea + 0.002) {            // range rises out of the sea -> new land
+                    S.wet = 0; S.depth = 0; S.moist = 0.55; S.a1 = 0.5; S.a2 = 0.5; S.a3 = 0.5;
+                    S.land = clamp01((h - sea) / (1 - sea)); S.h = h;
+                } else if (!S.wet && h < sea) {            // valley cut below sea level -> flooded
+                    S.wet = 1; S.depth = clamp01(0.05 + (sea - h) * 5); S.land = 0; S.h = sea;
+                    S.a1 = x; S.a2 = y; S.a3 = z;
+                } else if (!S.wet) {
+                    S.land = clamp01((h - sea) / (1 - sea)); S.h = h;
+                } else {
+                    S.depth = clamp01(S.depth + (sea - h) * 5); S.h = sea;
+                }
+            } else {
+                S.h = clamp01(h);
+            }
+        }
+
+        // Albedo tint so features read in the colour map as well as in the relief
+        function applyFeatureTint(x, y, z) {
+            const k = S.feat;
+            if (k <= 0.01 || S.wet) return;
+            let c = { r: COL.r, g: COL.g, b: COL.b };
+            const kind = activeKind();
+            switch (S.featType) {
+                case 1: {
+                    const n = 0.9 + 0.2 * getNoise3D(x * 30, y * 30, z * 30, 3);
+                    c = mixC(c, shadeC(PAL.mountain, n), clamp01(k * 0.7));
+                    if (S.featPeak > 0.85 && (kind === 'earth' || kind === 'mars' || kind === 'ice'))
+                        c = mixC(c, PAL.snow, smoothstep(0.85, 1.2, S.featPeak + n * 0.05) * 0.9);
+                    COL.rough = 215; break; }
+                case 2: c = mixC(c, shadeC(c, 0.7), clamp01(k * 0.7)); break;
+                case 3: c = mixC(c, PAL.highland, clamp01(k * 0.5)); break;
+                case 4: c = shadeC(c, 1.0 - 0.28 * S.featB + 0.22 * S.featR); break;
+            }
+            COL.r = c.r; COL.g = c.g; COL.b = c.b;
+        }
+
+        // =====================================================================
+        //  COLOUR / ROUGHNESS STAGE  (reads the fields left in S by sampleSurface)
+        // =====================================================================
+        const COL = { r: 0, g: 0, b: 0, rough: 200 };
+        function setCol(c, rough) { COL.r = c.r; COL.g = c.g; COL.b = c.b; COL.rough = rough; }
+
+        function iceColor(x, y, z) {
+            // thick ice: faint blue-grey crevasse lines and wind-scoured variation, never flat white
+            const n = getNoise3D(x * 9, y * 9, z * 9, 3, 0.5);
+            const crev = Math.pow(clamp01(1.0 - Math.abs(simplex.noise3D(x * 6 + 2, y * 6, z * 6)) * 6.0), 6) * 0.10;
+            const k = 0.955 + n * 0.09 - crev;
+            const c = shadeC(PAL.snow, k);
+            c.b = Math.min(255, c.b + 2 + crev * 60);
+            return c;
+        }
+
+        function colorTerrestrial(x, y, z, lava) {
+            const mnV = state.microNoise;
+            if (S.wet) {
+                let c, rough;
+                if (!lava) {
+                    // Water: smooth depth ramp, bright turquoise shelf -> deep navy; only very soft large-scale tint
+                    const d = S.depth;
+                    const mid = mixC(PAL.shallowWater, PAL.deepWater, 0.4);
+                    const deepish = mixC(PAL.shallowWater, PAL.deepWater, 0.82);
+                    if (d < 0.22) c = mixC(PAL.shallowWater, mid, smoothstep(0.0, 0.22, d));
+                    else if (d < 0.62) c = mixC(mid, deepish, smoothstep(0.22, 0.62, d));
+                    else c = mixC(deepish, PAL.deepWater, smoothstep(0.62, 1.0, d));
+                    // coastal shallows glow lighter
+                    c = mixC(c, mixC(PAL.shallowWater, PAL.snow, 0.35), (1.0 - smoothstep(0.0, 0.05, d)) * 0.45);
+                    const tint = getNoise3D(x * 1.6 + 4, y * 1.6, z * 1.6 + 1, 3) * 0.10;
+                    c = shadeC(c, 1.0 + tint);
+                    rough = 45;
+                } else {
+                    // Lava sea: cooled crust plates floating on glowing melt, glowing cracks between them
+                    voronoi3(S.a1 * 7.0 + 3, S.a2 * 7.0, S.a3 * 7.0, 31);
+                    const edge = VOR.f2 - VOR.f1;
+                    const crack = 1.0 - smoothstep(0.0, 0.2, edge);
+                    const heat = clamp01(0.25 + S.depth * 0.9);
+                    const melt = mixC(PAL.shallowWater, PAL.deepWater, heat);
+                    const crustN = 0.5 + 0.5 * getNoise3D(x * 20, y * 20, z * 20, 3);
+                    const crustAmt = (1.0 - crack) * smoothstep(0.1, 0.5, edge * 2.0) * (0.55 + 0.45 * crustN) * (1.0 - 0.35 * S.depth);
+                    c = mixC(melt, shadeC(PAL.coast, 0.8 + VOR.id * 0.5), clamp01(crustAmt * 1.5));
+                    rough = 90 + crustAmt * 120;
+                }
+                if (S.ice > 0) {
+                    c = mixC(c, iceColor(x, y, z), S.ice * 0.96);
+                    rough = mix(rough, 130, S.ice);
+                }
+                setCol(c, rough);
+                return;
+            }
+
+            const landT = S.land, m = S.moist;
+            let c, rough;
+            if (!lava) {
+                const dry = mixC(PAL.coast, PAL.highland, 0.42);
+                const steppe = mixC(PAL.lowland, dry, 0.55);
+                c = m < 0.4 ? mixC(dry, steppe, smoothstep(0.22, 0.4, m)) : mixC(steppe, PAL.lowland, smoothstep(0.4, 0.68, m));
+                c = mixC(c, PAL.highland, smoothstep(0.16, 0.42, landT) * 0.85);
+                c = mixC(c, PAL.mountain, smoothstep(0.38, 0.72, landT));
+                // beach fringe
+                c = mixC(c, PAL.coast, (1.0 - smoothstep(0.0, 0.02, landT)) * 0.85);
+                // vegetation / terrain mottling
+                const mot = getNoise3D(x * 7 + 3, y * 7, z * 7, 3);
+                const det = getNoise3D(x * 30, y * 30, z * 30, 3);
+                c = shadeC(c, 1.0 + mot * 0.18 + det * (0.05 + 0.24 * mnV));
+                // slope-ish shading from ridged detail so ranges read as rock, not paint
+                const rock = clamp01((S.a2 - 0.35) * 2.0) * smoothstep(0.2, 0.6, landT);
+                c = mixC(c, shadeC(PAL.mountain, 1.1), rock * 0.35);
+                // Altitude snow line, lower towards the poles
+                if (state.snowCap > 0) {
+                    const alat = Math.abs(y);
+                    const snowLine = Math.max(0.03, 0.72 - 0.58 * smoothstep(0.15, 0.95, alat) - state.snowCap * 0.32);
+                    const jitter = (S.a2 - 0.4) * 0.16 + getNoise3D(x * 18, y * 18, z * 18, 2) * 0.05;
+                    const sn = smoothstep(snowLine - 0.04, snowLine + 0.10, landT + jitter);
+                    c = mixC(c, iceColor(x, y, z), sn * 0.93);
+                }
+                rough = 205;
+            } else {
+                // Cooled basalt crust with glowing fissures and ash / sulfur on the highs
+                c = mixC(PAL.coast, PAL.lowland, smoothstep(0.0, 0.2, landT));
+                c = mixC(c, PAL.highland, smoothstep(0.15, 0.45, landT));
+                c = mixC(c, PAL.mountain, smoothstep(0.4, 0.8, landT) * 0.8);
+                const det = getNoise3D(x * 28, y * 28, z * 28, 3);
+                c = shadeC(c, 1.0 + det * (0.10 + 0.30 * mnV));
+                const fn = simplex.noise3D(x * 5.0 + 8, y * 5.0, z * 5.0);
+                const fis = 1.0 - smoothstep(0.0, 0.035, Math.abs(fn));
+                const fn2 = simplex.noise3D(x * 11.0 + 2, y * 11.0, z * 11.0);
+                const fis2 = (1.0 - smoothstep(0.0, 0.02, Math.abs(fn2))) * 0.4;
+                const glow = Math.max(fis, fis2) * (0.6 + 0.4 * (1.0 - smoothstep(0.3, 0.7, landT)));
+                c = mixC(c, mixC(PAL.shallowWater, PAL.deepWater, 0.55 + 0.4 * fis), glow);
+                rough = mix(215, 100, glow);
+            }
+            if (S.ice > 0) {
+                c = mixC(c, iceColor(x, y, z), S.ice * 0.97);
+                rough = mix(rough, 150, S.ice);
+            }
+            setCol(c, rough);
+        }
+
+        function colorMoon(x, y, z) {
+            const maria = S.a1, n1 = S.a2, hum = S.a3;
+            const mn = state.microNoise;
+            const hl = mixC(PAL.lowland, PAL.highland, clamp01(0.5 + n1 * 0.9 + (hum - 0.35) * 0.9));
+            const mv = clamp01(0.5 + getNoise3D(x * 3 + 5, y * 3, z * 3, 3) * 1.2);
+            const mc = mixC(PAL.shallowWater, PAL.deepWater, mv);
+            let c = mixC(hl, mc, maria);
+            // crater floors: slightly darker mature regolith; fresh ejecta/rays: bright
+            const cb = CRB, ca = CRA;
+            c = mixC(c, shadeC(PAL.coast, 1.0), clamp01(cb.floor * (1.0 - maria) * 0.4 + ca.floor * 0.4));
+            const bright = clamp01(cb.fresh * 0.55 + cb.ejecta * 0.35 + cb.rim * 0.25 + cb.ray * 0.8 + ca.rim * 0.2 + ca.fresh * 0.6 + ca.ray * 0.7 + ca.ejecta * 0.2);
+            c = mixC(c, PAL.mountain, bright * (1.0 - maria * 0.4));
+            c = mixC(c, PAL.snow, clamp01(cb.ray * 0.55 + ca.ray * 0.5 + cb.fresh * cb.ejecta * 0.3));
+            const g = getNoise3D(x * 55, y * 55, z * 55, 3);
+            c = shadeC(c, 1.0 + g * (0.06 + 0.22 * mn));
+            setCol(c, 235);
+        }
+
+        function colorMars(x, y, z) {
+            const L = S.a1, canyon = S.a2, volc = S.a3, hillsN = S.a4;
+            const mn = state.microNoise;
+            // albedo: dark basalt patches (Syrtis-like) mostly in the lowlands, bright dust elsewhere
+            const darkN = getNoise3D(x * 1.9 + 6, y * 1.9, z * 1.9 + 3, 4, 0.55);
+            const dark = smoothstep(0.14, 0.46, darkN + (L - 0.4) * 0.12) * 0.85;
+            const relief = clamp01((S.h - 0.3) / 0.5);
+            let c = mixC(PAL.shallowWater, PAL.lowland, smoothstep(0.0, 0.55, relief + hillsN * 0.2));
+            c = mixC(c, PAL.highland, smoothstep(0.35, 0.8, relief) * 0.8);
+            c = mixC(c, PAL.shallowWater, L * 0.5);   // smooth northern lowlands read as a different province
+            c = mixC(c, PAL.mountain, clamp01(volc * 0.8) * 0.6 + canyon * 0.7);
+            const dust = clamp01(0.5 + getNoise3D(x * 6 + 2, y * 6, z * 6, 3) * 1.1);
+            c = mixC(c, PAL.coast, dust * 0.38 * (1.0 - dark));
+            c = mixC(c, PAL.deepWater, dark * 0.78);
+            // craters: dust-filled bright floors, dark fresh ejecta, bright rims
+            c = mixC(c, PAL.coast, clamp01(CRB.floor * 0.45));
+            c = mixC(c, PAL.deepWater, clamp01(CRB.fresh * 0.5 + CRB.ejecta * 0.18));
+            c = mixC(c, shadeC(PAL.coast, 1.1), clamp01(CRB.rim * 0.25));
+            const g = getNoise3D(x * 50, y * 50, z * 50, 3);
+            c = shadeC(c, 1.0 + g * (0.05 + 0.2 * mn));
+            let rough = 225;
+            if (S.ice > 0) {
+                // frost: thin patchy edges, spiral-trough shading inside
+                const trough = Math.pow(clamp01(1.0 - Math.abs(simplex.noise3D(x * 7, y * 14, z * 7)) * 4.0), 3) * 0.12;
+                c = mixC(c, shadeC(PAL.snow, 1.0 - trough), S.ice * 0.97);
+                rough = 150;
+            }
+            setCol(c, rough);
+        }
+
+        function colorIce(x, y, z) {
+            const linea = S.a1, chaos = S.a2, plateB = S.a3, gap = S.a4, broad = S.a5;
+            const mn = state.microNoise;
+            // base shell: bright blue-white plains with large soft variation
+            let c = mixC(PAL.lowland, PAL.highland, clamp01(0.5 + broad * 1.6 + getNoise3D(x * 5, y * 5, z * 5, 3) * 0.5));
+            // stained (brown/red) plains where the shell is low, controlled by 'sea level'
+            const stain = smoothstep(0.62, 0.9, 0.5 + state.seaLevel * 0.5 - broad * 1.4 + getNoise3D(x * 3 + 1, y * 3, z * 3, 3) * 0.5);
+            c = mixC(c, PAL.shallowWater, stain * 0.45);
+            // lineae: reddish-brown stained cracks, bright margins
+            c = mixC(c, PAL.deepWater, clamp01(linea * 0.8) * (0.55 + 0.45 * getNoise3D(x * 14, y * 14, z * 14, 2) * 2.0 * 0.5 + 0.2));
+            // chaos terrain rafts
+            const rafts = mixC(PAL.shallowWater, mixC(PAL.highland, PAL.coast, plateB), 0.4 + 0.6 * plateB);
+            c = mixC(c, rafts, chaos * 0.8);
+            c = mixC(c, PAL.deepWater, chaos * gap * 0.85);
+            // impact ejecta frost
+            c = mixC(c, PAL.mountain, clamp01(CRB.fresh * 0.7 + CRB.ejecta * 0.35 + CRB.rim * 0.2 + CRB.ray * 0.6));
+            c = mixC(c, shadeC(PAL.coast, 1.0), clamp01(CRB.floor * 0.3));
+            const g = getNoise3D(x * 45, y * 45, z * 45, 3);
+            c = shadeC(c, 1.0 + g * (0.03 + 0.12 * mn));
+            let rough = 120;
+            if (S.ice > 0) { c = mixC(c, PAL.snow, S.ice * 0.9); }
+            setCol(c, rough);
+        }
+
+        function colorAsteroid(x, y, z) {
+            const n = S.a1, rid = S.a2, groove = S.a3;
+            const mn = state.microNoise;
+            // dark carbonaceous body with brighter patches of fresh material and mottled albedo
+            const A = state.ast, ms = A.mottleScale, ao = A.seed * 7.31;
+            const alb = clamp01(0.45 + getNoise3D(x * ms + 3 + ao, y * ms, z * ms, 4, 0.55) * 1.3 * A.mottle);
+            let c = mixC(PAL.lowland, PAL.highland, alb);
+            c = mixC(c, PAL.mountain, clamp01((rid - 0.4) * 1.6) * 0.5 * Math.min(1, A.ridge));
+            c = mixC(c, PAL.coast, clamp01(CRA.floor * 0.5));
+            c = mixC(c, PAL.snow, clamp01((CRA.fresh * 0.7 + CRA.rim * 0.2 + CRA.ejecta * 0.35 + CRA.ray * 0.6) * A.craterBright));
+            c = mixC(c, PAL.deepWater, groove * 0.55);
+            const g = getNoise3D(x * 60, y * 60, z * 60, 3);
+            c = shadeC(c, 1.0 + g * (0.08 + 0.32 * mn));
+            setCol(c, 240);
+        }
+
+        function colorSurface(x, y, z) {
+            switch (activeKind()) {
+                case 'painted': colorPainted(x, y, z); break;
+                case 'moon': colorMoon(x, y, z); break;
+                case 'mars': colorMars(x, y, z); break;
+                case 'ice': colorIce(x, y, z); break;
+                case 'asteroid': colorAsteroid(x, y, z); break;
+                case 'volcanic': colorTerrestrial(x, y, z, true); break;
+                default: colorTerrestrial(x, y, z, false);
+            }
+            applyFeatureTint(x, y, z);
+            applyGlobalAdjust();
+        }
+
+        // =====================================================================
+        //  BAKING  (time-sliced so the UI never freezes, cancellable)
+        // =====================================================================
+        let bakeToken = 0;
+        function bakeMaps(w, h, want, onProgress) {
+            const token = ++bakeToken;
+            refreshPalette();
+            refreshFeatures();
+            refreshPatterns();
+            refreshGlobalAdjust();
+            const colorImg = want.color ? new ImageData(w, h) : null;
+            const bumpImg = want.bump ? new ImageData(w, h) : null;
+            const roughImg = want.rough ? new ImageData(w, h) : null;
+            const cd = colorImg && colorImg.data, bd = bumpImg && bumpImg.data, rd = roughImg && roughImg.data;
+            const needColor = !!(want.color || want.rough);
+            const Q = { px: (Math.PI * 2) / w, scales: 12 };
+
+            // True 3D direction per texel, matching THREE.SphereGeometry's UV layout exactly
+            const cosPhi = new Float64Array(w), sinPhi = new Float64Array(w);
+            for (let x = 0; x < w; x++) {
+                const phi = ((x + 0.5) / w) * Math.PI * 2;
+                cosPhi[x] = Math.cos(phi); sinPhi[x] = Math.sin(phi);
+            }
+
+            return new Promise((resolve) => {
+                let y = 0;
+                function step() {
+                    if (token !== bakeToken) { resolve(null); return; }
+                    const t0 = performance.now();
+                    while (y < h && performance.now() - t0 < 12) {
+                        const lat = (0.5 - (y + 0.5) / h) * Math.PI;
+                        const cosLat = Math.cos(lat), sinLat = Math.sin(lat);
+                        for (let x = 0; x < w; x++) {
+                            const px = -cosLat * cosPhi[x], py = sinLat, pz = cosLat * sinPhi[x];
+                            sampleSurface(px, py, pz, Q);
+                            const idx = (y * w + x) * 4;
+                            if (bd) {
+                                const v = S.h * 255;
+                                bd[idx] = v; bd[idx + 1] = v; bd[idx + 2] = v; bd[idx + 3] = 255;
+                            }
+                            if (needColor) {
+                                colorSurface(px, py, pz);
+                                if (cd) { cd[idx] = COL.r; cd[idx + 1] = COL.g; cd[idx + 2] = COL.b; cd[idx + 3] = 255; }
+                                if (rd) { const r = COL.rough; rd[idx] = r; rd[idx + 1] = r; rd[idx + 2] = r; rd[idx + 3] = 255; }
+                            }
+                        }
+                        y++;
+                    }
+                    if (onProgress) onProgress(y / h);
+                    if (y < h) setTimeout(step, 0);
+                    else resolve({ color: colorImg, bump: bumpImg, rough: roughImg });
+                }
+                step();
+            });
+        }
+
+        function putImage(canvas, ctx, img) {
+            canvas.width = img.width; canvas.height = img.height;
+            ctx.putImageData(img, 0, 0);
+        }
+
+        // Live preview bake: quick 1K pass first, then a sharper pass in the background
+        const PREVIEW_FINAL = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 1024 : 2048;
+        function setStatus(txt, busy) {
+            const el = document.getElementById('previewStatus');
+            if (el) el.textContent = txt;
+            const dot = document.getElementById('previewDot');
+            if (dot) dot.className = 'w-2 h-2 rounded-full ' + (busy ? 'bg-amber-400' : 'bg-emerald-500') + ' animate-pulse';
+        }
+        function applyBake(r) {
+            putImage(previewCanvas, previewCtx, r.color);
+            putImage(bumpCanvas, bumpCtx, r.bump);
+            putImage(roughnessCanvas, roughnessCtx, r.rough);
+            [previewTexture, bumpTexture, roughnessTexture].forEach(t => { t.dispose(); t.needsUpdate = true; });
+        }
+        async function bakePreview() {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.classList.remove('hidden');
+            setStatus('BAKING 1024x512...', true);
+            const want = { color: true, bump: true, rough: true };
+            const r1 = await bakeMaps(1024, 512, want, null);
+            if (!r1) return;                       // superseded by a newer request
+            applyBake(r1);
+            updateMeshGeometry();
+            updateLighting();
+            overlay.classList.add('hidden');
+            if (PREVIEW_FINAL > 1024) {
+                setStatus('REFINING ' + PREVIEW_FINAL + 'x' + (PREVIEW_FINAL / 2) + '...', true);
+                const r2 = await bakeMaps(PREVIEW_FINAL, PREVIEW_FINAL / 2, want, (p) => setStatus('REFINING ' + Math.round(p * 100) + '%', true));
+                if (!r2) return;
+                applyBake(r2);
+            }
+            setStatus('LIVE PREVIEW: ' + PREVIEW_FINAL + 'x' + (PREVIEW_FINAL / 2), false);
+        }
+        function updateLiveTextures() { recomputeAll(); }
+
+        // Update Three.js Space Lighting & Shadow Darkness
+        function updateLighting() {
+            ambientLight.intensity = state.ambientLight;
+            sunLight.intensity = state.sunLight;
+            renderer.toneMappingExposure = 1.0 - (state.shadowDarkness * 0.5);
+        }
+
+        // --- High-Density Smooth 3D Mesh Generation ---
+        let planetMesh;
+        let baseGeometry;
+        let seamGroups = [];
+
+        function buildSeamGroups(geom) {
+            // vertices that share a position (UV seam + both poles) must share one normal
+            const pos = geom.attributes.position;
+            const map = new Map();
+            for (let i = 0; i < pos.count; i++) {
+                const key = Math.round(pos.getX(i) * 1e4) + '_' + Math.round(pos.getY(i) * 1e4) + '_' + Math.round(pos.getZ(i) * 1e4);
+                let g = map.get(key);
+                if (!g) { g = []; map.set(key, g); }
+                g.push(i);
+            }
+            seamGroups = [];
+            map.forEach(g => { if (g.length > 1) seamGroups.push(g); });
+        }
+
+        function createPlanetMesh() {
+            baseGeometry = new THREE.SphereGeometry(1.5, 160, 160);
+            buildSeamGroups(baseGeometry);
+
+            const material = new THREE.MeshStandardMaterial({
+                map: previewTexture,
+                bumpMap: bumpTexture,
+                bumpScale: 0.022,
+                roughnessMap: roughnessTexture,
+                roughness: 0.85,
+                metalness: 0.05,
+                wireframe: state.wireframe
+            });
+
+            planetMesh = new THREE.Mesh(baseGeometry, material);
+            scene.add(planetMesh);
+            updateMeshGeometry();
+        }
+
+        function updateMeshGeometry() {
+            if (!planetMesh) return;
+            refreshFeatures();
+
+            const geom = planetMesh.geometry;
+            const posAttr = geom.attributes.position;
+            if (!baseGeometry.userData.orig) baseGeometry.userData.orig = baseGeometry.attributes.position.array.slice();
+            const origArr = baseGeometry.userData.orig;
+            const originalPos = { };
+            const vertex = new THREE.Vector3();
+
+            for (let i = 0; i < posAttr.count; i++) {
+                vertex.set(origArr[i * 3], origArr[i * 3 + 1], origArr[i * 3 + 2]);
+                const dir = vertex.normalize();
+
+                const rel = getMeshRelief(dir.x, dir.y, dir.z);
+
+                let irregularNoise = simplex.noise3D(dir.x * 0.7, dir.y * 0.7, dir.z * 0.7);
+                const AA = state.ast, isAst = activeKind() === 'asteroid';
+                if (isAst) irregularNoise = simplex.noise3D(dir.x * 0.7 + AA.seed * 3.1, dir.y * 0.7, dir.z * 0.7) + 0.22 * simplex.noise3D(dir.x * 1.6 + 9, dir.y * 1.6, dir.z * 1.6 + AA.seed);
+                let shapeRadius = 1.5 * (1.0 + (1.0 - state.shapeFactor) * irregularNoise * (isAst ? 0.3 * AA.lobes : 0.45));
+
+                const finalRadius = shapeRadius + rel * state.displacementHeight;
+                posAttr.setXYZ(i, dir.x * finalRadius * (isAst ? 1 + AA.elong : 1), dir.y * finalRadius * (isAst ? 1 - AA.flatten : 1), dir.z * finalRadius);
+            }
+            posAttr.needsUpdate = true;
+
+            geom.computeVertexNormals();
+            // average normals across coincident vertices -> no seam line, no faceted star at the poles
+            const nAttr = geom.attributes.normal;
+            for (let g = 0; g < seamGroups.length; g++) {
+                const grp = seamGroups[g];
+                let nx = 0, ny = 0, nz = 0;
+                for (let k = 0; k < grp.length; k++) { nx += nAttr.getX(grp[k]); ny += nAttr.getY(grp[k]); nz += nAttr.getZ(grp[k]); }
+                const l = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+                nx /= l; ny /= l; nz /= l;
+                for (let k = 0; k < grp.length; k++) nAttr.setXYZ(grp[k], nx, ny, nz);
+            }
+            nAttr.needsUpdate = true;
+            geom.computeBoundingSphere();
+        }
+
+        function recomputeAll() {
+            // small delay lets the overlay paint before heavy work starts
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+            setTimeout(bakePreview, 20);
+        }
+
+        // =====================================================================
+        //  CUSTOM FEATURE DRAWING UI
+        // =====================================================================
+        const FEAT_NAMES = { mountain: 'Mountain Range', valley: 'Valley / Canyon', plateau: 'Plateau / Mesa', crater: 'Impact Crater' };
+        const FEAT_COLORS = { mountain: 0xfbbf24, valley: 0x38bdf8, plateau: 0xa3e635, crater: 0xf472b6 };
+        const FEAT_HINTS = {
+            mountain: 'Drag across the planet to draw the spine of the range. Width and height come from the brush below.',
+            valley: 'Drag along the valley floor. On Earth-like worlds a deep cut below sea level floods.',
+            plateau: 'Drag a path (or just click) to raise a flat-topped plateau with cliff edges.',
+            crater: 'Click to drop an impact crater. Brush width is the crater radius.'
+        };
+        let featTool = 'mountain', drawMode = false, strokePts = null, strokeLine = null, guideGroup = null;
+        const featRaycaster = new THREE.Raycaster();
+
+        function guideRadius() { return 1.5 + state.displacementHeight * 0.4 + 0.04; }
+        function ringPoints(c, w) {
+            const ref = Math.abs(c[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
+            let e1 = [c[1] * ref[2] - c[2] * ref[1], c[2] * ref[0] - c[0] * ref[2], c[0] * ref[1] - c[1] * ref[0]];
+            const l = Math.hypot(e1[0], e1[1], e1[2]) || 1; e1 = e1.map(v => v / l);
+            const e2 = [c[1] * e1[2] - c[2] * e1[1], c[2] * e1[0] - c[0] * e1[2], c[0] * e1[1] - c[1] * e1[0]];
+            const out = [];
+            for (let i = 0; i <= 48; i++) {
+                const a = i / 48 * Math.PI * 2, cw = Math.cos(w), sw = Math.sin(w);
+                out.push([0, 1, 2].map(k => c[k] * cw + (e1[k] * Math.cos(a) + e2[k] * Math.sin(a)) * sw));
+            }
+            return out;
+        }
+        function makeGuideLine(pts, width, color) {
+            const R = guideRadius();
+            const path = pts.length === 1 ? ringPoints(pts[0], width) : pts;
+            const arr = new Float32Array(path.length * 3);
+            path.forEach((p, i) => { const l = Math.hypot(p[0], p[1], p[2]) || 1; arr[i * 3] = p[0] / l * R; arr[i * 3 + 1] = p[1] / l * R; arr[i * 3 + 2] = p[2] / l * R; });
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+            const line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: color, depthTest: false, transparent: true, opacity: 0.9 }));
+            line.renderOrder = 10;
+            return line;
+        }
+        function rebuildGuides() {
+            if (!planetMesh) return;
+            if (!guideGroup) { guideGroup = new THREE.Group(); planetMesh.add(guideGroup); }
+            while (guideGroup.children.length) { const c = guideGroup.children.pop(); c.geometry.dispose(); c.material.dispose(); }
+            guideGroup.visible = document.getElementById('featGuides').checked;
+            state.features.forEach(f => { if (f.on !== false && f.pts.length) guideGroup.add(makeGuideLine(f.pts, f.width, FEAT_COLORS[f.type] || 0xffffff)); });
+        }
+
+        function brushValues() {
+            return {
+                width: parseFloat(document.getElementById('featWidth').value) * Math.PI / 180,
+                height: parseFloat(document.getElementById('featHeight').value),
+                rough: parseFloat(document.getElementById('featRough').value)
+            };
+        }
+        function pickLocalDir(ev) {
+            const dom = renderer.domElement, rect = dom.getBoundingClientRect();
+            const ndc = new THREE.Vector2(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1);
+            featRaycaster.setFromCamera(ndc, camera);
+            planetMesh.updateMatrixWorld(true);
+            const hit = featRaycaster.intersectObject(planetMesh, false)[0];
+            if (!hit) return null;
+            return planetMesh.worldToLocal(hit.point.clone()).normalize();
+        }
+        function updateStrokeLine() {
+            if (strokeLine) { planetMesh.remove(strokeLine); strokeLine.geometry.dispose(); strokeLine.material.dispose(); strokeLine = null; }
+            if (!strokePts) return;
+            strokeLine = makeGuideLine(strokePts, brushValues().width, 0xffffff);
+            planetMesh.add(strokeLine);
+        }
+        function finishStroke() {
+            if (!strokePts) return;
+            const b = brushValues();
+            let pts = featTool === 'crater' ? [strokePts[0]] : strokePts;
+            if (pts.length > 120) { const k = Math.ceil(pts.length / 120); pts = pts.filter((p, i) => i % k === 0 || i === pts.length - 1); }
+            state.features.push({
+                id: Date.now() + Math.floor(Math.random() * 1000), type: featTool, pts: pts.map(p => p.map(v => Math.round(v * 1e4) / 1e4)),
+                width: b.width, height: b.height, rough: b.rough, seed: Math.floor(Math.random() * 1000) + 1, on: true
+            });
+            strokePts = null; updateStrokeLine();
+            renderFeatureList(); rebuildGuides(); recomputeAll();
+        }
+
+        function renderFeatureList() {
+            const el = document.getElementById('featureList');
+            if (!state.features.length) { el.innerHTML = '<p class="text-[10px] text-slate-500">No custom features yet. Pick a tool, turn on Draw, and drag on the planet.</p>'; return; }
+            el.innerHTML = state.features.map((f, i) => {
+                const deg = Math.round(f.width * 180 / Math.PI * 2) / 2;
+                return `<div class="bg-slate-950/60 border border-slate-800 rounded-md p-2 space-y-1" data-i="${i}">
+                    <div class="flex items-center justify-between">
+                        <label class="flex items-center gap-1.5 text-slate-300"><input type="checkbox" data-act="on" ${f.on !== false ? 'checked' : ''}> ${FEAT_NAMES[f.type] || f.type} #${i + 1}</label>
+                        <button data-act="del" class="text-slate-500 hover:text-red-400 px-1"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-[10px] text-slate-500">
+                        <label>Width <span data-v="width">${deg}&deg;</span><input type="range" data-act="width" min="1" max="30" step="0.5" value="${deg}" class="w-full"></label>
+                        <label>Height <span data-v="height">${f.height}</span><input type="range" data-act="height" min="0.1" max="1.5" step="0.05" value="${f.height}" class="w-full"></label>
+                        <label>Rough <span data-v="rough">${f.rough}</span><input type="range" data-act="rough" min="0" max="1" step="0.05" value="${f.rough}" class="w-full"></label>
+                    </div></div>`;
+            }).join('');
+        }
+
+
+
+        // ---------- Asteroid surface designer ----------
+        const AST_SLIDERS = [
+            ['--', 'Surface'],
+            ['lump', 'Lump Amount', 0, 2, 0.05, 0.8], ['lumpScale', 'Lump Scale', 0.4, 3, 0.05, 1], ['pit', 'Pitting / Bumps', 0, 1, 0.05, 0.3],
+            ['ridge', 'Ridge / Crease Strength', 0, 2, 0.05, 0.5], ['ridgeScale', 'Ridge Scale', 0.5, 8, 0.1, 3],
+            ['groove', 'Groove Lines (0 = none)', 0, 1, 0.05, 0], ['grooveWidth', 'Groove Width', 0.01, 0.15, 0.005, 0.035], ['grooveScale', 'Groove Scale', 0.5, 8, 0.1, 2.2],
+            ['--', 'Craters'],
+            ['craterSize', 'Crater Size (low = bigger)', 0.8, 8, 0.1, 2], ['craterDepth', 'Crater Depth', 0, 2.5, 0.05, 1], ['craterBright', 'Fresh Crater Brightness', 0, 2, 0.05, 1],
+            ['--', 'Colour'],
+            ['mottle', 'Colour Mottling', 0, 2.5, 0.05, 1], ['mottleScale', 'Mottle Scale', 0.5, 8, 0.1, 2.6],
+            ['--', 'Overall Shape'],
+            ['elong', 'Elongation', 0, 0.8, 0.02, 0], ['flatten', 'Flatten', 0, 0.6, 0.02, 0], ['lobes', 'Shape Lobes', 0, 1.5, 0.05, 0.8],
+            ['--', 'Variation'],
+            ['seed', 'Variation Offset', 0, 50, 1, 0]
+        ];
+        const AST_DEF = {};
+        AST_SLIDERS.forEach(s => { if (s[0] !== '--') AST_DEF[s[0]] = s[5]; });
+        state.ast = Object.assign({}, AST_DEF);
+        const AST_STYLES = {
+            smooth: { lump: 0.8, ridge: 0.2, pit: 0.1, groove: 0, craterSize: 2.5, craterDepth: 0.7, mottle: 0.6, lobes: 0.8 },
+            cratered: { lump: 0.7, ridge: 0.3, pit: 0.2, groove: 0, craterSize: 1.4, craterDepth: 1.4, craterBright: 1.3, mottle: 0.8 },
+            rubble: { lump: 1.2, lumpScale: 1.4, ridge: 0.8, ridgeScale: 4.5, pit: 0.6, groove: 0, craterSize: 4, craterDepth: 0.8, mottle: 1.4, mottleScale: 4, lobes: 1.0 },
+            fractured: { lump: 1, ridge: 0.4, pit: 0.3, groove: 0.8, grooveWidth: 0.05, grooveScale: 1.6, craterSize: 2, craterDepth: 1, mottle: 1 }
+        };
+        function renderAstSliders() {
+            const el = document.getElementById('astSliders');
+            el.innerHTML = AST_SLIDERS.map(s => {
+                if (s[0] === '--') return `<div class="text-[10px] uppercase tracking-wider text-slate-500 pt-1">${s[1]}</div>`;
+                const v = +state.ast[s[0]].toFixed(3);
+                return `<div class="space-y-0.5"><div class="flex justify-between"><span class="text-slate-300">${s[1]}</span><span class="text-slate-400 font-mono" data-av="${s[0]}">${v}</span></div><input type="range" data-ak="${s[0]}" min="${s[2]}" max="${s[3]}" step="${s[4]}" value="${v}" class="w-full"></div>`;
+            }).join('');
+        }
+        function bindAsteroidUI() {
+            renderAstSliders();
+            const el = document.getElementById('astSliders');
+            el.addEventListener('input', (e) => { const k = e.target.dataset.ak; if (!k) return; const v = +parseFloat(e.target.value).toFixed(3); state.ast[k] = v; el.querySelector(`[data-av="${k}"]`).textContent = v; });
+            el.addEventListener('change', (e) => { if (e.target.dataset.ak) recomputeAll(); });
+            document.querySelectorAll('[data-ast-style]').forEach(b => b.addEventListener('click', () => {
+                const k = b.dataset.astStyle;
+                if (k === 'random') {
+                    const o = Object.assign({}, AST_DEF), R = (a, z) => a + Math.random() * (z - a);
+                    o.lump = R(0.5, 1.3); o.lumpScale = R(0.8, 1.7); o.pit = R(0.1, 0.6); o.ridge = R(0.1, 0.8); o.ridgeScale = R(2, 5);
+                    o.groove = Math.random() < 0.2 ? R(0.3, 0.7) : 0; o.craterSize = R(1.5, 5); o.craterDepth = R(0.6, 1.5); o.craterBright = R(0.6, 1.4);
+                    o.mottle = R(0.4, 1.6); o.mottleScale = R(1.5, 5); o.elong = R(0, 0.3); o.flatten = R(0, 0.2); o.lobes = R(0.4, 1.1); o.seed = Math.floor(R(0, 50));
+                    AST_SLIDERS.forEach(q => { if (q[0] !== '--') { const st = q[4]; o[q[0]] = Math.round(o[q[0]] / st) * st; o[q[0]] = +o[q[0]].toFixed(3); } });
+                    state.ast = o;
+                } else state.ast = Object.assign({}, AST_DEF, AST_STYLES[k]);
+                renderAstSliders(); recomputeAll();
+            }));
+        }
+
+        // ---------- large-scale feature list UI ----------
+        function renderPatternList() {
+            const el = document.getElementById('patternList');
+            if (!el) return;
+            if (!state.patterns.length) { el.innerHTML = '<p class="text-[10px] text-slate-500">No large-scale features. Pick one above and press Add - you can stack as many as you like.</p>'; return; }
+            el.innerHTML = state.patterns.map((pt, i) => {
+                const T = PAT_TYPES[pt.type] || { n: pt.type };
+                const pos = patPos(pt, i);
+                const sl = PAT_SLIDERS.map(s => {
+                    const v = s[0] === 'lon' ? pos.lon : s[0] === 'lat' ? pos.lat : pt[s[0]];
+                    const cls = s[0] === 'tintHue' ? 'hue-range w-full' : 'w-full';
+                    return `<label class="text-[10px] text-slate-500 block">${s[1]} <span class="text-slate-400 font-mono" data-v="${s[0]}">${v}</span><input type="range" data-k="${s[0]}" min="${s[2]}" max="${s[3]}" step="${s[4]}" value="${v}" class="${cls}"></label>`;
+                }).join('');
+                return `<div class="bg-slate-950/60 border border-slate-800 rounded-md p-2 space-y-2" data-i="${i}">
+                    <div class="flex items-center justify-between">
+                        <label class="flex items-center gap-1.5 text-slate-300 text-[11px]"><input type="checkbox" data-act="on" ${pt.on !== false ? 'checked' : ''}> ${T.n} #${i + 1}</label>
+                        <span class="flex items-center gap-1">
+                            <button data-act="fold" class="text-slate-500 hover:text-slate-200 px-1"><i class="fa-solid ${pt.open === false ? 'fa-chevron-down' : 'fa-chevron-up'}"></i></button>
+                            <button data-act="del" class="text-slate-500 hover:text-red-400 px-1"><i class="fa-solid fa-trash"></i></button>
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 ${pt.open === false ? 'hidden' : ''}">${sl}</div></div>`;
+            }).join('');
+        }
+        function bindPatternUI() {
+            document.getElementById('patternAddBtn').addEventListener('click', () => {
+                state.patterns.push(makePattern(document.getElementById('patternSelect').value));
+                renderPatternList(); recomputeAll();
+            });
+            const list = document.getElementById('patternList');
+            list.addEventListener('input', (e) => {
+                const k = e.target.dataset.k; if (!k) return;
+                const row = e.target.closest('[data-i]'), pt = state.patterns[+row.dataset.i], v = parseFloat(e.target.value);
+                const s = PAT_SLIDERS.find(q => q[0] === k);
+                if (k === 'lon' || k === 'lat') { const p = patPos(pt, +row.dataset.i); pt.lon = p.lon; pt.lat = p.lat; }
+                pt[k] = v;
+                row.querySelector(`[data-v="${k}"]`).textContent = v;
+            });
+            list.addEventListener('change', (e) => {
+                if (e.target.dataset.k) { recomputeAll(); return; }
+                if (e.target.dataset.act === 'on') { state.patterns[+e.target.closest('[data-i]').dataset.i].on = e.target.checked; recomputeAll(); }
+            });
+            list.addEventListener('click', (e) => {
+                const btn = e.target.closest('button[data-act]'); if (!btn) return;
+                const i = +btn.closest('[data-i]').dataset.i;
+                if (btn.dataset.act === 'del') { state.patterns.splice(i, 1); renderPatternList(); recomputeAll(); }
+                else if (btn.dataset.act === 'fold') { state.patterns[i].open = state.patterns[i].open === false; renderPatternList(); }
+            });
+            renderPatternList();
+        }
+        function bindGlobalColorUI() {
+            const defs = [['gHue', 'gHueVal', 0, true], ['gSat', 'gSatVal', 1, false], ['gContrast', 'gContrastVal', 1, false], ['gBright', 'gBrightVal', 1, false]];
+            defs.forEach(([id, lab, def, isInt]) => {
+                const el = document.getElementById(id), lb = document.getElementById(lab);
+                el.addEventListener('input', () => { const v = parseFloat(el.value); lb.textContent = isInt ? v : v.toFixed(2); });
+                el.addEventListener('change', () => { state[id] = parseFloat(el.value); recomputeAll(); });
+            });
+            document.getElementById('gReset').addEventListener('click', () => {
+                defs.forEach(([id, lab, def, isInt]) => { document.getElementById(id).value = def; document.getElementById(lab).textContent = isInt ? def : def.toFixed(2); state[id] = def; });
+                recomputeAll();
+            });
+        }
+
+        function setDrawMode(on) {
+            drawMode = on;
+            const btn = document.getElementById('featDrawBtn');
+            btn.textContent = on ? 'Drawing ON - drag on the planet (right-drag rotates)' : 'Draw on Planet: OFF';
+            btn.className = 'w-full px-2 py-2 rounded-md text-[11px] font-semibold border ' + (on ? 'bg-fuchsia-600 border-fuchsia-400 text-white' : 'bg-slate-800/80 border-slate-700/80 text-slate-200 hover:bg-slate-700');
+            renderer.domElement.style.cursor = on ? 'crosshair' : '';
+            if (on) {
+                controls.mouseButtons.LEFT = -1; controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+                if (controls.touches) controls.touches.ONE = -1;
+            } else {
+                controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE; controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+                if (controls.touches) controls.touches.ONE = THREE.TOUCH.ROTATE;
+            }
+        }
+
+        function bindFeatureUI() {
+            const dom = renderer.domElement;
+            document.querySelectorAll('.feat-tool').forEach(b => b.addEventListener('click', () => {
+                featTool = b.dataset.ftype;
+                document.querySelectorAll('.feat-tool').forEach(x => x.classList.toggle('ring-1', x === b));
+                document.querySelectorAll('.feat-tool').forEach(x => x.classList.toggle('ring-fuchsia-400', x === b));
+                document.getElementById('featHint').textContent = FEAT_HINTS[featTool];
+            }));
+            document.querySelector('.feat-tool[data-ftype="mountain"]').click();
+            document.getElementById('featDrawBtn').addEventListener('click', () => setDrawMode(!drawMode));
+            [['featWidth', 'featWidthVal', v => v + '\u00b0'], ['featHeight', 'featHeightVal', v => v], ['featRough', 'featRoughVal', v => v]].forEach(([id, lid, fmt]) => {
+                const s = document.getElementById(id);
+                s.addEventListener('input', () => { document.getElementById(lid).textContent = fmt(s.value); });
+            });
+            document.getElementById('featGuides').addEventListener('change', rebuildGuides);
+
+            dom.addEventListener('pointerdown', (e) => {
+                if (!drawMode || e.button !== 0) return;
+                const d = pickLocalDir(e); if (!d) return;
+                strokePts = [[d.x, d.y, d.z]];
+                try { dom.setPointerCapture(e.pointerId); } catch (err) { }
+                updateStrokeLine();
+            });
+            dom.addEventListener('pointermove', (e) => {
+                if (!strokePts || featTool === 'crater') return;
+                const d = pickLocalDir(e); if (!d) return;
+                const last = strokePts[strokePts.length - 1];
+                const ang = Math.acos(Math.min(1, Math.max(-1, last[0] * d.x + last[1] * d.y + last[2] * d.z)));
+                if (ang >= Math.max(0.02, brushValues().width * 0.5)) { strokePts.push([d.x, d.y, d.z]); updateStrokeLine(); }
+            });
+            const end = () => finishStroke();
+            dom.addEventListener('pointerup', end);
+            dom.addEventListener('pointercancel', () => { strokePts = null; updateStrokeLine(); });
+
+            // per-feature list editing (event delegation)
+            const list = document.getElementById('featureList');
+            list.addEventListener('input', (e) => {
+                const row = e.target.closest('[data-i]'); if (!row || !e.target.dataset.act) return;
+                const f = state.features[+row.dataset.i], act = e.target.dataset.act, v = parseFloat(e.target.value);
+                if (act === 'width') { f.width = v * Math.PI / 180; row.querySelector('[data-v="width"]').innerHTML = v + '&deg;'; }
+                else if (act === 'height') { f.height = v; row.querySelector('[data-v="height"]').textContent = v; }
+                else if (act === 'rough') { f.rough = v; row.querySelector('[data-v="rough"]').textContent = v; }
+            });
+            list.addEventListener('change', (e) => {
+                const row = e.target.closest('[data-i]'); if (!row || !e.target.dataset.act) return;
+                const f = state.features[+row.dataset.i];
+                if (e.target.dataset.act === 'on') f.on = e.target.checked;
+                rebuildGuides(); recomputeAll();
+            });
+            list.addEventListener('click', (e) => {
+                const btn = e.target.closest('button[data-act="del"]'); if (!btn) return;
+                state.features.splice(+btn.closest('[data-i]').dataset.i, 1);
+                renderFeatureList(); rebuildGuides(); recomputeAll();
+            });
+
+            document.getElementById('featUndo').addEventListener('click', () => { if (!state.features.length) return; state.features.pop(); renderFeatureList(); rebuildGuides(); recomputeAll(); });
+            document.getElementById('featClear').addEventListener('click', () => { if (!state.features.length) return; state.features = []; renderFeatureList(); rebuildGuides(); recomputeAll(); });
+            document.getElementById('featCopy').addEventListener('click', () => {
+                const txt = JSON.stringify(state.features);
+                if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).catch(() => window.prompt('Copy features JSON:', txt));
+                else window.prompt('Copy features JSON:', txt);
+            });
+            document.getElementById('featPaste').addEventListener('click', () => {
+                const txt = window.prompt('Paste features JSON:');
+                if (!txt) return;
+                try {
+                    const arr = JSON.parse(txt);
+                    const ok = Array.isArray(arr) ? arr.filter(f => FEAT_NAMES[f.type] && Array.isArray(f.pts) && isFinite(f.width) && isFinite(f.height)) : [];
+                    ok.forEach(f => { if (f.rough === undefined) f.rough = 0.5; if (!f.seed) f.seed = 1; });
+                    state.features = ok;
+                    renderFeatureList(); rebuildGuides(); recomputeAll();
+                } catch (err) { window.alert('That is not valid features JSON.'); }
+            });
+            renderFeatureList();
+            rebuildGuides();
+        }
+
+        // --- UI Control Binding ---
+        function bindSliderPerformance(sliderId, labelId, stateProp, isInt = false, affectsGeometry = true, affectsLight = false) {
+            const slider = document.getElementById(sliderId);
+            const label = document.getElementById(labelId);
+
+            slider.addEventListener('input', (e) => {
+                const val = isInt ? parseInt(e.target.value) : parseFloat(e.target.value);
+                label.innerText = isInt ? val : val.toFixed(2);
+            });
+
+            slider.addEventListener('change', (e) => {
+                const val = isInt ? parseInt(e.target.value) : parseFloat(e.target.value);
+                state[stateProp] = val;
+                if (affectsLight) {
+                    updateLighting();
+                } else if (affectsGeometry) {
+                    recomputeAll();
+                } else {
+                    updateLiveTextures();
+                }
+            });
+        }
+
+        function bindColor(inputId, stateColorKey) {
+            const input = document.getElementById(inputId);
+            input.addEventListener('change', (e) => {
+                state.colors[stateColorKey] = e.target.value;
+                updateLiveTextures();
+            });
+        }
+
+        function bindUI() {
+            // Presets
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const presetKey = e.target.getAttribute('data-preset');
+                    if (presets[presetKey]) {
+                        applyPreset(presets[presetKey]);
+                    }
+                });
+            });
+
+            // Asteroid Shader Toggle
+            const asteroidToggle = document.getElementById('asteroidShaderToggle');
+            asteroidToggle.addEventListener('change', (e) => {
+                state.asteroidMode = e.target.checked;
+                if (state.asteroidMode) state.bodyType = 'asteroid';
+                else if (state.bodyType === 'asteroid') state.bodyType = 'moon';
+                document.getElementById('bodyType').value = state.bodyType;
+                updateBodyLabels();
+                recomputeAll();
+            });
+
+            // Body type selector loads that body's tuned defaults (colours are body specific)
+            document.getElementById('bodyType').addEventListener('change', (e) => {
+                if (presets[e.target.value]) applyPreset(presets[e.target.value]);
+            });
+
+            // Lighting Controls
+            bindSliderPerformance('ambientLight', 'ambientLightVal', 'ambientLight', false, false, true);
+            bindSliderPerformance('sunLight', 'sunLightVal', 'sunLight', false, false, true);
+            bindSliderPerformance('shadowDarkness', 'shadowDarknessVal', 'shadowDarkness', false, false, true);
+
+            // Performance Sliders (Fire only on release)
+            bindSliderPerformance('shapeFactor', 'shapeFactorVal', 'shapeFactor', false, true);
+            bindSliderPerformance('displacementHeight', 'displacementHeightVal', 'displacementHeight', false, true);
+            bindSliderPerformance('plateClustering', 'plateClusteringVal', 'plateClustering', false, true);
+            bindSliderPerformance('continentScale', 'continentScaleVal', 'continentScale', false, true);
+            bindSliderPerformance('seaLevel', 'seaLevelVal', 'seaLevel', false, true);
+            bindSliderPerformance('oceanDepth', 'oceanDepthVal', 'oceanDepthFactor', false, true);
+            bindSliderPerformance('microNoise', 'microNoiseVal', 'microNoise', false, true);
+            bindSliderPerformance('terrainRoughness', 'terrainRoughnessVal', 'roughnessOctaves', true, true);
+            bindSliderPerformance('mountainSharpness', 'mountainSharpnessVal', 'mountainSharpness', false, true);
+            bindSliderPerformance('craterDensity', 'craterDensityVal', 'craterDensity', false, true);
+            bindSliderPerformance('snowCap', 'snowCapVal', 'snowCap', false, true);
+
+            // Color Pickers
+            bindColor('cDeepWater', 'deepWater');
+            bindColor('cShallowWater', 'shallowWater');
+            bindColor('cCoast', 'coast');
+            bindColor('cLowland', 'lowland');
+            bindColor('cHighland', 'highland');
+            bindColor('cMountain', 'mountain');
+            bindColor('cSnow', 'snow');
+
+            // Seed controls
+            const seedInput = document.getElementById('seedInput');
+            const applySeed = () => {
+                state.seed = parseInt(seedInput.value) || 123456;
+                document.getElementById('seedVal').innerText = state.seed;
+                simplex = new SimplexNoise(state.seed);
+                MARS_SEED = -1;
+                renderPatternList();
+                recomputeAll();
+            };
+            document.getElementById('applySeedBtn').addEventListener('click', applySeed);
+            document.getElementById('randomSeedBtn').addEventListener('click', () => {
+                const newSeed = Math.floor(Math.random() * 900000) + 100000;
+                seedInput.value = newSeed;
+                applySeed();
+            });
+
+            // Viewport buttons
+            document.getElementById('toggleWireframeBtn').addEventListener('click', () => {
+                state.wireframe = !state.wireframe;
+                planetMesh.material.wireframe = state.wireframe;
+            });
+            document.getElementById('toggleRotationBtn').addEventListener('click', () => {
+                state.autoRotate = !state.autoRotate;
+            });
+            document.getElementById('resetCameraBtn').addEventListener('click', () => {
+                camera.position.set(0, 0, 4.5);
+                controls.reset();
+            });
+
+            // Export buttons
+            document.getElementById('export2DColorBtn').addEventListener('click', () => exportTextureMap('color'));
+            document.getElementById('export2DBumpBtn').addEventListener('click', () => exportTextureMap('bump'));
+            document.getElementById('export3DMeshBtn').addEventListener('click', exportOBJMesh);
+
+            // Mobile menu toggle
+            document.getElementById('toggleControlsBtn').addEventListener('click', () => {
+                const sidebar = document.getElementById('controlsSidebar');
+                sidebar.classList.toggle('hidden');
+            });
+        }
+
+        // Export High-Resolution 2D Maps (1K, 2K, 4K, 8K) - time-sliced with progress, only bakes the map you ask for
+        async function exportTextureMap(mode = 'color') {
+            const overlay = document.getElementById('loadingOverlay');
+            const label = overlay.querySelector('span');
+            const oldLabel = label.textContent;
+            overlay.classList.remove('hidden');
+            const [w, h] = document.getElementById('exportResolution').value.split('x').map(Number);
+            const want = { color: mode === 'color', bump: mode === 'bump', rough: false };
+            const r = await bakeMaps(w, h, want, (p) => { label.textContent = 'Exporting ' + w + 'x' + h + '... ' + Math.round(p * 100) + '%'; });
+            if (r) {
+                const expCanvas = document.getElementById('exportCanvas');
+                putImage(expCanvas, expCanvas.getContext('2d'), mode === 'color' ? r.color : r.bump);
+                expCanvas.toBlob((blob) => { saveFileBlob(blob, `planet_${mode}_${w}x${h}_seed${state.seed}.png`); }, 'image/png');
+            }
+            label.textContent = oldLabel;
+            recomputeAll();   // restore the live preview (the export bake replaced it)
+        }
+
+        async function saveFileBlob(blob, filename) {
+            let dl = null;
+            try { dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch (e) { dl = null; }
+            if (dl) {
+                try { await dl.save({ filename: filename, data: blob }); } catch (e) { console.warn('download not saved', e); }
+                return;
+            }
+            const link = document.createElement('a');
+            link.download = filename; link.href = URL.createObjectURL(blob); link.click();
+            setTimeout(() => URL.revokeObjectURL(link.href), 4000);
+        }
+
+        // Export 3D .OBJ Mesh
+        function exportOBJMesh() {
+            const exporter = new THREE.OBJExporter();
+            const result = exporter.parse(planetMesh);
+            const blob = new Blob([result], { type: 'text/plain' });
+            const hasDl = !!(window.claude && window.claude.use);
+            saveFileBlob(blob, hasDl ? `planet_mesh_seed${state.seed}.obj.txt` : `planet_mesh_seed${state.seed}.obj`);
+        }
+
+        // Per-body wording for every colour slot and every ground slider (null = slider has no effect on that body, so it is hidden)
+        const BODY_LABELS = {
+            earth: { name: '(Earth-like)',
+                lbl: ['Abyssal Trench', 'Shallow Ocean', 'Beach / Coast', 'Lowland Vegetation', 'Inland Desert / Plateau', 'Alpine Rock', 'Polar Ice / Glacier'],
+                sl: { plate: 'Tectonic Plate Grouping / Clustering', scale: 'Continent Scale / Frequency', sea: 'Sea Level (Ocean / Land Ratio)', odepth: 'Ocean Trench / Abyssal Depth', micro: 'Micro-Ground Detail Noise', oct: 'Erosion & Octave Roughness', mount: 'Mountain Elevation & Steepness', crater: 'Crater Impact Scars (land only)', cap: 'Ice Cap Coverage' } },
+            moon: { name: '(Airless / Moon)',
+                lbl: ['Dark Maria Basalt', 'Light Maria Basalt', 'Crater Floor Regolith', 'Highland Base', 'Highland Bright Rock', 'Fresh Ejecta / Rim', 'Rays / Bright Spots'],
+                sl: { plate: 'Maria Merging (Big Seas vs Patches)', scale: 'Terrain Feature Scale', sea: 'Maria Coverage (Dark Basalt Seas)', odepth: 'Maria Floor Depth', micro: 'Regolith Grain Detail', oct: 'Highland Roughness Octaves', mount: 'Highland Ruggedness', crater: 'Crater Density', cap: null } },
+            mars: { name: '(Desert / Mars)',
+                lbl: ['Dark Basalt Patches', 'Lowland Dust', 'Bright Dust Drifts', 'Rust Plains', 'Highland Ochre', 'Volcano / Canyon Rock', 'Polar Frost'],
+                sl: { plate: 'Hemisphere Dichotomy Sharpness', scale: 'Terrain Feature Scale', sea: 'Northern Lowland Extent', odepth: 'Canyon Depth', micro: 'Dust & Grain Detail', oct: 'Erosion Octaves', mount: 'Volcano & Ridge Height', crater: 'Crater Density', cap: 'Polar Cap Size' } },
+            volcanic: { name: '(Volcanic)',
+                lbl: ['Lava (Hottest)', 'Lava (Cooler Red)', 'Fresh Crust Edge', 'Basalt Plains', 'Old Dark Crust', 'Ash / Highlands', 'Sulfur Frost'],
+                sl: { plate: 'Crustal Plate Clustering', scale: 'Continent Scale / Frequency', sea: 'Lava Sea Level', odepth: 'Lava Depth / Heat', micro: 'Crust Grain Detail', oct: 'Erosion & Octave Roughness', mount: 'Volcanic Mountain Height', crater: 'Caldera / Impact Density', cap: 'Sulfur Frost Cap' } },
+            ice: { name: '(Ice moon)',
+                lbl: ['Lineae Stain (Brown)', 'Chaos / Stained Ice', 'Deep Blue Ice', 'Plains Ice (Low)', 'Bright Ice Ridges', 'Frost Ejecta', 'Fresh Frost'],
+                sl: { plate: 'Chaos Terrain Coverage', scale: 'Crack Network Scale', sea: 'Stained Plains Extent', odepth: 'Crack (Lineae) Width', micro: 'Surface Grain Detail', oct: 'Surface Octaves', mount: 'Ridge Height', crater: 'Crater Density', cap: 'Polar Frost Cap' } },
+            asteroid: { name: '(Asteroid)',
+                lbl: ['Groove Shadow', 'Unused', 'Crater Floor', 'Dark Carbonaceous Rock', 'Light Rock', 'Boulder Rock', 'Fresh Impact Material'],
+                sl: { plate: 'Lumpiness (Large Lobes)', scale: 'Terrain Feature Scale', sea: null, odepth: 'Groove Depth', micro: 'Regolith Grain Detail', oct: 'Boulder Octaves', mount: 'Boulder / Ridge Roughness', crater: 'Crater Density', cap: null } }
+        };
+        BODY_LABELS.painted = { name: '(Painted, SFS style)',
+            lbl: ['Darkest Stain', 'Dark Stain', 'Base Surface', 'Warm Tint Stain', 'Light Patches', 'Crater Rim / Ray / Spot Halo', 'Bright Region / Frost / Cap'],
+            sl: { plate: 'Stain Edge Softness (blotchy to smooth)', scale: 'Stain Size', sea: 'Dark Stain Coverage', odepth: 'Chasma Line Width', micro: 'Surface Mottling / Grain', oct: 'Stain Detail Octaves', mount: 'Crater Ray & Rim Brightness', crater: 'Crater Density', cap: 'Polar Cap Size', chasma: 'Chasma / Crack Amount', spot: 'Dark Spot Density (Io-style)', pattern: 'Large-Scale Features' } };
+        function updateBodyLabels() {
+            const L = BODY_LABELS[activeKind()] || BODY_LABELS.earth;
+            ['lblDeep', 'lblShallow', 'lblCoast', 'lblLow', 'lblHigh', 'lblMount', 'lblSnow'].forEach((id, i) => { document.getElementById(id).textContent = L.lbl[i]; });
+            const map = { plate: 'lblPlate', scale: 'lblScale', sea: 'lblSea', odepth: 'lblODepth', micro: 'lblMicro', oct: 'lblOct', mount: 'lblMountH', crater: 'lblCrater', cap: 'lblCap', chasma: 'lblChasma', spot: 'lblSpot', pattern: 'lblPattern' };
+            for (const k in map) {
+                const el = document.getElementById(map[k]);
+                const row = el.closest('.space-y-1');
+                if (L.sl[k] == null) { row.classList.add('hidden'); }
+                else { row.classList.remove('hidden'); el.textContent = L.sl[k]; }
+            }
+            document.getElementById('lblGroundType').textContent = L.name;
+            const isA = activeKind() === 'asteroid';
+            document.getElementById('astPanel').classList.toggle('hidden', !isA);
+            document.querySelector('.ast-hr').classList.toggle('hidden', !isA);
+        }
+
+        function applyPreset(p) {
+            Object.assign(state, JSON.parse(JSON.stringify(p)));
+            document.getElementById('bodyType').value = state.bodyType;
+            updateBodyLabels();
+            document.getElementById('chasmaAmount').value = state.chasmaAmount;
+            document.getElementById('chasmaAmountVal').innerText = (+state.chasmaAmount).toFixed(2);
+            document.getElementById('spotDensity').value = state.spotDensity;
+            document.getElementById('spotDensityVal').innerText = (+state.spotDensity).toFixed(2);
+            state.patterns = (p.pattern && p.pattern !== 'none' && PAT_TYPES[p.pattern]) ? [makePattern(p.pattern)] : [];
+            renderPatternList();
+            document.getElementById('plateClustering').value = state.plateClustering;
+
+            document.getElementById('asteroidShaderToggle').checked = !!p.asteroidMode;
+            document.getElementById('shapeFactor').value = p.shapeFactor;
+            document.getElementById('shapeFactorVal').innerText = p.shapeFactor;
+            document.getElementById('displacementHeight').value = p.displacementHeight;
+            document.getElementById('displacementHeightVal').innerText = p.displacementHeight;
+            document.getElementById('continentScale').value = p.continentScale;
+            document.getElementById('continentScaleVal').innerText = p.continentScale;
+            document.getElementById('seaLevel').value = p.seaLevel;
+            document.getElementById('seaLevelVal').innerText = p.seaLevel;
+            if(p.oceanDepthFactor !== undefined) {
+                document.getElementById('oceanDepth').value = p.oceanDepthFactor;
+                document.getElementById('oceanDepthVal').innerText = p.oceanDepthFactor;
+            }
+            if(p.plateClustering !== undefined) {
+                document.getElementById('plateClustering').value = p.plateClustering;
+                document.getElementById('plateClusteringVal').innerText = p.plateClustering;
+            }
+            if(p.microNoise !== undefined) {
+                document.getElementById('microNoise').value = p.microNoise;
+                document.getElementById('microNoiseVal').innerText = p.microNoise;
+            }
+            document.getElementById('terrainRoughness').value = p.roughnessOctaves;
+            document.getElementById('terrainRoughnessVal').innerText = p.roughnessOctaves;
+            document.getElementById('mountainSharpness').value = p.mountainSharpness;
+            document.getElementById('mountainSharpnessVal').innerText = p.mountainSharpness;
+            document.getElementById('craterDensity').value = p.craterDensity;
+            document.getElementById('craterDensityVal').innerText = p.craterDensity;
+            document.getElementById('snowCap').value = p.snowCap;
+            document.getElementById('snowCapVal').innerText = p.snowCap;
+
+            document.getElementById('cDeepWater').value = p.colors.deepWater;
+            document.getElementById('cShallowWater').value = p.colors.shallowWater;
+            document.getElementById('cCoast').value = p.colors.coast;
+            document.getElementById('cLowland').value = p.colors.lowland;
+            document.getElementById('cHighland').value = p.colors.highland;
+            document.getElementById('cMountain').value = p.colors.mountain;
+            document.getElementById('cSnow').value = p.colors.snow;
+
+            recomputeAll();
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (state.autoRotate && planetMesh) {
+                planetMesh.rotation.y += 0.002;
+            }
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function() {
+            createPlanetMesh();
+            bindUI();
+            bindFeatureUI();
+            bindSliderPerformance('chasmaAmount', 'chasmaAmountVal', 'chasmaAmount', false, true);
+            bindSliderPerformance('spotDensity', 'spotDensityVal', 'spotDensity', false, true);
+            bindPatternUI();
+            bindAsteroidUI();
+            updateBodyLabels();
+            bindGlobalColorUI();
+            updateLighting();
+            applyPreset(presets.earth);
+            animate();
+        };
+    </script>
+</body>
+</html>
